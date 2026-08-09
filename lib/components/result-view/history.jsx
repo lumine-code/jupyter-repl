@@ -1,6 +1,6 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch");
-const { CompositeDisposable } = require("atom");
+const { CompositeDisposable } = require("lumine");
 const { renderDisplay } = require("./display");
 const { outputFontSize } = require("./output-actions");
 
@@ -14,7 +14,7 @@ class History {
 
     this.disposables = new CompositeDisposable(
       this.store.onDidUpdate(() => etch.update(this)),
-      atom.commands.add(this.element, {
+      lumine.commands.add(this.element, {
         "core:move-left": () => this.store.decrementIndex(),
         "core:move-right": () => this.store.incrementIndex(),
       }),
@@ -70,7 +70,7 @@ class History {
           tabIndex={-1}
           style={{ fontSize: outputFontSize() }}
           attributes={{
-            "data-wrap-output": String(atom.config.get("jupyter-repl.wrapOutput") ?? true),
+            "data-wrap-output": String(lumine.config.get("jupyter-repl.wrapOutput") ?? true),
           }}
         >
           {renderDisplay(output)}

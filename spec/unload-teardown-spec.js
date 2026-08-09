@@ -19,14 +19,14 @@ describe("teardown with a running kernel", () => {
   beforeEach(async () => {
     store = require("../lib/store");
     // The package activates on its commands, so dispatch one to trigger it.
-    const activation = atom.packages.activatePackage(PACKAGE_PATH);
-    atom.commands.dispatch(atom.views.getView(atom.workspace), "jupyter-repl:debug-toggle");
+    const activation = lumine.packages.activatePackage(PACKAGE_PATH);
+    lumine.commands.dispatch(lumine.views.getView(lumine.workspace), "jupyter-repl:debug-toggle");
     await activation;
   }, 30000);
 
   afterEach(async () => {
     store.runningKernels = [];
-    await atom.packages.deactivatePackage("jupyter-repl");
+    await lumine.packages.deactivatePackage("jupyter-repl");
   });
 
   // `grammar` is what the package's editor-class autorun reads off a running
@@ -42,7 +42,7 @@ describe("teardown with a running kernel", () => {
     const kernel = fakeKernel();
     store.runningKernels.push(kernel);
 
-    atom.emitter.emit("will-destroy");
+    lumine.emitter.emit("will-destroy");
 
     expect(kernel.destroyed).toBe(1);
   });
@@ -55,7 +55,7 @@ describe("teardown with a running kernel", () => {
     const kernel = fakeKernel();
     store.runningKernels.push(kernel);
 
-    atom.emitter.emit("will-destroy");
+    lumine.emitter.emit("will-destroy");
 
     expect(kernel.destroyed).toBe(1);
     expect(kernel.shutdowns).toBe(0);
@@ -72,7 +72,7 @@ describe("teardown with a running kernel", () => {
     store.runningKernels.push(thrower, survivor);
     spyOn(console, "error");
 
-    atom.emitter.emit("will-destroy");
+    lumine.emitter.emit("will-destroy");
 
     expect(survivor.destroyed).toBe(1);
   });

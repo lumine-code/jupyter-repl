@@ -12,7 +12,7 @@ describe("jupyter-repl gateways config", () => {
 
   beforeEach(() => {
     configDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "jupyter-repl-config-")));
-    spyOn(atom, "getConfigDirPath").andReturn(configDir);
+    spyOn(lumine, "getConfigDirPath").andReturn(configDir);
   });
 
   afterEach(() => {
@@ -45,31 +45,31 @@ describe("jupyter-repl gateways config", () => {
 
   it("migrates the legacy gateways string setting into gateways.json", () => {
     const legacy = [{ name: "Legacy", baseUrl: "http://example.com" }];
-    spyOn(atom.config, "get").andCallFake((key) =>
+    spyOn(lumine.config, "get").andCallFake((key) =>
       key === "jupyter-repl.gateways" ? JSON.stringify(legacy) : undefined,
     );
-    spyOn(atom.config, "unset");
+    spyOn(lumine.config, "unset");
 
     Config.ensureGatewaysFile(Config.getGatewaysPath());
 
     expect(JSON.parse(fs.readFileSync(Config.getGatewaysPath(), "utf8"))).toEqual(legacy);
-    expect(atom.config.unset).toHaveBeenCalledWith("jupyter-repl.gateways");
+    expect(lumine.config.unset).toHaveBeenCalledWith("jupyter-repl.gateways");
   });
 
   it("reports an error and returns the default when gateways.json is broken", () => {
     fs.writeFileSync(Config.getGatewaysPath(), "{ not valid json ");
-    spyOn(atom.notifications, "addError");
+    spyOn(lumine.notifications, "addError");
 
     expect(Config.getGateways(["fallback"])).toEqual(["fallback"]);
-    expect(atom.notifications.addError).toHaveBeenCalled();
+    expect(lumine.notifications.addError).toHaveBeenCalled();
   });
 
   it("rejects a gateways.json that is not an array", () => {
     fs.writeFileSync(Config.getGatewaysPath(), JSON.stringify({ not: "an array" }));
-    spyOn(atom.notifications, "addError");
+    spyOn(lumine.notifications, "addError");
 
     expect(Config.getGateways([])).toEqual([]);
-    expect(atom.notifications.addError).toHaveBeenCalled();
+    expect(lumine.notifications.addError).toHaveBeenCalled();
   });
 
   it("loads config without the removed season module", () => {

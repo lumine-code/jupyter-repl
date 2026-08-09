@@ -107,7 +107,7 @@ type JupyterKernel = {
 ## Minimal example
 
 ```js
-const { CompositeDisposable, Disposable } = require("atom");
+const { CompositeDisposable, Disposable } = require("lumine");
 
 module.exports = {
   consumeJupyterKernel(provider) {

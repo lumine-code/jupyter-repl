@@ -102,12 +102,12 @@ The command template is configurable via the `Jupyter console command` setting. 
 
 ## Editor kernel class
 
-While a file has a running kernel, jupyter-repl adds the `jupyter-kernel` class to its `atom-text-editor` element. The class is added when the kernel starts, removed when it shuts down, and follows the file when it is saved or reopened. This lets you scope styles to editors that actually have a live kernel.
+While a file has a running kernel, jupyter-repl adds the `jupyter-kernel` class to its `lumine-text-editor` element. The class is added when the kernel starts, removed when it shuts down, and follows the file when it is saved or reopened. This lets you scope styles to editors that actually have a live kernel.
 
 For example, highlight such editors in your `styles.css`:
 
 ```css
-atom-text-editor.jupyter-kernel {
+lumine-text-editor.jupyter-kernel {
   border-left: 2px solid limegreen;
 }
 ```

@@ -19,7 +19,7 @@ class ScrollList {
         tabIndex={-1}
         style={{ fontSize: outputFontSize() }}
         attributes={{
-          "data-wrap-output": String(atom.config.get("jupyter-repl.wrapOutput") ?? true),
+          "data-wrap-output": String(lumine.config.get("jupyter-repl.wrapOutput") ?? true),
         }}
       >
         {this.outputs.map((output, index) => (

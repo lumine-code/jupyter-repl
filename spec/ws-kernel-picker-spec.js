@@ -41,7 +41,7 @@ describe("ws-kernel-picker modal flow", () => {
 
     expect(picker.authList.isVisible()).toBeTruthy();
     expect(picker.authList.props.infoMessage).toBe("Authenticate with local");
-    expect(atom.workspace.getModalTrail()).toEqual(["Gateways", "Authentication"]);
+    expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "Authentication"]);
   });
 
   it("prompts for a masked token and reaches the gateway's sessions", async () => {
@@ -50,7 +50,7 @@ describe("ws-kernel-picker modal flow", () => {
     await picker.onAuthMethod("token");
 
     expect(picker.credentialDialog.isVisible()).toBeTruthy();
-    expect(atom.workspace.getModalTrail()).toEqual(["Gateways", "Authentication", "Token"]);
+    expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "Authentication", "Token"]);
     picker.credentialDialog.refs.queryEditor.setText("secret");
     expect(picker.credentialDialog.refs.queryEditor.element.style.webkitTextSecurity).toBe("disc");
 
@@ -58,7 +58,7 @@ describe("ws-kernel-picker modal flow", () => {
 
     expect(picker._gatewayOptions.token).toBe("secret");
     expect(picker.sessionList.isVisible()).toBeTruthy();
-    expect(atom.workspace.getModalTrail()).toEqual([
+    expect(lumine.workspace.getModalTrail()).toEqual([
       "Gateways",
       "Authentication",
       "Token",
@@ -72,7 +72,7 @@ describe("ws-kernel-picker modal flow", () => {
     await picker.onGateway(GATEWAYS[1]);
 
     expect(picker.sessionList.isVisible()).toBeTruthy();
-    expect(atom.workspace.getModalTrail()).toEqual(["Gateways", "tokened"]);
+    expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "tokened"]);
   });
 
   it("keeps an empty credential in the dialog with an error message", async () => {
@@ -96,7 +96,7 @@ describe("ws-kernel-picker modal flow", () => {
 
     expect(picker.sessionList.isVisible()).toBeFalsy();
     expect(picker.credentialDialog.isVisible()).toBeTruthy();
-    expect(atom.workspace.getModalTrail()).toEqual(["Gateways", "Authentication", "Token"]);
+    expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "Authentication", "Token"]);
   });
 
   it("lists kernel specs for a new session and navigates back to the sessions", async () => {
@@ -109,12 +109,12 @@ describe("ws-kernel-picker modal flow", () => {
     expect(picker.specList.isVisible()).toBeTruthy();
     expect(picker.specList.props.infoMessage).toBe("Select a kernel spec");
     expect(picker.specList.props.items.map((item) => item.name)).toEqual(["Python 3"]);
-    expect(atom.workspace.getModalTrail()).toEqual(["Gateways", "tokened", "New session"]);
+    expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "tokened", "New session"]);
 
-    expect(atom.workspace.popModal()).toBe(true);
+    expect(lumine.workspace.popModal()).toBe(true);
     expect(picker.sessionList.isVisible()).toBeTruthy();
     expect(picker.sessionList.props.items[0]).toBe(newSession);
-    expect(atom.workspace.getModalTrail()).toEqual(["Gateways", "tokened"]);
+    expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "tokened"]);
   });
 
   it("abandons the flow when no kernel spec matches the grammar", async () => {
@@ -122,6 +122,6 @@ describe("ws-kernel-picker modal flow", () => {
     await picker.onGateway(GATEWAYS[1]);
 
     expect(picker.sessionList.isVisible()).toBeFalsy();
-    expect(atom.workspace.getModalTrail()).toEqual([]);
+    expect(lumine.workspace.getModalTrail()).toEqual([]);
   });
 });

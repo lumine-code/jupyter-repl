@@ -27,7 +27,7 @@ module.exports = {
   provideJupyterAdapter() {
     return {
       getActiveAdapter() {
-        return this.getAdapterForItem(atom.workspace.getActivePaneItem());
+        return this.getAdapterForItem(lumine.workspace.getActivePaneItem());
       },
 
       getAdapterForItem(item) {

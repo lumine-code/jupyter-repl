@@ -1,4 +1,4 @@
-const { Point, Range } = require("atom");
+const { Point, Range } = require("lumine");
 const { run, runAll } = require("../lib/main");
 const result = require("../lib/result");
 const store = require("../lib/store");
@@ -21,16 +21,16 @@ describe("batch inline feedback", () => {
   beforeEach(async () => {
     previousEditor = store.editor;
     previousActivePaneItem = store.activePaneItem;
-    previousOutputAreaDefault = atom.config.get("jupyter-repl.outputAreaDefault");
+    previousOutputAreaDefault = lumine.config.get("jupyter-repl.outputAreaDefault");
     previousResizeObserver = global.ResizeObserver;
     global.ResizeObserver = class {
       observe() {}
       unobserve() {}
       disconnect() {}
     };
-    atom.config.set("jupyter-repl.outputAreaDefault", false);
+    lumine.config.set("jupyter-repl.outputAreaDefault", false);
 
-    editor = await atom.workspace.open();
+    editor = await lumine.workspace.open();
     editor.setText("first()\nsecond()\nthird()");
     store.updateEditor(editor);
     store.updateActivePaneItem(editor);
@@ -66,7 +66,7 @@ describe("batch inline feedback", () => {
     store.kernelMapping.delete(filePath);
     store.updateEditor(previousEditor);
     store.updateActivePaneItem(previousActivePaneItem);
-    atom.config.set("jupyter-repl.outputAreaDefault", previousOutputAreaDefault);
+    lumine.config.set("jupyter-repl.outputAreaDefault", previousOutputAreaDefault);
     global.ResizeObserver = previousResizeObserver;
     editor.destroy();
   });

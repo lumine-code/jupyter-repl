@@ -5,7 +5,7 @@
 
 const etch = require("@lumine-code/etch"); // JSX factory
 function markdownRenderer(data) {
-  const html = atom.tools.markdown.render(data || "", {
+  const html = lumine.tools.markdown.render(data || "", {
     sanitize: true,
     breaks: true,
     handleFrontMatter: false,

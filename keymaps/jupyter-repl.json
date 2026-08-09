@@ -3,7 +3,7 @@
   // packages. `alt-j k` is this package's kernel sub-family: interrupt and
   // restart are the two most-used actions in a notebook session and had no
   // keystroke at all.
-  "atom-workspace": {
+  "lumine-workspace": {
     "alt-j o": "jupyter-repl:toggle-output-area",
     "alt-j k i": "jupyter-repl:interrupt-kernel",
     "alt-j k r": "jupyter-repl:restart-kernel",
@@ -11,11 +11,11 @@
     "alt-j k s": "jupyter-repl:shutdown-kernel",
     "alt-j k l": "jupyter-repl:start-local-kernel"
   },
-  "atom-workspace atom-text-editor:not([mini]):not(atom-dock atom-text-editor)": {
+  "lumine-workspace lumine-text-editor:not([mini]):not(lumine-dock lumine-text-editor)": {
     "cmdorctrl-enter": "jupyter-repl:run",
     "shift-enter": "jupyter-repl:run-and-move-down",
     // Not alt-enter: that is the cross-editor quick-fix keystroke, and
-    // intentions binds it at atom-text-editor:not([mini]) as its only command
+    // intentions binds it at lumine-text-editor:not([mini]) as its only command
     // and its only key. This block is more specific, so it silently took it in
     // every editor that is not in a dock, leaving intentions palette-only.
     "alt-shift-enter": "jupyter-repl:run-cell",
@@ -24,7 +24,7 @@
     "ctrl-shift-backspace": "jupyter-repl:clear-results",
     "cmdorctrl-alt-backspace": "jupyter-repl:clear-results"
   },
-  "atom-workspace .jupyter-repl.kernel-picker atom-text-editor[mini]": {
+  "lumine-workspace .jupyter-repl.kernel-picker lumine-text-editor[mini]": {
     "ctrl-enter": "jupyter-repl:insert-kernel-comment",
     "f5": "jupyter-repl:refresh-kernel-list"
   }

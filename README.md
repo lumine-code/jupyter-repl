@@ -20,7 +20,7 @@ To install `jupyter-repl` search for _jupyter-repl_ in the Install pane of the L
 
 ## Commands
 
-Commands available in `atom-workspace`:
+Commands available in `lumine-workspace`:
 
 - `jupyter-repl:run`: run code at cursor,
 - `jupyter-repl:run-and-move-down`: run and move to next block,

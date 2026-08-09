@@ -1,6 +1,6 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch");
-const { CompositeDisposable, Disposable } = require("atom");
+const { CompositeDisposable, Disposable } = require("lumine");
 const { NO_EXECTIME_STRING, formatElapsedTime } = require("../../../utils");
 
 // While a kernel is busy the elapsed time is redrawn from a timer rather than
@@ -16,17 +16,17 @@ class StatusBar {
     this.elapsedMs = 0;
     this.timerId = null;
     this.kernelSubscription = null;
-    this.disabled = Boolean(atom.config.get("jupyter-repl.statusBarDisable"));
-    this.showKernelInfo = Boolean(atom.config.get("jupyter-repl.statusBarKernelInfo"));
+    this.disabled = Boolean(lumine.config.get("jupyter-repl.statusBarDisable"));
+    this.showKernelInfo = Boolean(lumine.config.get("jupyter-repl.statusBarKernelInfo"));
 
     etch.initialize(this);
 
     this.disposables = new CompositeDisposable(
-      atom.config.observe("jupyter-repl.statusBarDisable", (value) => {
+      lumine.config.observe("jupyter-repl.statusBarDisable", (value) => {
         this.disabled = Boolean(value);
         etch.update(this);
       }),
-      atom.config.observe("jupyter-repl.statusBarKernelInfo", (value) => {
+      lumine.config.observe("jupyter-repl.statusBarKernelInfo", (value) => {
         this.showKernelInfo = Boolean(value);
         etch.update(this);
       }),

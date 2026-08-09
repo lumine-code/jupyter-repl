@@ -70,7 +70,7 @@ class PlotlyTransform {
 
   downloadImage = (gd) => {
     this.Plotly.toImage(gd).then(function (dataUrl) {
-      return atom.window.downloadURL(dataUrl);
+      return lumine.window.downloadURL(dataUrl);
     });
   };
 

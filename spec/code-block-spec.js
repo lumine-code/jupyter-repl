@@ -9,13 +9,13 @@ describe("code block detection for multiline strings", () => {
   let editor;
 
   const open = async (text) => {
-    editor = await atom.workspace.open();
+    editor = await lumine.workspace.open();
     editor.getBuffer().setText(text);
     return editor;
   };
 
   beforeEach(() => {
-    atom.packages.deactivatePackages();
+    lumine.packages.deactivatePackages();
   });
 
   it("captures a bracket-wrapped multiline string from its opening line", async () => {
@@ -77,13 +77,13 @@ describe("code block detection for multiline strings", () => {
   });
 
   it("works under the TextMate python grammar, which has no string folds", async () => {
-    atom.config.set("language.useTreeSitterParsers", false);
-    await atom.packages.activatePackage("language-python");
+    lumine.config.set("language.useTreeSitterParsers", false);
+    await lumine.packages.activatePackage("language-python");
     const e = await open("doc.x('''\n11\n''')\n");
-    atom.grammars.assignLanguageMode(e.getBuffer(), "source.python");
+    lumine.grammars.assignLanguageMode(e.getBuffer(), "source.python");
     expect(e.getBuffer().getLanguageMode().constructor.name).toBe("TextMateLanguageMode");
     const block = findCodeBlockAtRow(e, 0);
     expect(block.code).toBe("doc.x('''\n11\n''')");
-    atom.config.set("language.useTreeSitterParsers", true);
+    lumine.config.set("language.useTreeSitterParsers", true);
   });
 });

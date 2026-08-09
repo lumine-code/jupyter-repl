@@ -87,7 +87,7 @@ describe("jupyter-repl configSchema", () => {
         } else if (entry.name.endsWith(".js")) {
           const source = fs.readFileSync(full, "utf8");
           const pattern =
-            /atom\.config\.(?:get|set|observe|onDidChange|unset)\(\s*["'`]jupyter-repl\.([\w]+)/g;
+            /lumine\.config\.(?:get|set|observe|onDidChange|unset)\(\s*["'`]jupyter-repl\.([\w]+)/g;
           for (const match of source.matchAll(pattern)) {
             read.add(match[1]);
           }

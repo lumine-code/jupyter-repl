@@ -1,6 +1,6 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch");
-const { CompositeDisposable } = require("atom");
+const { CompositeDisposable } = require("lumine");
 const { renderDisplay } = require("./display");
 const { renderStatus } = require("./status");
 const actions = require("./output-actions");
@@ -129,7 +129,7 @@ class ResultViewComponent {
         onClick={isPlain ? this.checkForSelection : null}
         style={isPlain ? inlineStyle : blockStyle}
         attributes={{
-          "data-wrap-output": String(atom.config.get("jupyter-repl.wrapOutput") ?? true),
+          "data-wrap-output": String(lumine.config.get("jupyter-repl.wrapOutput") ?? true),
         }}
       >
         <div
@@ -200,7 +200,7 @@ class ResultViewComponent {
     const display = this.refs.display;
     if (this.store.isPlain && display) {
       this.addTooltip(this.containerTooltip, () =>
-        atom.tooltips.addComposite(display, [
+        lumine.tooltips.addComposite(display, [
           { title: "Copy", keyBindingExtra: "LMB" },
           { title: "Open in editor", keyBindingExtra: "cmdorctrl+LMB" },
         ]),
@@ -212,7 +212,7 @@ class ResultViewComponent {
 
     if (this.refs.copyButton) {
       this.addTooltip(this.buttonTooltip, () =>
-        atom.tooltips.addComposite(this.refs.copyButton, [
+        lumine.tooltips.addComposite(this.refs.copyButton, [
           { title: "Copy", keyBindingExtra: "LMB" },
           { title: "Open in editor", keyBindingExtra: "cmdorctrl+LMB" },
         ]),
@@ -220,12 +220,12 @@ class ResultViewComponent {
     }
     if (this.refs.closeButton) {
       this.addTooltip(this.closeTooltip, () =>
-        atom.tooltips.add(this.refs.closeButton, { title: "Close" }),
+        lumine.tooltips.add(this.refs.closeButton, { title: "Close" }),
       );
     }
     if (this.refs.saveButton) {
       this.addTooltip(this.saveTooltip, () =>
-        atom.tooltips.add(this.refs.saveButton, { title: "Save image as..." }),
+        lumine.tooltips.add(this.refs.saveButton, { title: "Save image as..." }),
       );
     }
   }
@@ -260,7 +260,7 @@ class ResultViewComponent {
       !display ||
       this.expanded ||
       this.store.isPlain ||
-      atom.config.get("jupyter-repl.autoScroll") === false
+      lumine.config.get("jupyter-repl.autoScroll") === false
     ) {
       return;
     }

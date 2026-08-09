@@ -10,11 +10,11 @@ describe("jupyter-repl kernel picker item actions", () => {
   let picker;
 
   beforeEach(async () => {
-    jasmine.attachToDOM(atom.views.getView(atom.workspace));
+    jasmine.attachToDOM(lumine.views.getView(lumine.workspace));
     // The package activates on its commands, so dispatch one to trigger it;
     // activation also loads the package keymap the actions list reads.
-    const activation = atom.packages.activatePackage(PACKAGE_PATH);
-    atom.commands.dispatch(atom.views.getView(atom.workspace), "jupyter-repl:debug-toggle");
+    const activation = lumine.packages.activatePackage(PACKAGE_PATH);
+    lumine.commands.dispatch(lumine.views.getView(lumine.workspace), "jupyter-repl:debug-toggle");
     await activation;
     picker = new KernelPicker([
       { name: "python3", display_name: "Python 3" },
@@ -24,7 +24,7 @@ describe("jupyter-repl kernel picker item actions", () => {
 
   afterEach(async () => {
     picker.destroy();
-    await atom.packages.deactivatePackage("jupyter-repl");
+    await lumine.packages.deactivatePackage("jupyter-repl");
   });
 
   it("derives its actions from the command registrations and the keymap", () => {
@@ -60,7 +60,7 @@ describe("jupyter-repl kernel picker item actions", () => {
     await picker.selectList.showItemActions();
 
     expect(picker.selectList.itemActionsList.isVisible()).toBeTruthy();
-    expect(atom.workspace.getModalTrail()).toEqual(["Kernels", "Actions"]);
+    expect(lumine.workspace.getModalTrail()).toEqual(["Kernels", "Actions"]);
     // The actions list wears the picker's classes, so the package keymap
     // resolves action keystrokes inside it too.
     expect(picker.selectList.itemActionsList.element.classList.contains("kernel-picker")).toBe(
@@ -80,8 +80,8 @@ describe("jupyter-repl kernel picker item actions", () => {
   });
 
   it("runs an action against the kernel the user highlighted", async () => {
-    await atom.packages.activatePackage("language-python");
-    const editor = await atom.workspace.open("kernel-comment.py");
+    await lumine.packages.activatePackage("language-python");
+    const editor = await lumine.workspace.open("kernel-comment.py");
     picker.selectList.show();
     // The second kernel, so an action that silently fell back to the top of
     // the list would name the wrong one.

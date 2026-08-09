@@ -57,8 +57,8 @@ describe("status bar tile", () => {
   let component;
 
   beforeEach(() => {
-    atom.config.set("jupyter-repl.statusBarDisable", false);
-    atom.config.set("jupyter-repl.statusBarKernelInfo", true);
+    lumine.config.set("jupyter-repl.statusBarDisable", false);
+    lumine.config.set("jupyter-repl.statusBarKernelInfo", true);
     container = document.createElement("div");
   });
 
@@ -89,7 +89,7 @@ describe("status bar tile", () => {
   });
 
   it("omits the count and timing when detailed info is off", () => {
-    atom.config.set("jupyter-repl.statusBarKernelInfo", false);
+    lumine.config.set("jupyter-repl.statusBarKernelInfo", false);
     mount(fakeStore(fakeKernel({ executionCount: 3, lastExecutionTime: "1.500 sec" })));
 
     expect(component.element.textContent).toBe("Python 3 | idle");
@@ -127,7 +127,7 @@ describe("status bar tile", () => {
     mount(fakeStore(fakeKernel()));
     expect(container.style.display).toBe("");
 
-    atom.config.set("jupyter-repl.statusBarDisable", true);
+    lumine.config.set("jupyter-repl.statusBarDisable", true);
     flush(component);
 
     expect(container.style.display).toBe("none");

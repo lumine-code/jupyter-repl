@@ -71,7 +71,7 @@ An `Output` is a Jupyter notebook-format output (`output_type` of `execute_resul
 ## Minimal example
 
 ```js
-const { Disposable } = require("atom");
+const { Disposable } = require("lumine");
 
 module.exports = {
   consumeJupyterOutput(output) {

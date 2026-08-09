@@ -21,11 +21,11 @@ describe("jupyter-repl package assets", () => {
         .readFileSync(path.join(root, "keymaps/jupyter-repl.json"), "utf8")
         .replace(/^\s*\/\/.*$/gm, ""),
     );
-    expect(keymap["atom-workspace"]).toBeDefined();
+    expect(keymap["lumine-workspace"]).toBeDefined();
     // alt-enter belongs to intentions, whose only command it is; a more
     // specific block here took it silently in every non-dock editor.
     const editorBlock =
-      keymap["atom-workspace atom-text-editor:not([mini]):not(atom-dock atom-text-editor)"];
+      keymap["lumine-workspace lumine-text-editor:not([mini]):not(lumine-dock lumine-text-editor)"];
     expect(editorBlock["alt-enter"]).toBeUndefined();
     expect(editorBlock["alt-shift-enter"]).toBe("jupyter-repl:run-cell");
 
@@ -53,7 +53,7 @@ describe("jupyter-repl package assets", () => {
 
   it("takes the select list from the editor, not from a dependency", () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-    // The editor provides the list through atom.workspace.buildSelectList, so
+    // The editor provides the list through lumine.workspace.buildSelectList, so
     // there is nothing to declare and nothing to keep pinned.
     expect(pkg.dependencies["@lumine-code/select-list"]).toBeUndefined();
     expect(pkg.dependencies["@asiloisad/select-list"]).toBeUndefined();

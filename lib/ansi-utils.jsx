@@ -9,7 +9,7 @@ const Anser = require("anser");
  * @param {number} maxLength - Maximum length (default: from config, 0 = no limit)
  * @returns {{ text: string, truncated: boolean }} - Truncated text and flag
  */
-function truncateOutput(text, maxLength = atom.config.get("jupyter-repl.outputMaxLength")) {
+function truncateOutput(text, maxLength = lumine.config.get("jupyter-repl.outputMaxLength")) {
   if (!text || typeof text !== "string") {
     return { text: text || "", truncated: false };
   }

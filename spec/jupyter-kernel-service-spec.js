@@ -1,4 +1,4 @@
-const { Emitter, CompositeDisposable } = require("atom");
+const { Emitter, CompositeDisposable } = require("lumine");
 const JupyterProvider = require("../lib/plugin-api/jupyter-provider");
 const store = require("../lib/store");
 

@@ -21,7 +21,7 @@ describe("store kernel tracking", () => {
   beforeEach(async () => {
     previousEditor = store.editor;
     previousActivePaneItem = store.activePaneItem;
-    editor = await atom.workspace.open();
+    editor = await lumine.workspace.open();
     store.updateEditor(editor);
     store.updateActivePaneItem(editor);
   });
@@ -74,7 +74,7 @@ describe("store kernel tracking", () => {
     // second carries the new file and must announce its kernel.
     const kernelA = fakeKernel("A");
     const kernelB = fakeKernel("B");
-    const editorB = await atom.workspace.open();
+    const editorB = await lumine.workspace.open();
     store.kernelMapping.set(store.filePath, new Map([[store.grammar.name, kernelA]]));
     store._emitKernelsChanged();
     expect(store.kernel).toBe(kernelA);
@@ -153,7 +153,7 @@ describe("store kernel tracking", () => {
   });
 
   it("follows an item that changes which kernel it shows", () => {
-    const { Emitter } = require("atom");
+    const { Emitter } = require("lumine");
     const first = fakeKernel("First");
     const second = fakeKernel("Second");
     store.runningKernels = [first, second];

@@ -12,8 +12,8 @@ describe("cell folding", () => {
   // `getBreakpoints` reads scopes — which only exist once the buffer has been
   // tokenized. Without the wait every file reads as a single cell.
   const openPython = async (text) => {
-    await atom.packages.activatePackage("language-python");
-    editor = await atom.workspace.open("cell-fold.py");
+    await lumine.packages.activatePackage("language-python");
+    editor = await lumine.workspace.open("cell-fold.py");
     editor.getBuffer().setText(text);
     const languageMode = editor.getBuffer().getLanguageMode();
     if (languageMode.atTransactionEnd) {

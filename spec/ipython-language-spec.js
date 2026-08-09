@@ -8,7 +8,7 @@ describe("IPython grammar language mapping", () => {
   const pythonGrammar = { name: "Python", scopeName: "source.python" };
 
   beforeEach(() => {
-    atom.config.set("jupyter-repl.languageMappings", "");
+    lumine.config.set("jupyter-repl.languageMappings", "");
   });
 
   it("maps the IPython grammar to the python kernel language", () => {
@@ -28,7 +28,7 @@ describe("IPython grammar language mapping", () => {
   });
 
   it("lets user languageMappings override the builtin alias", () => {
-    atom.config.set("jupyter-repl.languageMappings", JSON.stringify({ julia: "IPython" }));
+    lumine.config.set("jupyter-repl.languageMappings", JSON.stringify({ julia: "IPython" }));
     expect(grammarToLanguage(ipythonGrammar)).toBe("julia");
   });
 });

@@ -1,4 +1,4 @@
-const { watchFile } = require("atom");
+const { watchFile } = require("lumine");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -28,7 +28,7 @@ describe("watchFile (kernel-file watcher migration)", () => {
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
-  it("is exported from the atom module as a function", () => {
+  it("is exported from the lumine module as a function", () => {
     expect(typeof watchFile).toBe("function");
   });
 

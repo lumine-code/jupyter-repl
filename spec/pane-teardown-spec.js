@@ -18,7 +18,7 @@ function newPane(config = {}) {
 describe("BasePane teardown", () => {
   it("leaves no tab behind when destroyed directly", () => {
     const item = newPane();
-    const pane = atom.workspace.getCenter().getActivePane();
+    const pane = lumine.workspace.getCenter().getActivePane();
     pane.addItem(item);
 
     expect(pane.getItems()).toContain(item);

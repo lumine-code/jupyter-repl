@@ -1,6 +1,6 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch");
-const { CompositeDisposable } = require("atom");
+const { CompositeDisposable } = require("lumine");
 const Anser = require("anser");
 const History = require("./result-view/history");
 const ScrollList = require("./result-view/list");
@@ -74,10 +74,10 @@ class OutputArea {
     const copyOutput = output && this.getOutputText(output);
 
     if (copyOutput) {
-      atom.clipboard.write(Anser.ansiToText(copyOutput));
-      atom.notifications.addSuccess("Copied to clipboard");
+      lumine.clipboard.write(Anser.ansiToText(copyOutput));
+      lumine.notifications.addSuccess("Copied to clipboard");
     } else {
-      atom.notifications.addWarning("Nothing to copy");
+      lumine.notifications.addWarning("Nothing to copy");
     }
   };
 
@@ -114,8 +114,8 @@ class OutputArea {
     if (!kernel) {
       // Without the dock setting the view closes itself rather than sitting
       // there empty; the hide is deferred so it does not run inside a render.
-      if (!atom.config.get("jupyter-repl.outputAreaDock")) {
-        etch.getScheduler().updateDocument(() => atom.workspace.hide(OUTPUT_AREA_URI));
+      if (!lumine.config.get("jupyter-repl.outputAreaDock")) {
+        etch.getScheduler().updateDocument(() => lumine.workspace.hide(OUTPUT_AREA_URI));
       }
       return <div className="sidebar output-area">{renderEmptyMessage()}</div>;
     }
