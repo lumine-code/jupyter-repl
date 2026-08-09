@@ -70,14 +70,7 @@ class PlotlyTransform {
 
   downloadImage = (gd) => {
     this.Plotly.toImage(gd).then(function (dataUrl) {
-      const remote = require(
-        require("path").join(
-          atom.getLoadSettings().resourcePath,
-          "node_modules",
-          "@electron/remote",
-        ),
-      );
-      remote.getCurrentWebContents().downloadURL(dataUrl);
+      return atom.window.downloadURL(dataUrl);
     });
   };
 
