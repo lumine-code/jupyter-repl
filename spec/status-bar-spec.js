@@ -1,5 +1,6 @@
 const etch = require("@lumine-code/etch");
 const StatusBar = require("../lib/services/consumed/status-bar/status-bar-component");
+const { StatusBarConsumer } = require("../lib/services/consumed/status-bar/status-bar");
 
 // The tile used to re-render through mobx observation of the store. It now
 // subscribes to the store's kernel event and to each kernel's status event, so
@@ -142,5 +143,27 @@ describe("status bar tile", () => {
     component = null;
 
     expect(kernel.listenerCount()).toBe(0);
+  });
+});
+
+describe("status bar consumer", () => {
+  it("does not create a tile until a kernel exists", () => {
+    const store = fakeStore(null);
+    store.subscriptions = { add: jasmine.createSpy("add") };
+    const tile = { destroy: jasmine.createSpy("destroy") };
+    const statusBar = {
+      addLeftTile: jasmine.createSpy("addLeftTile").and.returnValue(tile),
+    };
+    const consumer = new StatusBarConsumer();
+
+    const disposable = consumer.addStatusBar(store, statusBar, () => {});
+    expect(statusBar.addLeftTile).not.toHaveBeenCalled();
+    expect(store.subscriptions.add).toHaveBeenCalledWith(disposable);
+
+    store.setKernel(fakeKernel());
+    expect(statusBar.addLeftTile).toHaveBeenCalled();
+
+    disposable.dispose();
+    expect(tile.destroy).toHaveBeenCalled();
   });
 });
