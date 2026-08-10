@@ -105,6 +105,31 @@ describe("batch inline feedback", () => {
     expect(fakeKernel.executions.length).toBe(2);
   });
 
+  it("drops a batch asked for while one is already running", async () => {
+    // A held run-all keybinding repeats faster than any batch finishes; each
+    // repeat is the same request already being served, and queueing it again
+    // would duplicate every cell at the kernel.
+    const blocks = [{ code: "first()", row: 0, cellType: "codecell" }];
+    const batchPromise = result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks);
+
+    const repeats = await Promise.all([
+      result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks),
+      result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks),
+    ]);
+
+    expect(repeats).toEqual([true, true]);
+    expect(fakeKernel.executions.length).toBe(1);
+
+    await batchPromise;
+
+    // The next deliberate run, after the batch finished, goes through.
+    const again = result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks);
+    expect(fakeKernel.executions.length).toBe(2);
+    fakeKernel.executions[1].callback({ data: "ok", stream: "status" });
+    fakeKernel.executions[1].callback({ output_type: "status", execution_state: "idle" });
+    await again;
+  });
+
   it("routes run-all through the shared batch path", () => {
     const batchSpy = spyOn(result, "createResultBatch").and.returnValue(Promise.resolve(true));
     runAll([new Point(0, 7), new Point(1, 8), new Point(2, 7)]);

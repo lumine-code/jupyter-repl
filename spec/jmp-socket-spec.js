@@ -296,6 +296,37 @@ describe("jmp socket send serialization", () => {
     await third;
   });
 
+  it("skips a queued send that went stale while waiting its turn", async () => {
+    // A settled request's message can still be waiting in the chain behind a
+    // full socket; delivering it then would make the kernel execute work its
+    // caller already saw fail.
+    const socket = bareSocket();
+    const sent = [];
+    let releaseSend;
+    socket._socket = {
+      connect() {},
+      close() {},
+      send(payload) {
+        sent.push(payload);
+        return new Promise((resolve) => {
+          releaseSend = resolve;
+        });
+      },
+    };
+
+    let stale = false;
+    const first = socket.send("held");
+    const second = socket.send("maybe-stale", () => stale);
+
+    await Promise.resolve();
+    stale = true;
+    releaseSend();
+    await first;
+    await second;
+
+    expect(sent).toEqual(["held"]);
+  });
+
   it("a failed send fails its own caller and the chain carries on", async () => {
     const socket = bareSocket();
     const sent = [];
