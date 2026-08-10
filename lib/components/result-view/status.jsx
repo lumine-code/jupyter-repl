@@ -3,6 +3,9 @@
 const etch = require("@lumine-code/etch"); // JSX factory
 function renderStatus(status, style) {
   switch (status) {
+    case "queued":
+      return <div className="inline-container icon icon-clock queued" style={style} />;
+
     case "running":
       return (
         <div className="inline-container spinner" style={style}>

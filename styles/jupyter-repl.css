@@ -144,6 +144,12 @@
     }
   }
 
+  /* A cell the kernel has not reached yet. Dimmed so a run-all reads at a
+     glance: check = done, spinner = running, faint clock = waiting. */
+  .inline-container.icon.queued {
+    opacity: 0.55;
+  }
+
   /* ---------- Multiline Output ------------ */
 
   .multiline-container {

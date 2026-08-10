@@ -112,10 +112,10 @@ class ResultViewComponent {
     const inlineStyle = this.inlineStyle();
 
     if (outputs.length === 0 || !this.props.showResult) {
-      const kernel = this.props.kernel;
-      const shown =
-        kernel && kernel.executionState !== "busy" && status === "running" ? "error" : status;
-      return renderStatus(shown, inlineStyle);
+      // The store owns the execution lifecycle (queued -> running -> ok |
+      // error) and is stamped explicitly on restart, shutdown, or kernel
+      // death — the bubble never consults the kernel.
+      return renderStatus(status, inlineStyle);
     }
 
     const blockStyle = {

@@ -31,7 +31,6 @@ function stream(text) {
 function build(store) {
   return new ResultViewComponent({
     store,
-    kernel: null,
     editor: null,
     destroy: () => {},
     showResult: true,

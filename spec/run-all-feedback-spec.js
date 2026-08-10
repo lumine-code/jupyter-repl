@@ -38,10 +38,7 @@ describe("batch inline feedback", () => {
     markers = store.markers;
 
     fakeKernel = {
-      executionState: "busy",
       executions: [],
-      startBatchExecution() {},
-      endBatchExecution() {},
       setLastOutputStore() {},
       execute(code, callback) {
         this.executions.push({ code, callback });
@@ -88,10 +85,18 @@ describe("batch inline feedback", () => {
 
     window.advanceClock(25);
     expect(markers.markers.size).toBe(3);
-    expect(resultAtRow(1).outputStore.status).toBe("running");
-    expect(resultAtRow(2).outputStore.status).toBe("running");
+    // The second block has been sent but the kernel has not begun it, and the
+    // third is still waiting behind it — both read as queued, not running.
+    expect(resultAtRow(1).outputStore.status).toBe("queued");
+    expect(resultAtRow(2).outputStore.status).toBe("queued");
 
     const secondExecution = fakeKernel.executions[1];
+    // execute_input from the kernel is what turns a queued cell into a
+    // running one — the store hears it as the execution_count stream.
+    secondExecution.callback({ data: 2, stream: "execution_count" });
+    expect(resultAtRow(1).outputStore.status).toBe("running");
+    expect(resultAtRow(2).outputStore.status).toBe("queued");
+
     secondExecution.callback({ data: "error", stream: "status" });
     secondExecution.callback({ output_type: "status", execution_state: "idle" });
 

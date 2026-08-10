@@ -22,9 +22,6 @@ function bareKernel() {
   kernel.executionCallbacks = {};
   kernel.executionQueue = [];
   kernel.currentExecutionRequest = null;
-  kernel.deferredExecuteReplies = new Map();
-  kernel.idleBeforeReply = new Map();
-  kernel.deferredIdleState = new Map();
   kernel._lastOutputStore = null;
   kernel.states = [];
   kernel.setExecutionState = (state) => kernel.states.push(state);
@@ -124,15 +121,38 @@ describe("a kernel shared with another client", () => {
       expect(kernel.states).toEqual(["busy"]);
     });
 
-    it("does not let another client's idle retire our pending reply", () => {
-      kernel.deferredExecuteReplies.set("execute_1", {
-        message: {},
-        callbackInfo: { callback: () => {} },
-      });
+    it("does not let another client's idle retire our pending callback", () => {
+      // The ids of two clients are independent, so a foreign idle can carry a
+      // msg_id that collides with one of ours. Ownership must keep it from
+      // marking our execution as finished.
+      kernel.executionCallbacks["execute_1"] = {
+        callback: () => {},
+        suppressStatus: false,
+        replySeen: true,
+        idleSeen: false,
+      };
 
       kernel.onIOMessage(statusMessage(THEIRS, "idle", "execute_1"));
 
-      expect(kernel.deferredExecuteReplies.has("execute_1")).toBe(true);
+      expect(kernel.executionCallbacks["execute_1"]).toBeDefined();
+      expect(kernel.executionCallbacks["execute_1"].idleSeen).toBe(false);
+    });
+
+    it("retires an execution only once reply and idle have both arrived", () => {
+      const seen = [];
+      kernel.executionCallbacks["execute_1"] = {
+        callback: (message, channel) => seen.push(channel),
+        suppressStatus: false,
+        replySeen: true,
+        idleSeen: false,
+      };
+
+      kernel.onIOMessage(statusMessage(OURS, "idle", "execute_1"));
+
+      // The idle was forwarded, and with the reply already seen the callback
+      // is gone — later background output goes to the orphan route instead.
+      expect(seen).toEqual(["iopub"]);
+      expect(kernel.executionCallbacks["execute_1"]).toBeUndefined();
     });
   });
 
@@ -167,30 +187,6 @@ describe("a kernel shared with another client", () => {
   });
 });
 
-describe("execution state while another client holds the kernel", () => {
-  let kernel;
-
-  beforeEach(() => {
-    kernel = bareKernel();
-    kernel._processExecutionQueue = () => {};
-  });
-
-  it("reports busy as soon as we ask, not when the kernel answers", () => {
-    // A request queued behind another client's long cell is answered only once
-    // that cell finishes. A result bubble reads a non-busy kernel under a
-    // running cell as a failure, so the wait would show as an error marker.
-    kernel._enqueueExecution("1", () => {}, {});
-
-    expect(kernel.states).toEqual(["busy"]);
-  });
-
-  it("leaves the status bar alone for internal executions", () => {
-    kernel._enqueueExecution("1", () => {}, { suppressStatus: true });
-
-    expect(kernel.states).toEqual([]);
-  });
-});
-
 describe("a shell send that fails outright", () => {
   let kernel;
 
@@ -206,12 +202,12 @@ describe("a shell send that fails outright", () => {
   });
 
   it("releases the execution slot the kernel never took", async () => {
-    // The reply is synthesized locally, so it never reaches the shell handler
-    // that retires a request. Holding the slot would stall every later cell.
+    // The messages are synthesized locally, so they never reach the handlers
+    // that retire a request. Holding the slot would stall every later cell.
     const replies = [];
     kernel.currentExecutionRequest = "execute_1";
     kernel.executionCallbacks["execute_1"] = {
-      callback: (message, channel) => replies.push(channel),
+      callback: (message, channel) => replies.push([message.header.msg_type, channel]),
       suppressStatus: false,
     };
     kernel.shellMessageQueue.push({
@@ -221,7 +217,12 @@ describe("a shell send that fails outright", () => {
 
     await kernel._processShellQueue();
 
-    expect(replies).toEqual(["iopub", "shell"]);
+    // Error output, the reply, and the trailing idle a caller awaits on.
+    expect(replies).toEqual([
+      ["error", "iopub"],
+      ["execute_reply", "shell"],
+      ["status", "iopub"],
+    ]);
     expect(kernel.currentExecutionRequest).toBe(null);
     expect(kernel.states).toEqual(["idle"]);
   });
