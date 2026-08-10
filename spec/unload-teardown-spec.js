@@ -1,4 +1,5 @@
 const path = require("path");
+const { Disposable } = require("lumine");
 
 // Activate by path, not by name: resolving the name would need this checkout
 // linked into the packages directory, which is a property of whoever runs the
@@ -59,6 +60,35 @@ describe("teardown with a running kernel", () => {
 
     expect(kernel.destroyed).toBe(1);
     expect(kernel.shutdowns).toBe(0);
+  });
+
+  // Destroying a kernel changes the current one, and the status bar answers
+  // that with `etch.update` — which renders on the next animation frame, after
+  // core's `destroy()` has nulled `lumine.workspace`. Dropping the
+  // subscriptions first is what keeps that update from ever being scheduled, so
+  // the order is the assertion.
+  it("disposes its subscriptions before destroying the kernels", () => {
+    const order = [];
+    store.subscriptions.add(new Disposable(() => order.push("subscriptions")));
+    const kernel = fakeKernel();
+    kernel.destroy = () => order.push("kernel");
+    store.runningKernels.push(kernel);
+
+    lumine.emitter.emit("will-destroy");
+
+    expect(order).toEqual(["subscriptions", "kernel"]);
+  });
+
+  // `CompositeDisposable#add` is a silent no-op once disposed, and the store
+  // outlives the window, so the handler has to leave a usable one behind.
+  it("leaves a fresh CompositeDisposable behind", () => {
+    lumine.emitter.emit("will-destroy");
+
+    let disposed = false;
+    store.subscriptions.add(new Disposable(() => (disposed = true)));
+    store.subscriptions.dispose();
+
+    expect(disposed).toBe(true);
   });
 
   it("destroys every kernel even when one throws", () => {
