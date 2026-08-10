@@ -9,16 +9,20 @@ const Anser = require("anser");
  * @param {number} maxLength - Maximum length (default: from config, 0 = no limit)
  * @returns {{ text: string, truncated: boolean }} - Truncated text and flag
  */
-function truncateOutput(text, maxLength = lumine.config.get("jupyter-repl.outputMaxLength")) {
+function truncateOutput(text, maxLength) {
   if (!text || typeof text !== "string") {
     return { text: text || "", truncated: false };
   }
+  // Read the setting here rather than as a default argument, which evaluated it
+  // even on the return above.
+  const limit =
+    maxLength === undefined ? lumine.config.get("jupyter-repl.outputMaxLength") : maxLength;
   // 0, undefined, null, or negative means no limit
-  if (!maxLength || maxLength <= 0 || text.length <= maxLength) {
+  if (!limit || limit <= 0 || text.length <= limit) {
     return { text, truncated: false };
   }
   return {
-    text: text.slice(0, maxLength),
+    text: text.slice(0, limit),
     truncated: true,
   };
 }

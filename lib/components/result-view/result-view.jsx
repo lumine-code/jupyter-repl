@@ -17,6 +17,8 @@ class ResultViewComponent {
     this.expanded = false;
     this.hasImage = false;
     this.showExpandButton = false;
+    // Output count the rendered tree was last searched for an image at.
+    this.probedOutputCount = -1;
     this.wheelHandler = null;
     this.wheelElement = null;
     this.containerTooltip = new CompositeDisposable();
@@ -181,24 +183,51 @@ class ResultViewComponent {
   }
 
   afterRender() {
-    this.scrollToBottom();
-    this.syncTooltips();
-    this.syncWheelHandler();
-
     const display = this.refs.display;
-    const hasImage = actions.getImage(display) !== null;
-    const showExpandButton = Boolean(display && display.scrollHeight > SCROLL_HEIGHT);
+    const isPlain = this.store.isPlain;
 
-    if (hasImage !== this.hasImage || showExpandButton !== this.showExpandButton) {
-      this.hasImage = hasImage;
+    // Both metrics are read before anything writes: scrollToBottom sets
+    // scrollTop, and reading scrollHeight after that write forces a synchronous
+    // layout. This runs after every patch, so once per frame while output
+    // streams in.
+    const scrollHeight = display ? display.scrollHeight : 0;
+    const clientHeight = display ? display.clientHeight : 0;
+
+    this.scrollToBottom(display, scrollHeight, clientHeight, isPlain);
+    this.syncTooltips(isPlain);
+    this.syncWheelHandler(isPlain);
+
+    let changed = false;
+
+    // An image can only arrive as a new output, since reduceOutputs merges a
+    // stream into the one already there — so the output count is enough to know
+    // when it is worth walking the rendered tree again.
+    const outputCount = this.store.outputs.length;
+    if (outputCount !== this.probedOutputCount) {
+      this.probedOutputCount = outputCount;
+      const hasImage = display ? actions.getImage(display) !== null : false;
+      if (hasImage !== this.hasImage) {
+        this.hasImage = hasImage;
+        changed = true;
+      }
+    }
+
+    // Not cacheable the same way: a growing stream merges into one output, so
+    // the count holds still while the height climbs past the threshold.
+    const showExpandButton = scrollHeight > SCROLL_HEIGHT;
+    if (showExpandButton !== this.showExpandButton) {
       this.showExpandButton = showExpandButton;
+      changed = true;
+    }
+
+    if (changed) {
       etch.update(this);
     }
   }
 
-  syncTooltips() {
+  syncTooltips(isPlain) {
     const display = this.refs.display;
-    if (this.store.isPlain && display) {
+    if (isPlain && display) {
       this.addTooltip(this.containerTooltip, () =>
         lumine.tooltips.addComposite(display, [
           { title: "Copy", keyBindingExtra: "LMB" },
@@ -237,9 +266,9 @@ class ResultViewComponent {
     composite.add(create());
   }
 
-  syncWheelHandler() {
+  syncWheelHandler(isPlain) {
     const display = this.refs.display;
-    const wanted = !this.expanded && !this.store.isPlain ? display : null;
+    const wanted = !this.expanded && !isPlain ? display : null;
 
     if (this.wheelElement === wanted) {
       return;
@@ -254,17 +283,16 @@ class ResultViewComponent {
     }
   }
 
-  scrollToBottom() {
-    const display = this.refs.display;
+  scrollToBottom(display, scrollHeight, clientHeight, isPlain) {
     if (
       !display ||
       this.expanded ||
-      this.store.isPlain ||
+      isPlain ||
       lumine.config.get("jupyter-repl.autoScroll") === false
     ) {
       return;
     }
-    const maxScrollTop = display.scrollHeight - display.clientHeight;
+    const maxScrollTop = scrollHeight - clientHeight;
     display.scrollTop = maxScrollTop > 0 ? maxScrollTop : 0;
   }
 
