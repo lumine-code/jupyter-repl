@@ -7,7 +7,7 @@ const { ipynbOpener } = require("../lib/import-notebook");
 describe("the ipynb opener", () => {
   it("yields to jupyter-view when it is installed", () => {
     lumine.config.set("jupyter-repl.importNotebookURI", true);
-    spyOn(lumine.packages, "getLoadedPackage").andReturn({ name: "jupyter-view" });
+    spyOn(lumine.packages, "getLoadedPackage").and.returnValue({ name: "jupyter-view" });
 
     expect(ipynbOpener("C:/tmp/notebook.ipynb")).toBeUndefined();
     expect(lumine.packages.getLoadedPackage).toHaveBeenCalledWith("jupyter-view");

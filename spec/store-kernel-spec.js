@@ -187,7 +187,7 @@ describe("store kernel tracking", () => {
     store.kernelMapping.set(unsavedKey, mapping);
 
     const savedPath = "/tmp/saved-by-spec.py";
-    spyOn(editor, "getPath").andReturn(savedPath);
+    spyOn(editor, "getPath").and.returnValue(savedPath);
     store.forceEditorUpdate();
 
     expect(store.kernelMapping.has(unsavedKey)).toBe(false);
@@ -196,7 +196,7 @@ describe("store kernel tracking", () => {
 
   it("leaves the mapping alone when the editor was never unsaved", () => {
     const savedPath = "/tmp/already-saved.py";
-    spyOn(editor, "getPath").andReturn(savedPath);
+    spyOn(editor, "getPath").and.returnValue(savedPath);
     const mapping = new Map([[store.grammar.name, fakeKernel()]]);
     store.kernelMapping.set(savedPath, mapping);
 

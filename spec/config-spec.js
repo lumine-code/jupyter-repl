@@ -12,7 +12,7 @@ describe("jupyter-repl gateways config", () => {
 
   beforeEach(() => {
     configDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "jupyter-repl-config-")));
-    spyOn(lumine, "getConfigDirPath").andReturn(configDir);
+    spyOn(lumine, "getConfigDirPath").and.returnValue(configDir);
   });
 
   afterEach(() => {
@@ -45,7 +45,7 @@ describe("jupyter-repl gateways config", () => {
 
   it("migrates the legacy gateways string setting into gateways.json", () => {
     const legacy = [{ name: "Legacy", baseUrl: "http://example.com" }];
-    spyOn(lumine.config, "get").andCallFake((key) =>
+    spyOn(lumine.config, "get").and.callFake((key) =>
       key === "jupyter-repl.gateways" ? JSON.stringify(legacy) : undefined,
     );
     spyOn(lumine.config, "unset");

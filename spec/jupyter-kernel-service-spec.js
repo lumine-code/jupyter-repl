@@ -150,7 +150,7 @@ describe("jupyter.kernel service", () => {
   it("maps a wrapper back to the files its kernel serves", () => {
     const internal = fakeInternalKernel();
     store.runningKernels = [internal];
-    spyOn(store, "getFilesForKernel").andReturn(["/tmp/a.py"]);
+    spyOn(store, "getFilesForKernel").and.returnValue(["/tmp/a.py"]);
 
     expect(provider.getFilesForKernel(internal.getPluginWrapper())).toEqual(["/tmp/a.py"]);
     // A wrapper this window does not know about has no files, and no throw.
