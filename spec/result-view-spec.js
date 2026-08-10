@@ -207,6 +207,10 @@ describe("measuring after attachment", () => {
       const markers = new MarkerStore();
       const view = new ResultView(markers, editor, 0, true);
       const invalidations = spyOn(editor.element, "invalidateBlockDecorationDimensions");
+      // The throttle compares wall-clock times; pin them so a slow run cannot
+      // stretch the window open.
+      let now = 100000;
+      spyOn(Date, "now").and.callFake(() => now);
 
       view.outputStore.appendOutput(stream("line\n".repeat(50)));
       etch.updateSync(view.component);
@@ -220,11 +224,50 @@ describe("measuring after attachment", () => {
       view.component.afterRender();
       expect(invalidations.calls.count()).toBe(1);
 
-      // The next output makes the content dirty again.
+      // A further chunk inside the throttle window coalesces to a trailing
+      // re-measure: streaming must not move the subtree into the editor's
+      // measuring area every frame.
       view.outputStore.appendOutput(stream("more\n"));
       etch.updateSync(view.component);
       view.component.afterRender();
+      expect(invalidations.calls.count()).toBe(1);
+
+      const ResultViewClass = view.constructor;
+      now += ResultViewClass.DETACHED_MEASURE_THROTTLE_MS + 50;
+      window.advanceClock(ResultViewClass.DETACHED_MEASURE_THROTTLE_MS + 50);
       expect(invalidations.calls.count()).toBe(2);
+
+      view.destroy();
+      editor.destroy();
+    } finally {
+      global.ResizeObserver = previousResizeObserver;
+    }
+  });
+
+  it("leaves an attached bubble to the editor's own resize observer", async () => {
+    // On screen the editor already re-measures a resized decoration in place
+    // (cheap sentinels, no subtree move); a second invalidation from the
+    // bubble would only duplicate that work.
+    const ResultView = require("../lib/components/result-view");
+    const MarkerStore = require("../lib/store/markers");
+    const previousResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    try {
+      const editor = await lumine.workspace.open();
+      const markers = new MarkerStore();
+      const view = new ResultView(markers, editor, 0, true);
+      const invalidations = spyOn(editor.element, "invalidateBlockDecorationDimensions");
+      jasmine.attachToDOM(view.element);
+
+      view.outputStore.appendOutput(stream("line\n".repeat(50)));
+      etch.updateSync(view.component);
+      view.component.afterRender();
+
+      expect(invalidations).not.toHaveBeenCalled();
 
       view.destroy();
       editor.destroy();
