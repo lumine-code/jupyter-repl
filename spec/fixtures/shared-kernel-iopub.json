@@ -1,0 +1,173 @@
+{
+  "ourSession": "bb00a99b-3b49d7c3d6afea437484fa87",
+  "theirSession": "167f1eeb-846d-4093-b533-93628d98c7ec",
+  "messages": [
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_18",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "bb00a99b-3b49d7c3d6afea437484fa87",
+        "msg_id": "bb00a99b-3b49d7c3d6afea437484fa87_29692_3",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "execution_state": "busy"
+      }
+    },
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_19",
+        "msg_type": "execute_input"
+      },
+      "parent_header": {
+        "session": "bb00a99b-3b49d7c3d6afea437484fa87",
+        "msg_id": "bb00a99b-3b49d7c3d6afea437484fa87_29692_3",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "code": "import threading, time\ndef bg():\n    time.sleep(3.0)\n    print('BG THREAD OUTPUT')\nthreading.Thread(target=bg, daemon=True).start()\nprint('EDITOR OUTPUT')\n1\n",
+        "execution_count": 1
+      }
+    },
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_21",
+        "msg_type": "stream"
+      },
+      "parent_header": {
+        "session": "bb00a99b-3b49d7c3d6afea437484fa87",
+        "msg_id": "bb00a99b-3b49d7c3d6afea437484fa87_29692_3",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "name": "stdout",
+        "text": "EDITOR OUTPUT\n"
+      }
+    },
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_20",
+        "msg_type": "execute_result"
+      },
+      "parent_header": {
+        "session": "bb00a99b-3b49d7c3d6afea437484fa87",
+        "msg_id": "bb00a99b-3b49d7c3d6afea437484fa87_29692_3",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "data": {
+          "text/plain": "1"
+        },
+        "metadata": {},
+        "execution_count": 1
+      }
+    },
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_23",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "bb00a99b-3b49d7c3d6afea437484fa87",
+        "msg_id": "bb00a99b-3b49d7c3d6afea437484fa87_29692_3",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "execution_state": "idle"
+      }
+    },
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_24",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "167f1eeb-846d-4093-b533-93628d98c7ec",
+        "msg_id": "167f1eeb-846d-4093-b533-93628d98c7ec_29692_1",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "execution_state": "busy"
+      }
+    },
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_25",
+        "msg_type": "execute_input"
+      },
+      "parent_header": {
+        "session": "167f1eeb-846d-4093-b533-93628d98c7ec",
+        "msg_id": "167f1eeb-846d-4093-b533-93628d98c7ec_29692_1",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "code": "print('CONSOLE OUTPUT')\n2+2\n",
+        "execution_count": 2
+      }
+    },
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_27",
+        "msg_type": "stream"
+      },
+      "parent_header": {
+        "session": "167f1eeb-846d-4093-b533-93628d98c7ec",
+        "msg_id": "167f1eeb-846d-4093-b533-93628d98c7ec_29692_1",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "name": "stdout",
+        "text": "CONSOLE OUTPUT\n"
+      }
+    },
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_26",
+        "msg_type": "execute_result"
+      },
+      "parent_header": {
+        "session": "167f1eeb-846d-4093-b533-93628d98c7ec",
+        "msg_id": "167f1eeb-846d-4093-b533-93628d98c7ec_29692_1",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "data": {
+          "text/plain": "4"
+        },
+        "metadata": {},
+        "execution_count": 2
+      }
+    },
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_29",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "167f1eeb-846d-4093-b533-93628d98c7ec",
+        "msg_id": "167f1eeb-846d-4093-b533-93628d98c7ec_29692_1",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "execution_state": "idle"
+      }
+    },
+    {
+      "header": {
+        "msg_id": "376e3de8-2c2d2b3a89810d604af7f9e4_94004_30",
+        "msg_type": "stream"
+      },
+      "parent_header": {
+        "session": "167f1eeb-846d-4093-b533-93628d98c7ec",
+        "msg_id": "167f1eeb-846d-4093-b533-93628d98c7ec_29692_1",
+        "msg_type": "execute_request"
+      },
+      "content": {
+        "name": "stdout",
+        "text": "BG THREAD OUTPUT\n"
+      }
+    }
+  ]
+}

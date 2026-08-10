@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const ZMQKernel = require("../lib/zmq-kernel");
 
 // A kernel can serve more than one client at once: a `jupyter console` opened
@@ -222,5 +224,58 @@ describe("a shell send that fails outright", () => {
     expect(replies).toEqual(["iopub", "shell"]);
     expect(kernel.currentExecutionRequest).toBe(null);
     expect(kernel.states).toEqual(["idle"]);
+  });
+});
+
+describe("replaying real traffic from a shared kernel", () => {
+  // Everything above is hand-written, so it can only prove the transport is
+  // self-consistent. This replays what a client actually received while a
+  // second one shared the kernel, which is the part that would break silently
+  // if a kernel stopped publishing the session we key on.
+  //
+  // The fixture was captured against ipykernel 7.3.0 / jupyter_client 8.9.1:
+  // one client runs a cell that prints and spawns a thread, a second client
+  // then runs a cell of its own, and the thread prints last.
+  it("shows only our own output and our own status", () => {
+    const capture = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "fixtures", "shared-kernel-iopub.json"), "utf8"),
+    );
+    const kernel = bareKernel();
+    kernel.sessionId = capture.ourSession;
+    const store = outputStore();
+    kernel.setLastOutputStore(store);
+
+    for (const message of capture.messages) {
+      kernel.onIOMessage(message);
+    }
+
+    const text = store.outputs.map((output) => output.text || "").join("");
+    expect(text).toContain("EDITOR OUTPUT");
+    expect(text).not.toContain("CONSOLE OUTPUT");
+    // Once the other client has run anything, ipykernel reattributes even our
+    // own background threads to it -- and that client prints them itself.
+    expect(text).not.toContain("BG THREAD OUTPUT");
+    // Our cell's busy and idle. The other client's five messages moved nothing.
+    expect(kernel.states).toEqual(["busy", "idle"]);
+  });
+
+  it("would have leaked without the session test", () => {
+    // Guards the guard: if `_isOwnMessage` were dropped, this same fixture puts
+    // the other client's output straight into our bubble.
+    const capture = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "fixtures", "shared-kernel-iopub.json"), "utf8"),
+    );
+    const kernel = bareKernel();
+    kernel.sessionId = capture.ourSession;
+    kernel._isOwnMessage = () => true;
+    const store = outputStore();
+    kernel.setLastOutputStore(store);
+
+    for (const message of capture.messages) {
+      kernel.onIOMessage(message);
+    }
+
+    const text = store.outputs.map((output) => output.text || "").join("");
+    expect(text).toContain("CONSOLE OUTPUT");
   });
 });
