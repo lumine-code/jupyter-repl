@@ -6,11 +6,12 @@ const { Disposable } = require("lumine");
 // suite rather than of the suite.
 const PACKAGE_PATH = path.join(__dirname, "..");
 
-// A window reload never deactivates packages, so `deactivate()` is not enough
-// to release the kernels' zmq sockets. Left open, they make zeromq run
-// callbacks into an environment that is already tearing down, and libzmq
-// aborts the renderer — the user sees "The editor has crashed" whenever they
-// restart with a kernel still running.
+// An orderly unload deactivates the package, which releases the kernels' zmq
+// sockets. This is the net under one that never got there — a crashed renderer
+// being reloaded. Left open, those sockets make zeromq run callbacks into an
+// environment that is already tearing down, and libzmq aborts the renderer:
+// the user sees "The editor has crashed" whenever they restart with a kernel
+// still running.
 describe("teardown with a running kernel", () => {
   let store;
 
