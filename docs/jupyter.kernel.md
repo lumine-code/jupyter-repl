@@ -84,7 +84,9 @@ type JupyterKernel = {
   complete(code: string): Promise<object>;
   inspect(code: string, cursorPos: number): Promise<{ data: object; found: boolean }>;
 
-  // state
+  // state — kernel-wide: every field follows the kernel process across all of
+  // its clients, so a cell run from a `jupyter console` attached to the same
+  // kernel moves them exactly like one run from this editor
   readonly executionState: string;
   readonly executionCount: number;
   readonly lastExecutionTime: string;
@@ -103,6 +105,8 @@ type JupyterKernel = {
 ```
 
 `executeWatch` is the one to reach for when a panel asks the kernel a question rather than running the user's code: it takes no execution number and does not move the status bar's counter or timer.
+
+`onDidBecomeIdle` fires when the kernel finishes a cell — any client's, not only this editor's. Bursts are debounced into one call, and the idles produced by `executeWatch` refetches themselves are skipped, so refetching on this signal cannot feed back into itself.
 
 ## Minimal example
 

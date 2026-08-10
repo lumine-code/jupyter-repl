@@ -1,7 +1,7 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch");
 const { CompositeDisposable, Disposable } = require("lumine");
-const { NO_EXECTIME_STRING, formatElapsedTime } = require("../../../utils");
+const { formatElapsedTime } = require("../../../utils");
 
 // While a kernel is busy the elapsed time is redrawn from a timer rather than
 // from a kernel message, because the kernel sends nothing between starting and
@@ -81,6 +81,9 @@ class StatusBar {
     return startTime ? Date.now() - startTime : 0;
   }
 
+  // Every segment is kernel-wide: the state, the count, and the timer follow
+  // the kernel process across all of its clients, so a cell run from a
+  // console attached to the same kernel reads exactly like one run here.
   segments(kernel) {
     const isBusy = kernel.executionState === "busy";
     const segments = [kernel.displayName, kernel.executionState];
@@ -89,7 +92,7 @@ class StatusBar {
       segments.push(kernel.executionCount);
       if (isBusy) {
         segments.push(formatElapsedTime(this.elapsedMs));
-      } else if (kernel.executionCount !== 0 && kernel.lastExecutionTime !== NO_EXECTIME_STRING) {
+      } else if (kernel.executionCount !== 0) {
         segments.push(kernel.lastExecutionTime);
       }
     } else if (isBusy) {

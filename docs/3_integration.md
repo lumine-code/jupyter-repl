@@ -49,7 +49,7 @@ The service object must expose `getActiveAdapter()` or `handlesItem(item)` plus 
 - Optional lifecycle methods: `beginTargetExecution(target, result)`, `finishTargetExecution(target, result)`, `cancelTargetExecution(target, result)`, `failTargetExecution(target, result)`, and `skipTargetExecution(target, result)`.
 - Optional path method: `onDidChangePath(callback)`, used to keep kernel mappings stable when an unsaved adapter item is saved or renamed.
 
-`finishTargetExecution` receives `{ kernel, success, status, lastExecutionTime }`, where `status` is one of `"ok"`, `"error"`, `"failed"`, `"cancelled"`, or `"skipped"`.
+`finishTargetExecution` receives `{ kernel, success, status, lastExecutionTime }`, where `status` is one of `"ok"`, `"error"`, `"failed"`, `"cancelled"`, or `"skipped"`. Its `lastExecutionTime` is the duration of that target's own execution — not the kernel's shared field, which on a shared kernel can name another client's cell.
 
 ## Kernel API
 
@@ -104,15 +104,20 @@ module.exports = {
 
 #### State & Control
 
-| Property/Method                       | Description                                      |
-| ------------------------------------- | ------------------------------------------------ |
-| `executionState`                      | Current state: `'idle'`, `'busy'`, `'starting'`  |
-| `executionCount`                      | Current execution count                          |
-| `lastExecutionTime`                   | Last execution time string (e.g., `"1.23s"`)     |
-| `onDidChangeExecutionState(callback)` | Subscribe to state changes, returns `Disposable` |
-| `interrupt()`                         | Interrupt running execution                      |
-| `restart([callback])`                 | Restart the kernel                               |
-| `shutdown()`                          | Shutdown the kernel                              |
+State is kernel-wide: every field follows the kernel process across all of its clients, so a cell run from a `jupyter console` attached to the same kernel moves them exactly like one run from the editor. The full surface — including `executionStartTime`, `onDidChangeStatus`, and `onDidBecomeIdle` — is specified in [jupyter.kernel.md](jupyter.kernel.md).
+
+| Property/Method                       | Description                                       |
+| ------------------------------------- | ------------------------------------------------- |
+| `executionState`                      | Current state: `'idle'`, `'busy'`, `'starting'`   |
+| `executionCount`                      | Latest execution count the kernel reported        |
+| `lastExecutionTime`                   | Duration of the kernel's last finished cell       |
+| `executionStartTime`                  | When the running cell started, `null` when idle   |
+| `onDidChangeExecutionState(callback)` | Subscribe to state changes, returns `Disposable`  |
+| `onDidChangeStatus(callback)`         | Any status field changed, returns `Disposable`    |
+| `onDidBecomeIdle(callback)`           | A cell finished (debounced), returns `Disposable` |
+| `interrupt()`                         | Interrupt running execution                       |
+| `restart([callback])`                 | Restart the kernel                                |
+| `shutdown()`                          | Shutdown the kernel                               |
 
 #### Introspection
 

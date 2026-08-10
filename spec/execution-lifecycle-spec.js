@@ -22,6 +22,10 @@ class FakeTransport extends KernelTransport {
     this.onResults = onResults;
   }
 
+  executeWatch(code, onResults) {
+    this.watchOnResults = onResults;
+  }
+
   restart(onRestarted) {
     this.restarted++;
     onRestarted?.();
@@ -175,6 +179,72 @@ describe("settling in-flight executions", () => {
 
     const { success } = await resolution;
     expect(success).toBe(false);
+  });
+});
+
+describe("the kernel-wide idle signal", () => {
+  let transport;
+  let kernel;
+  let refetches;
+
+  beforeEach(() => {
+    transport = new FakeTransport();
+    kernel = new Kernel(transport);
+    refetches = 0;
+    kernel.onDidBecomeIdle(() => refetches++);
+  });
+
+  afterEach(() => {
+    transport.destroy();
+  });
+
+  it("coalesces a burst of any client's idles into one refetch", () => {
+    // A chatty console produces busy/idle pairs many times a second; watches
+    // and the variable explorer only need the state after the last one.
+    transport.setExecutionState("busy");
+    transport.setExecutionState("idle");
+    transport.setExecutionState("busy");
+    transport.setExecutionState("idle");
+
+    expect(refetches).toBe(0);
+    window.advanceClock(Kernel.WATCH_REFETCH_DEBOUNCE_MS + 50);
+    expect(refetches).toBe(1);
+  });
+
+  it("does not let a watch refetch re-trigger the watches", () => {
+    // The watch execution's own busy/idle transition arrives while the watch
+    // is outstanding; refetching on it would run the watches off their own
+    // completions, without end.
+    kernel.executeWatch("len(x)", () => {});
+    transport.setExecutionState("busy");
+    transport.setExecutionState("idle");
+    window.advanceClock(Kernel.WATCH_REFETCH_DEBOUNCE_MS + 50);
+    expect(refetches).toBe(0);
+
+    // The watch completes; the next real idle refetches again.
+    transport.watchOnResults(
+      {
+        header: { msg_id: "ws", msg_type: "status" },
+        parent_header: { msg_id: "w1", msg_type: "execute_request" },
+        content: { execution_state: "idle" },
+      },
+      "iopub",
+    );
+    transport.setExecutionState("busy");
+    transport.setExecutionState("idle");
+    window.advanceClock(Kernel.WATCH_REFETCH_DEBOUNCE_MS + 50);
+    expect(refetches).toBe(1);
+  });
+
+  it("freezes the finished span for any client's cell", () => {
+    let now = 1000;
+    spyOn(Date, "now").and.callFake(() => now);
+
+    transport.setExecutionState("busy");
+    now = 3500;
+    transport.setExecutionState("idle");
+
+    expect(transport.lastExecutionTime).toBe("2.500 sec");
   });
 });
 

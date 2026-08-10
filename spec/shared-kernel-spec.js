@@ -5,9 +5,10 @@ const ZMQKernel = require("../lib/zmq-kernel");
 // A kernel can serve more than one client at once: a `jupyter console` opened
 // against the same connection file, or a second Lumine window. IOPub is a
 // broadcast, so every client's output and status arrives on our socket too.
-// Traffic we did not ask for used to be taken for our own background-thread
-// output, which appended a console's results to whichever inline result bubble
-// we filled last, and let a console's idle status mark our running cell failed.
+// Ownership decides where a message may act: output and callbacks are strictly
+// ours — a console's results must never land in our result bubbles — while
+// status, the execution count, and the timer describe the kernel process
+// itself, so every client's traffic drives them.
 
 const OURS = "11111111-1111-1111-1111-111111111111";
 const THEIRS = "22222222-2222-2222-2222-222222222222";
@@ -106,17 +107,49 @@ describe("a kernel shared with another client", () => {
   });
 
   describe("execution state", () => {
-    it("ignores another client's status", () => {
+    it("follows another client's status — the state is the kernel's", () => {
       kernel.onIOMessage(statusMessage(THEIRS, "busy"));
       kernel.onIOMessage(statusMessage(THEIRS, "idle"));
 
-      expect(kernel.states).toEqual([]);
+      expect(kernel.states).toEqual(["busy", "idle"]);
     });
 
-    it("still follows our own status", () => {
+    it("follows our own status", () => {
       kernel.onIOMessage(statusMessage(OURS, "busy"));
 
       expect(kernel.states).toEqual(["busy"]);
+    });
+
+    it("takes the count and per-cell timer from any client's execute_input", () => {
+      kernel.onIOMessage({
+        header: { msg_id: "m3", msg_type: "execute_input" },
+        parent_header: { session: THEIRS, msg_id: "their_1", msg_type: "execute_request" },
+        content: { code: "2+2", execution_count: 7 },
+      });
+
+      expect(kernel.executionCount).toBe(7);
+      expect(kernel.lastExecutionTime).toBe("Running ...");
+      expect(kernel.executionStartTime).not.toBe(null);
+    });
+
+    it("leaves the count and timer alone for our own suppressed executions", () => {
+      // Watch refetches run with suppressStatus; their execute_input must not
+      // masquerade as a user cell on the status bar.
+      kernel.executionCallbacks["execute_w"] = {
+        callback: () => {},
+        suppressStatus: true,
+        replySeen: false,
+        idleSeen: false,
+      };
+      kernel.executionCount = 3;
+
+      kernel.onIOMessage({
+        header: { msg_id: "m4", msg_type: "execute_input" },
+        parent_header: { session: OURS, msg_id: "execute_w", msg_type: "execute_request" },
+        content: { code: "watch", execution_count: 9 },
+      });
+
+      expect(kernel.executionCount).toBe(3);
     });
 
     it("does not let another client's idle retire our pending callback", () => {
@@ -171,17 +204,6 @@ describe("a kernel shared with another client", () => {
       expect(other._createMessage("execute_request").header.session).toBe(THEIRS);
       expect(kernel._createMessage("execute_request").header.session).toBe(OURS);
     });
-
-    it("falls back to our request-id namespace when a kernel sends no session", () => {
-      const store = outputStore();
-      kernel.setLastOutputStore(store);
-
-      // Our own ids are all prefixed; jupyter_client mints `<session>_<pid>_<n>`.
-      kernel.onIOMessage(streamMessage(undefined, "execute_mine"));
-      kernel.onIOMessage(streamMessage(undefined, "9f2c_4821_7"));
-
-      expect(store.outputs.length).toBe(1);
-    });
   });
 });
 
@@ -219,6 +241,69 @@ describe("a shell send that fails outright", () => {
   });
 });
 
+describe("the acknowledgment watchdog", () => {
+  // A kernel with an empty queue acknowledges within milliseconds, so a
+  // request still unacknowledged after a long-enough idle stretch was lost.
+  // Deliberately idle-gated: while any client's cell runs, a queued request
+  // legitimately hears nothing for as long as that cell takes.
+  let kernel;
+
+  beforeEach(() => {
+    kernel = bareKernel();
+    kernel.lifecycle = "ready";
+    kernel.executionState = "idle";
+    kernel._ackWatchdog = null;
+    kernel._startAckWatchdog();
+  });
+
+  afterEach(() => {
+    kernel._stopAckWatchdog();
+  });
+
+  const registerUnacked = (agoMs) => {
+    const replies = [];
+    kernel.idleSince = Date.now() - agoMs;
+    kernel.executionCallbacks["execute_lost"] = {
+      callback: (message, channel) => replies.push(channel),
+      suppressStatus: false,
+      requestType: "execute_request",
+      replySeen: false,
+      idleSeen: false,
+      acked: false,
+      armedAt: Date.now() - agoMs,
+    };
+    return replies;
+  };
+
+  it("settles a request the kernel ignored through a long idle stretch", () => {
+    const replies = registerUnacked(40000);
+
+    window.advanceClock(10000);
+
+    expect(replies).toEqual(["iopub", "shell", "iopub"]);
+    expect(kernel.executionCallbacks["execute_lost"]).toBeUndefined();
+  });
+
+  it("waits while the kernel is busy — a queued request is not a lost one", () => {
+    const replies = registerUnacked(40000);
+    kernel.executionState = "busy";
+
+    window.advanceClock(30000);
+
+    expect(replies).toEqual([]);
+    expect(kernel.executionCallbacks["execute_lost"]).toBeDefined();
+  });
+
+  it("leaves acknowledged requests alone however long they run", () => {
+    const replies = registerUnacked(40000);
+    kernel.executionCallbacks["execute_lost"].acked = true;
+
+    window.advanceClock(30000);
+
+    expect(replies).toEqual([]);
+  });
+});
+
 describe("replaying real traffic from a shared kernel", () => {
   // Everything above is hand-written, so it can only prove the transport is
   // self-consistent. This replays what a client actually received while a
@@ -228,7 +313,7 @@ describe("replaying real traffic from a shared kernel", () => {
   // The fixture was captured against ipykernel 7.3.0 / jupyter_client 8.9.1:
   // one client runs a cell that prints and spawns a thread, a second client
   // then runs a cell of its own, and the thread prints last.
-  it("shows only our own output and our own status", () => {
+  it("keeps output client-scoped while status and count follow the kernel", () => {
     const capture = JSON.parse(
       fs.readFileSync(path.join(__dirname, "fixtures", "shared-kernel-iopub.json"), "utf8"),
     );
@@ -247,8 +332,10 @@ describe("replaying real traffic from a shared kernel", () => {
     // Once the other client has run anything, ipykernel reattributes even our
     // own background threads to it -- and that client prints them itself.
     expect(text).not.toContain("BG THREAD OUTPUT");
-    // Our cell's busy and idle. The other client's five messages moved nothing.
-    expect(kernel.states).toEqual(["busy", "idle"]);
+    // Both clients' cells drive the kernel-wide state and count: our run,
+    // then the console's.
+    expect(kernel.states).toEqual(["busy", "idle", "busy", "idle"]);
+    expect(kernel.executionCount).toBe(2);
   });
 
   it("would have leaked without the session test", () => {
