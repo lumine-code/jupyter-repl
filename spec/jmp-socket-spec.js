@@ -96,6 +96,8 @@ describe("jmp socket teardown", () => {
     };
 
     const sending = socket.send("shutdown_request");
+    // The chained send reaches the native socket on a microtask.
+    await Promise.resolve();
     socket.close();
 
     expect(closed).toBe(0);
@@ -104,6 +106,45 @@ describe("jmp socket teardown", () => {
     await sending.catch(() => {});
     await Promise.resolve();
 
+    expect(closed).toBe(1);
+  });
+
+  it("rejects queued sends at close and still defers on the active one", async () => {
+    const socket = bareSocket();
+    let closed = 0;
+    let releaseSend;
+    const sent = [];
+    socket._socket = {
+      connect() {},
+      close() {
+        closed++;
+      },
+      send(payload) {
+        sent.push(payload);
+        return new Promise((resolve) => {
+          releaseSend = resolve;
+        });
+      },
+    };
+
+    const first = socket.send("one");
+    const second = socket.send("two");
+    await Promise.resolve();
+    socket.close();
+    expect(closed).toBe(0);
+
+    releaseSend();
+    await first;
+    // The queued send never started; it must not reach a closed socket.
+    let rejection = null;
+    await second.catch((error) => {
+      rejection = error;
+    });
+    expect(rejection?.message).toBe("Socket is closed");
+    expect(sent).toEqual(["one"]);
+
+    await Promise.resolve();
+    await Promise.resolve();
     expect(closed).toBe(1);
   });
 
@@ -167,7 +208,7 @@ describe("jmp observer lifecycle at close", () => {
     expect(observerClosed).toBe(0);
   });
 
-  it("closes the observer immediately only for a window unload", () => {
+  it("closes the observer immediately only for a window unload", async () => {
     const socket = bareSocket();
     let observerClosed = 0;
     let socketClosed = 0;
@@ -191,11 +232,95 @@ describe("jmp observer lifecycle at close", () => {
 
     // Even an in-flight send must not defer an unload close: the window is
     // going away and nothing later will run.
-    socket.send("bye");
+    const sending = socket.send("bye");
+    await Promise.resolve();
     socket.close(true);
 
     expect(observerClosed).toBe(1);
     expect(socketClosed).toBe(1);
     releaseSend();
+    await sending.catch(() => {});
+  });
+});
+
+describe("jmp socket send serialization", () => {
+  // zeromq admits one send at a time — a second concurrent send() raises
+  // EBUSY, synchronously, and the binding's documentation leaves queueing to
+  // the caller. The socket chains sends so callers never coordinate.
+  it("runs overlapping sends one at a time, in order", async () => {
+    const socket = bareSocket();
+    let active = 0;
+    const sent = [];
+    const releases = [];
+    socket._socket = {
+      connect() {},
+      close() {},
+      send(payload) {
+        if (active > 0) {
+          throw new Error("Socket is busy writing; only one send operation may be in progress");
+        }
+        active++;
+        sent.push(payload);
+        return new Promise((resolve) => {
+          releases.push(() => {
+            active--;
+            resolve();
+          });
+        });
+      },
+    };
+
+    const first = socket.send("a");
+    const second = socket.send("b");
+    const third = socket.send("c");
+
+    // Enough microtask turns for the next chained send to reach the socket.
+    const settle = async () => {
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    };
+
+    await settle();
+    expect(sent).toEqual(["a"]);
+
+    releases.shift()();
+    await first;
+    await settle();
+    expect(sent).toEqual(["a", "b"]);
+
+    releases.shift()();
+    await second;
+    await settle();
+    expect(sent).toEqual(["a", "b", "c"]);
+
+    releases.shift()();
+    await third;
+  });
+
+  it("a failed send fails its own caller and the chain carries on", async () => {
+    const socket = bareSocket();
+    const sent = [];
+    socket._socket = {
+      connect() {},
+      close() {},
+      send(payload) {
+        if (payload === "boom") {
+          return Promise.reject(new Error("send failed"));
+        }
+        sent.push(payload);
+        return Promise.resolve();
+      },
+    };
+
+    const failing = socket.send("boom");
+    const following = socket.send("after");
+
+    let rejection = null;
+    await failing.catch((error) => {
+      rejection = error;
+    });
+    await following;
+
+    expect(rejection?.message).toBe("send failed");
+    expect(sent).toEqual(["after"]);
   });
 });

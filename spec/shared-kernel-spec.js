@@ -20,8 +20,6 @@ function bareKernel() {
   kernel._destroyed = false;
   kernel.sessionId = OURS;
   kernel.executionCallbacks = {};
-  kernel.executionQueue = [];
-  kernel.currentExecutionRequest = null;
   kernel._lastOutputStore = null;
   kernel.states = [];
   kernel.setExecutionState = (state) => kernel.states.push(state);
@@ -192,8 +190,6 @@ describe("a shell send that fails outright", () => {
 
   beforeEach(() => {
     kernel = bareKernel();
-    kernel.shellSocketBusy = false;
-    kernel.shellMessageQueue = [];
     kernel.shellSocket = {
       async send() {
         throw new Error("socket closed");
@@ -201,21 +197,15 @@ describe("a shell send that fails outright", () => {
     };
   });
 
-  it("releases the execution slot the kernel never took", async () => {
-    // The messages are synthesized locally, so they never reach the handlers
-    // that retire a request. Holding the slot would stall every later cell.
+  it("settles the request the kernel never received", async () => {
     const replies = [];
-    kernel.currentExecutionRequest = "execute_1";
-    kernel.executionCallbacks["execute_1"] = {
-      callback: (message, channel) => replies.push([message.header.msg_type, channel]),
-      suppressStatus: false,
-    };
-    kernel.shellMessageQueue.push({
-      message: { header: { msg_type: "execute_request" } },
-      requestId: "execute_1",
-    });
 
-    await kernel._processShellQueue();
+    await kernel._sendShellMessage(
+      { header: { msg_type: "execute_request", msg_id: "execute_1" } },
+      "execute_1",
+      (message, channel) => replies.push([message.header.msg_type, channel]),
+      false,
+    );
 
     // Error output, the reply, and the trailing idle a caller awaits on.
     expect(replies).toEqual([
@@ -223,7 +213,8 @@ describe("a shell send that fails outright", () => {
       ["execute_reply", "shell"],
       ["status", "iopub"],
     ]);
-    expect(kernel.currentExecutionRequest).toBe(null);
+    // The callback is retired: a straggler cannot reach a settled request.
+    expect(kernel.executionCallbacks["execute_1"]).toBeUndefined();
     expect(kernel.states).toEqual(["idle"]);
   });
 });

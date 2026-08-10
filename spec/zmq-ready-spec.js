@@ -28,8 +28,6 @@ function bareKernel() {
   const kernel = Object.create(ZMQKernel.prototype);
   kernel._destroyed = false;
   kernel.executionCallbacks = {};
-  kernel.shellMessageQueue = [];
-  kernel.shellSocketBusy = false;
   kernel.states = [];
   kernel.setExecutionState = (state) => kernel.states.push(state);
   kernel.shellSocket = fakeSocket();
