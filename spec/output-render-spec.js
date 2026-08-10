@@ -1,6 +1,8 @@
 const etch = require("@lumine-code/etch");
 const { renderDisplay, isTextOutputOnly } = require("../lib/components/result-view/display");
 const { renderOutput } = require("../lib/components/output");
+const { HTML } = require("../lib/components/result-view/html");
+const { VegaEmbed } = require("../lib/components/result-view/vega");
 const OutputStore = require("../lib/store/output");
 const History = require("../lib/components/result-view/history");
 const ScrollList = require("../lib/components/result-view/list");
@@ -117,6 +119,32 @@ describe("output rendering", () => {
     expect(isTextOutputOnly({ "text/plain": "x", "text/html": "<b/>" })).toBe(false);
     // An unsupported type does not make a plain bundle rich.
     expect(isTextOutputOnly({ "text/plain": "x", "application/octet-stream": "?" })).toBe(true);
+  });
+
+  // A tree that embeds this component records its root element; the component
+  // re-renders on its own schedule (another package's copy of etch can drive
+  // it), so a root swap would leave that tree holding a removed node and its
+  // next structural patch would die in insertBefore.
+  it("keeps its root element when content switches between html and vega", async () => {
+    spyOn(VegaEmbed.prototype, "callEmbedder");
+    const vegaHtml =
+      '<div id="vis"></div><script>vegaEmbed("#vis", ' +
+      '{"$schema": "https://vega.github.io/schema/vega-lite/v5.json", "mark": "bar"});</script>';
+
+    const component = new HTML({ data: "<b>plain</b>" });
+    const root = component.element;
+    expect(root.className).toBe("output-html");
+    expect(root.innerHTML).toContain("plain");
+
+    await component.update({ data: vegaHtml });
+    expect(component.vegaSpec).toBeTruthy();
+    expect(component.element).toBe(root);
+    expect(root.innerHTML).not.toContain("plain");
+
+    await component.update({ data: "<i>back</i>" });
+    expect(component.element).toBe(root);
+    expect(root.innerHTML).toContain("back");
+    component.destroy();
   });
 });
 

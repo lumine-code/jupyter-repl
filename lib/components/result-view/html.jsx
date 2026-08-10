@@ -267,8 +267,20 @@ class HTML {
   }
 
   render() {
+    // The root element must keep its identity across updates: an enclosing
+    // etch tree records it, and this component's re-render can run outside
+    // that tree's patch pass (another package's copy of etch drives it), so a
+    // root swap would leave the enclosing tree pointing at a removed node.
+    // Both branches therefore share one root and differ only in its child.
+    // innerHTML lives on the child, never the root: children are patched
+    // before props, so alternating innerHTML and element children on one node
+    // would wipe a just-inserted child when the property is cleared.
     if (this.vegaSpec && this.vegaMediaType) {
-      return <VegaEmbed mediaType={this.vegaMediaType} spec={this.vegaSpec} />;
+      return (
+        <div className="output-html">
+          <VegaEmbed mediaType={this.vegaMediaType} spec={this.vegaSpec} />
+        </div>
+      );
     }
 
     // Scripts are stripped: this content is injected as-is.
@@ -276,7 +288,11 @@ class HTML {
       typeof this.props.data === "string"
         ? this.props.data.replace(/<script[\s\S]*?<\/script>/gi, "")
         : "";
-    return <div className="output-html" innerHTML={sanitized} />;
+    return (
+      <div className="output-html">
+        <div innerHTML={sanitized} />
+      </div>
+    );
   }
 
   update(props) {
