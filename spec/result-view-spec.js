@@ -131,6 +131,65 @@ describe("the result bubble", () => {
   });
 });
 
+describe("measuring after attachment", () => {
+  // The bubble lives in a block decoration the editor attaches asynchronously.
+  // A final output that patches first measures a detached element: zero
+  // scrollHeight, so no expand button and no auto-scroll — and with no more
+  // outputs coming, nothing else would ever correct it. The resize hook is
+  // what re-measures once the element actually has a size.
+  let component;
+
+  afterEach(() => {
+    component?.destroy();
+    component = null;
+  });
+
+  it("recovers the expand button once the element has a real size", () => {
+    const store = blockStore();
+    store.appendOutput(stream("line\n".repeat(200)));
+    component = build(store);
+    etch.updateSync(component);
+
+    component.afterRender();
+    expect(component.showExpandButton).toBe(false);
+
+    jasmine.attachToDOM(component.element);
+    // What ResultView.handleElementResize triggers when the decoration lands.
+    etch.updateSync(component);
+    component.afterRender();
+    etch.updateSync(component);
+
+    expect(component.showExpandButton).toBe(true);
+    expect(component.element.querySelector(".icon-unfold")).not.toBeNull();
+  });
+
+  it("the resize hook re-renders the component", async () => {
+    const ResultView = require("../lib/components/result-view");
+    const MarkerStore = require("../lib/store/markers");
+    const previousResizeObserver = global.ResizeObserver;
+    // The constructor arms a real observer; the hook is driven by hand here.
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    try {
+      const editor = await lumine.workspace.open();
+      const markers = new MarkerStore();
+      const view = new ResultView(markers, editor, 0, true);
+      const updates = spyOn(view.component, "update").and.callThrough();
+
+      view.handleElementResize();
+      expect(updates).toHaveBeenCalled();
+
+      view.destroy();
+      editor.destroy();
+    } finally {
+      global.ResizeObserver = previousResizeObserver;
+    }
+  });
+});
+
 describe("the copy action", () => {
   // A kernel that renders a result as LaTeX still sends text/plain alongside
   // in the same bundle. The button must be offered for it, and the copy must
