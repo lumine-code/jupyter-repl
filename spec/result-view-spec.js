@@ -130,3 +130,48 @@ describe("the result bubble", () => {
     expect(display.scrollTop).toBe(0);
   });
 });
+
+describe("the copy action", () => {
+  // A kernel that renders a result as LaTeX still sends text/plain alongside
+  // in the same bundle. The button must be offered for it, and the copy must
+  // produce that text even though the rendered SVG has none to select.
+  const latexOutput = {
+    output_type: "execute_result",
+    data: { "text/plain": "24.775 deg", "text/latex": "$24.775\\,\\mathrm{deg}$" },
+    metadata: {},
+  };
+
+  it("offers the copy button for a LaTeX-rendered bundle", () => {
+    expect(actions.hasCopyableContent([latexOutput])).toBe(true);
+
+    const store = blockStore();
+    store.appendOutput(latexOutput);
+    const component = build(store);
+    etch.updateSync(component);
+
+    expect(component.element.querySelector(".icon-clippy")).not.toBeNull();
+    component.destroy();
+  });
+
+  it("copies the bundle's own text when the rendered DOM has none", async () => {
+    spyOn(lumine.clipboard, "write");
+    const element = document.createElement("div"); // SVG paths: no innerText
+
+    await actions.copyToClipboard(element, [latexOutput]);
+
+    expect(lumine.clipboard.write).toHaveBeenCalledWith("24.775 deg");
+  });
+
+  it("prefers the rendered DOM text when there is some", async () => {
+    spyOn(lumine.clipboard, "write");
+    const element = document.createElement("div");
+    element.textContent = "rendered text";
+    // Detached elements report empty innerText; textContent is the fallback
+    // the browser uses there, so patch innerText to behave as when attached.
+    Object.defineProperty(element, "innerText", { get: () => element.textContent });
+
+    await actions.copyToClipboard(element, [latexOutput]);
+
+    expect(lumine.clipboard.write).toHaveBeenCalledWith("rendered text");
+  });
+});

@@ -56,13 +56,15 @@ type JupyterOutputService = {
   History: EtchComponentClass; // { store: OutputStore } — scrub past values
   ScrollList: EtchComponentClass; // { outputs: Output[] } — a run's outputs, scrolled
 
-  // actions
+  // actions — `outputs`, where accepted, supplies the bundle's own text for
+  // renders whose DOM has none to select (LaTeX becomes SVG paths)
   getImage(element: HTMLElement): HTMLImageElement | HTMLCanvasElement | null;
   getAllText(element: HTMLElement): string;
-  hasCopyableContent(output: Output | null): boolean;
-  copyToClipboard(element: HTMLElement): void;
+  getSourceText(outputs: Output[] | null): string;
+  hasCopyableContent(outputs: Output[]): boolean;
+  copyToClipboard(element: HTMLElement, outputs?: Output[]): void;
   saveImage(element: HTMLElement, editor?: TextEditor): Promise<void>;
-  openInEditor(element: HTMLElement): void;
+  openInEditor(element: HTMLElement, outputs?: Output[]): void;
 };
 ```
 

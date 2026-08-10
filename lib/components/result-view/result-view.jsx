@@ -62,9 +62,9 @@ class ResultViewComponent {
 
   handleClick = (event) => {
     if (event.ctrlKey || event.metaKey) {
-      actions.openInEditor(this.refs.display);
+      actions.openInEditor(this.refs.display, this.store.outputs);
     } else {
-      actions.copyToClipboard(this.refs.display);
+      actions.copyToClipboard(this.refs.display, this.store.outputs);
     }
   };
 
