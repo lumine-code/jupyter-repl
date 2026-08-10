@@ -223,6 +223,10 @@ class ResultViewComponent {
     if (changed) {
       etch.update(this);
     }
+
+    // The DOM now shows the latest content; if it changed, the owning view
+    // asks the editor to re-measure the block decoration's height.
+    this.props.onContentRendered?.();
   }
 
   syncTooltips(isPlain) {

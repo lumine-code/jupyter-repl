@@ -188,6 +188,50 @@ describe("measuring after attachment", () => {
       global.ResizeObserver = previousResizeObserver;
     }
   });
+
+  it("asks the editor to re-measure the decoration once per content change", async () => {
+    // The bubble's content streams into a detached element, where no resize
+    // observer fires — without an explicit invalidation the editor keeps the
+    // queued icon's height and the document grows bubble by bubble as
+    // scrolling reveals them.
+    const ResultView = require("../lib/components/result-view");
+    const MarkerStore = require("../lib/store/markers");
+    const previousResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    try {
+      const editor = await lumine.workspace.open();
+      const markers = new MarkerStore();
+      const view = new ResultView(markers, editor, 0, true);
+      const invalidations = spyOn(editor.element, "invalidateBlockDecorationDimensions");
+
+      view.outputStore.appendOutput(stream("line\n".repeat(50)));
+      etch.updateSync(view.component);
+      view.component.afterRender();
+      expect(invalidations).toHaveBeenCalledWith(view.decoration);
+      expect(invalidations.calls.count()).toBe(1);
+
+      // A re-render without new content — the round trip a measurement pass
+      // itself causes — must not re-invalidate, or measuring would loop.
+      etch.updateSync(view.component);
+      view.component.afterRender();
+      expect(invalidations.calls.count()).toBe(1);
+
+      // The next output makes the content dirty again.
+      view.outputStore.appendOutput(stream("more\n"));
+      etch.updateSync(view.component);
+      view.component.afterRender();
+      expect(invalidations.calls.count()).toBe(2);
+
+      view.destroy();
+      editor.destroy();
+    } finally {
+      global.ResizeObserver = previousResizeObserver;
+    }
+  });
 });
 
 describe("the copy action", () => {
