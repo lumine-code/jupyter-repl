@@ -244,10 +244,11 @@ describe("measuring after attachment", () => {
     }
   });
 
-  it("leaves an attached bubble to the editor's own resize observer", async () => {
-    // On screen the editor already re-measures a resized decoration in place
-    // (cheap sentinels, no subtree move); a second invalidation from the
-    // bubble would only duplicate that work.
+  it("measures an attached bubble synchronously, in the frame that grew it", async () => {
+    // The editor's own resize observer fires after paint, so left to it every
+    // visible result pushed the content for one frame before the anchored
+    // scroll caught up. The bubble knows it grew before the frame paints, and
+    // runs the editor's measure-and-compensate pass in that same frame.
     const ResultView = require("../lib/components/result-view");
     const MarkerStore = require("../lib/store/markers");
     const previousResizeObserver = global.ResizeObserver;
@@ -261,12 +262,25 @@ describe("measuring after attachment", () => {
       const markers = new MarkerStore();
       const view = new ResultView(markers, editor, 0, true);
       const invalidations = spyOn(editor.element, "invalidateBlockDecorationDimensions");
+      const syncUpdates = editor.component
+        ? spyOn(editor.component, "updateSync").and.stub()
+        : null;
       jasmine.attachToDOM(view.element);
 
       view.outputStore.appendOutput(stream("line\n".repeat(50)));
       etch.updateSync(view.component);
       view.component.afterRender();
 
+      expect(invalidations).toHaveBeenCalledWith(view.decoration);
+      if (syncUpdates) {
+        expect(syncUpdates).toHaveBeenCalled();
+      }
+
+      // A content-free re-render must not re-measure — the gate that stops
+      // the measurement round trip from looping applies here too.
+      invalidations.calls.reset();
+      etch.updateSync(view.component);
+      view.component.afterRender();
       expect(invalidations).not.toHaveBeenCalled();
 
       view.destroy();
