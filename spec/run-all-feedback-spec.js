@@ -1,5 +1,5 @@
 const { Point, Range } = require("lumine");
-const { run, runAll } = require("../lib/main");
+const { run, runAll, runAllInline } = require("../lib/main");
 const result = require("../lib/result");
 const store = require("../lib/store");
 
@@ -128,6 +128,18 @@ describe("batch inline feedback", () => {
     fakeKernel.executions[1].callback({ data: "ok", stream: "status" });
     fakeKernel.executions[1].callback({ output_type: "status", execution_state: "idle" });
     await again;
+  });
+
+  it("leaves the cursor where the user put it", () => {
+    // The old inline loop walked the cursor to each cell as it ran — progress
+    // feedback the queued/running bubbles now give without stealing the
+    // user's position mid-run.
+    editor.setCursorBufferPosition([2, 4]);
+
+    runAllInline();
+
+    expect(fakeKernel.executions.length).toBeGreaterThan(0);
+    expect(editor.getCursorBufferPosition().toArray()).toEqual([2, 4]);
   });
 
   it("routes run-all through the shared batch path", () => {
