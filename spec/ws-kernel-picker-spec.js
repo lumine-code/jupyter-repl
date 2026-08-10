@@ -83,7 +83,11 @@ describe("ws-kernel-picker modal flow", () => {
     await picker.onCredential("");
 
     expect(picker.credentialDialog.isVisible()).toBeTruthy();
-    expect(picker.credentialDialog.props.errorMessage).toBe("Enter a token.");
+    expect(picker.credentialDialog.props.status).toEqual({
+      type: "error",
+      message: "Enter a token.",
+    });
+    expect(picker.credentialDialog.element.textContent).toContain("Enter a token.");
     expect(picker.sessionList.isVisible()).toBeFalsy();
   });
 
