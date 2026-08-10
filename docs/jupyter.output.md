@@ -102,6 +102,8 @@ Truncation, output wrapping, and the output font size follow this package's sett
 
 The heavy renderers load on demand — the first vega output parses the vega bundles, the first LaTeX output loads MathJax. Rendering follows MIME priority, so a bundle whose richest type cannot be rendered falls back to a lower one.
 
+`escapeCarriageReturn` and `reduceOutputs` resolve carriage returns the way a terminal does: a write lands at the cursor and advances it, and `\r` returns the cursor to column 0 without erasing what is already there. So a progress bar collapses to the line it last wrote, a `\r\n` keeps its line's text, and a line ending in a bare `\r` keeps it too until something overwrites it. `reduceOutputs` resolves each stream output as it merges, which means the result depends only on the stream's content and not on where its chunk boundaries happened to fall — a consumer feeding it one message at a time gets what it would have got from the whole stream at once.
+
 Rendered markup uses the `output-*` class family (`output-stream output-stdout`, `output-error` with `error-name`/`error-value`/`error-traceback` children, `output-html`, `output-markdown`, `output-latex`, `output-image`, …). Consumers style those classes in their own stylesheets; this package only styles them inside its own panes.
 
 Everything crosses the boundary as plain objects, DOM, or etch component classes. Vnodes are elements, never bare fragments — fragment identity does not survive a package boundary.
