@@ -81,6 +81,18 @@ describe("the execution lifecycle of a result store", () => {
     expect(store.status).toBe("ok");
   });
 
+  it("keeps a settled status when the execute_input notification arrives late", () => {
+    // Shell and iopub are separate sockets, so for a fast cell the reply can
+    // land before iopub delivers execute_input. The late start notification
+    // must not drag a settled bubble back to a spinner it will never leave.
+    const store = new OutputStore();
+    store.appendOutput({ data: "ok", stream: "status" });
+    store.appendOutput({ data: 1, stream: "execution_count" });
+
+    expect(store.status).toBe("ok");
+    expect(store.executionCount).toBe(1);
+  });
+
   it("renders each stage without consulting any kernel", () => {
     const store = new OutputStore();
     store.updatePosition({ editorWidth: 800, lineLength: 0, charWidth: 8, lineHeight: 16 });
@@ -102,6 +114,26 @@ describe("the execution lifecycle of a result store", () => {
     expect(component.element.classList.contains("icon-x")).toBe(true);
 
     component.destroy();
+  });
+});
+
+describe("cross-socket message order", () => {
+  it("settles the bubble whichever socket wins the race", () => {
+    // A real kernel's reply travels on the shell socket and everything else
+    // on iopub; nothing orders one stream against the other. Deliver the
+    // reply first — the fast-cell case — and the store must still end ok.
+    const transport = new FakeTransport();
+    const kernel = new Kernel(transport);
+    const store = new OutputStore();
+    kernel.execute("1", (result) => store.appendOutput(result));
+
+    transport.deliverReply("ok", 1);
+    transport.deliverInput(1);
+    transport.deliverIdle();
+
+    expect(store.status).toBe("ok");
+    expect(kernel._inFlight.size).toBe(0);
+    transport.destroy();
   });
 });
 
