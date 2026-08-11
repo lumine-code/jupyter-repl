@@ -477,3 +477,130 @@ describe("the copy action", () => {
     expect(lumine.clipboard.write).toHaveBeenCalledWith("$x^2$");
   });
 });
+
+describe("a bubble whose content resizes itself", () => {
+  // Content can change a bubble's height with no store update behind it: a
+  // widget expanding an accordion, an image finishing its decode, a progress
+  // bar growing a label. The dirty flag is written only by the store, so
+  // nothing marked those, and the height the editor holds stayed behind. The
+  // editor's own observer would correct it a frame later, but a frame late is
+  // exactly the flicker the synchronous path exists to remove.
+  //
+  // The hazard on the other side is the loop the dirty flag was written for:
+  // measuring parks the element in the editor's measuring area, which fires the
+  // observer, which re-runs the render hooks.
+  const ResultView = require("../lib/components/result-view");
+  const MarkerStore = require("../lib/store/markers");
+
+  let editor;
+  let view;
+  let invalidations;
+  let deliver;
+  let now;
+  let previousResizeObserver;
+
+  beforeEach(async () => {
+    previousResizeObserver = global.ResizeObserver;
+    // Capture the callback so an observation can be delivered by hand, with a
+    // height — which is what the gate reads.
+    global.ResizeObserver = class {
+      constructor(callback) {
+        deliver = (blockSize) => callback([{ borderBoxSize: [{ blockSize }] }]);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    editor = await lumine.workspace.open();
+    view = new ResultView(new MarkerStore(), editor, 0, true);
+    jasmine.attachToDOM(view.element);
+    invalidations = spyOn(editor.element, "invalidateBlockDecorationDimensions");
+    now = 100000;
+    spyOn(Date, "now").and.callFake(() => now);
+  });
+
+  afterEach(() => {
+    view?.destroy();
+    editor?.destroy();
+    global.ResizeObserver = previousResizeObserver;
+    view = null;
+    editor = null;
+    deliver = null;
+  });
+
+  it("asks to be re-measured", () => {
+    deliver(500);
+    etch.updateSync(view.component);
+    view.component.afterRender();
+
+    expect(invalidations).toHaveBeenCalledWith(view.decoration);
+  });
+
+  it("ignores the measurement's own echo", () => {
+    // The height the editor was last asked to measure comes back through the
+    // observer; answering it would be answering ourselves.
+    view._measuredHeight = 500;
+
+    deliver(500);
+    etch.updateSync(view.component);
+    view.component.afterRender();
+
+    expect(invalidations).not.toHaveBeenCalled();
+  });
+
+  it("stops asking when it oscillates with its own measurement", () => {
+    // Content sized from the box it is measured in alternates between two
+    // genuinely different heights, so neither the echo check nor the dirty flag
+    // catches it. This is the anti-loop assertion.
+    for (let i = 0; i < 20; i++) {
+      deliver(i % 2 === 0 ? 400 : 500);
+      etch.updateSync(view.component);
+      view.component.afterRender();
+    }
+
+    expect(invalidations.calls.count()).toBe(ResultView.SELF_RESIZE_BUDGET);
+  });
+
+  it("starts a fresh allowance after a quiet gap", () => {
+    for (let i = 0; i < 20; i++) {
+      deliver(i % 2 === 0 ? 400 : 500);
+      etch.updateSync(view.component);
+      view.component.afterRender();
+    }
+    const spent = invalidations.calls.count();
+
+    now += ResultView.SELF_RESIZE_BURST_MS + 1;
+    deliver(600);
+    etch.updateSync(view.component);
+    view.component.afterRender();
+
+    expect(invalidations.calls.count()).toBe(spent + 1);
+  });
+
+  it("ignores its own resize entries while detached", () => {
+    // The detached branch is the one that parks the element in the measuring
+    // area, so this must keep the old semantics exactly.
+    view.element.remove();
+
+    deliver(500);
+    etch.updateSync(view.component);
+    view.component.afterRender();
+
+    expect(invalidations).not.toHaveBeenCalled();
+  });
+
+  it("keeps the wrapper's box commensurable with what the editor measures", () => {
+    // The gate compares an observed border-box height against the height the
+    // editor recorded. A border, padding or margin on the wrapper would
+    // decouple the two and both this gate and the editor's own guard would
+    // start missing changes.
+    const style = getComputedStyle(view.element);
+
+    expect(style.borderTopWidth).toBe("0px");
+    expect(style.borderBottomWidth).toBe("0px");
+    expect(style.paddingTop).toBe("0px");
+    expect(style.paddingBottom).toBe("0px");
+    expect(style.marginTop).toBe("0px");
+    expect(style.marginBottom).toBe("0px");
+  });
+});
