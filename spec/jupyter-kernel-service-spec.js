@@ -52,6 +52,110 @@ describe("real JupyterKernel wrapper teardown", () => {
     expect(internal.shutDown).toBe(true);
     expect(internal.destroyed).toBe(true);
   });
+
+  it("names the kernel by the id the window gave it", () => {
+    // displayName is the kernelspec's, so two Python 3 kernels share it, and
+    // getConnectionFile() throws for one reached over a websocket.
+    expect(new JupyterKernel({ id: "kernel-3" }).id).toBe("kernel-3");
+  });
+});
+
+// Everything from iopub reaches the callback already in notebook format, and
+// the kernel's own control messages are the ones carrying `stream`. Collecting
+// on `result.data` — as this did — kept only execute_result and display_data:
+// a stream output holds its content in `text` and an error output in
+// ename/evalue/traceback, so everything printed and every traceback went
+// missing, while the execution_count control message was pushed as output.
+describe("JupyterKernel#execute", () => {
+  const JupyterKernel = require("../lib/plugin-api/jupyter-kernel");
+
+  let internal, wrapper, emit;
+
+  const STREAM = { output_type: "stream", name: "stdout", text: "hello\n" };
+  const RESULT = { output_type: "execute_result", data: { "text/plain": "42" } };
+  const ERROR = {
+    output_type: "error",
+    ename: "ValueError",
+    evalue: "no",
+    traceback: ["Traceback…", "ValueError: no"],
+  };
+
+  beforeEach(() => {
+    internal = {
+      execute(code, onResults) {
+        emit = onResults;
+      },
+    };
+    wrapper = new JupyterKernel(internal);
+  });
+
+  it("keeps what the code printed", async () => {
+    const answer = wrapper.execute("print('hello')");
+    emit({ data: 1, stream: "execution_count" });
+    emit(STREAM);
+    emit({ data: "ok", stream: "status" });
+
+    const { status, outputs, executionCount } = await answer;
+    expect(status).toBe("ok");
+    expect(outputs).toEqual([STREAM]);
+    expect(executionCount).toBe(1);
+  });
+
+  it("keeps a rich result alongside a stream", async () => {
+    const answer = wrapper.execute("print('hello'); 42");
+    emit(STREAM);
+    emit(RESULT);
+    emit({ data: "ok", stream: "status" });
+
+    expect((await answer).outputs).toEqual([STREAM, RESULT]);
+  });
+
+  it("keeps the traceback, and reports the error on its own", async () => {
+    const answer = wrapper.execute("raise ValueError('no')");
+    emit(ERROR);
+    emit({ data: "error", stream: "status" });
+
+    const { status, outputs, error } = await answer;
+    expect(status).toBe("error");
+    expect(outputs).toEqual([ERROR]);
+    expect(error).toEqual({
+      ename: "ValueError",
+      evalue: "no",
+      traceback: ["Traceback…", "ValueError: no"],
+    });
+  });
+
+  it("does not mistake the execution count for output", async () => {
+    const answer = wrapper.execute("1");
+    emit({ data: 7, stream: "execution_count" });
+    emit({ data: "ok", stream: "status" });
+
+    const { outputs, executionCount } = await answer;
+    expect(outputs).toEqual([]);
+    expect(executionCount).toBe(7);
+  });
+
+  describe("when the kernel never replies", () => {
+    beforeEach(() => jasmine.useRealClock());
+
+    // Without a timeout the promise stays pending for the life of the window,
+    // which is what `while True:` in a cell used to do to every caller.
+    it("gives up, keeping whatever arrived", async () => {
+      const answer = wrapper.execute("while True: pass", { timeoutMs: 20 });
+      emit(STREAM);
+
+      const { status, outputs } = await answer;
+      expect(status).toBe("timeout");
+      expect(outputs).toEqual([STREAM]);
+    });
+
+    it("does not give up on a kernel that answers in time", async () => {
+      const answer = wrapper.execute("1", { timeoutMs: 5000 });
+      emit({ data: "ok", stream: "status" });
+
+      expect((await answer).status).toBe("ok");
+    });
+  });
 });
 
 describe("jupyter.kernel service", () => {

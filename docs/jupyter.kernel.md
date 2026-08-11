@@ -71,6 +71,7 @@ Each kernel is a `JupyterKernel`:
 ```ts
 type JupyterKernel = {
   // identity
+  readonly id: string;
   readonly displayName: string;
   readonly language: string;
   readonly grammar: Grammar;
@@ -78,7 +79,15 @@ type JupyterKernel = {
   getConnectionFile(): string;
 
   // running code
-  execute(code: string): Promise<{ status: "ok" | "error"; outputs: object[]; error?: object }>;
+  execute(
+    code: string,
+    options?: { timeoutMs?: number },
+  ): Promise<{
+    status: "ok" | "error" | "timeout";
+    outputs: object[];
+    executionCount: number | null;
+    error?: { ename: string; evalue: string; traceback: string[] };
+  }>;
   executeWithCallback(code: string, onResults: (result: object) => void): void;
   executeWatch(code: string, onResults: (result: object) => void): void;
   complete(code: string): Promise<object>;
@@ -103,6 +112,12 @@ type JupyterKernel = {
   addMiddleware(middleware: object): void;
 };
 ```
+
+`id` is stable for the life of the kernel and unique within the window. Name a kernel by it rather than by `displayName`, which two Python 3 kernels share, or by `getConnectionFile()`, which throws for a kernel reached over a websocket.
+
+`execute`'s `outputs` are **notebook-format outputs** — `stream`, `execute_result`, `display_data`, `error` — in the order they arrived, ready for `jupyter.output`'s `getOutputPlainText` or its renderers. A failed execution also reports `error` separately, lifted from the `error` output.
+
+**`execute` settles only when the kernel replies.** Code that never finishes — a `while True:`, a blocked socket — leaves the promise pending for the life of the window unless you pass `timeoutMs`, which resolves with `status: "timeout"` and whatever outputs arrived. The kernel goes on running either way: stopping it is `interrupt()`, and that is a decision for the caller, since a long execution may be doing exactly what the user asked for.
 
 `executeWatch` is the one to reach for when a panel asks the kernel a question rather than running the user's code: it takes no execution number and does not move the status bar's counter or timer.
 
