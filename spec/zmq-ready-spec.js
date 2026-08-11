@@ -15,8 +15,17 @@ function fakeSocket() {
     on(event, listener) {
       (this.listeners[event] ??= []).push(listener);
     },
+    removeListener(event, listener) {
+      const listeners = this.listeners[event];
+      if (!listeners) return;
+      const index = listeners.indexOf(listener);
+      if (index !== -1) listeners.splice(index, 1);
+    },
+    listenerCount(event) {
+      return (this.listeners[event] || []).length;
+    },
     emit(event) {
-      for (const listener of this.listeners[event] || []) listener({});
+      for (const listener of [...(this.listeners[event] || [])]) listener({});
     },
     async send(message) {
       this.sent.push(message);
@@ -107,6 +116,36 @@ describe("kernel launch readiness", () => {
     expect(restarted).toBe(1);
   });
 
+  // One of the readiness listeners rides `message`, so leaving them attached
+  // means calling them for every iopub message the kernel ever sends.
+  it("drops its readiness listeners once the kernel is ready", () => {
+    kernel = bareKernel();
+    kernel.monitor(() => {});
+    expect(kernel.ioSocket.listenerCount("message")).toBe(1);
+
+    kernel.shellSocket.emit("message");
+    kernel.ioSocket.emit("message");
+
+    expect(kernel.ioSocket.listenerCount("message")).toBe(0);
+    expect(kernel.ioSocket.listenerCount("connect")).toBe(0);
+    expect(kernel.shellSocket.listenerCount("message")).toBe(0);
+  });
+
+  it("does not accumulate listeners across restarts", () => {
+    kernel = bareKernel();
+    kernel.monitor(() => {});
+    kernel.shellSocket.emit("message");
+    kernel.ioSocket.emit("message");
+
+    for (let restart = 0; restart < 5; restart++) {
+      kernel.monitor(() => {}, true);
+      expect(kernel.ioSocket.listenerCount("message")).toBe(1);
+      kernel.shellSocket.emit("message");
+      kernel.ioSocket.emit("message");
+      expect(kernel.ioSocket.listenerCount("message")).toBe(0);
+    }
+  });
+
   it("goes quiet after destruction", () => {
     kernel = bareKernel();
     let started = 0;
@@ -117,5 +156,72 @@ describe("kernel launch readiness", () => {
     kernel.ioSocket.emit("message");
 
     expect(started).toBe(0);
+  });
+});
+
+// The ready probe sends into the socket every 500 ms for a minute, and the ack
+// watchdog's interval holds the kernel — sockets, callbacks and all — for as
+// long as it runs. A process that has exited answers neither, so both have to
+// stop with it, or a session accumulates one immortal kernel per death.
+describe("kernel process exit", () => {
+  let kernel;
+
+  function exitingKernel(lifecycle) {
+    const listeners = {};
+    const childProcess = {
+      stdout: { on() {} },
+      stderr: { on() {} },
+      on(event, listener) {
+        listeners[event] = listener;
+      },
+      exit: (code) => listeners.exit?.(code, null),
+    };
+
+    const instance = Object.create(ZMQKernel.prototype);
+    instance._destroyed = false;
+    instance.lifecycle = lifecycle;
+    instance.kernelSpec = { display_name: "Python 3" };
+    instance.executionCallbacks = {};
+    instance.shellSocket = null;
+    instance.ioSocket = null;
+    instance.stdinSocket = null;
+    instance.connectionFile = null;
+    instance.setLifecycle = () => {};
+    instance.emitDidLoseKernel = () => {};
+    instance._clearState = () => {};
+    // Stand in for real timers so the spec asserts on the clearing, not on
+    // whatever the frozen clock would or would not deliver.
+    instance._readyProbe = setInterval(() => {}, 1000);
+    instance._ackWatchdog = setInterval(() => {}, 1000);
+    instance.monitorNotifications(childProcess);
+    return { instance, childProcess };
+  }
+
+  afterEach(() => {
+    kernel?._stopReadyProbe();
+    kernel?._stopAckWatchdog();
+    kernel = null;
+  });
+
+  it("stops both timers when the kernel dies", () => {
+    const { instance, childProcess } = exitingKernel("ready");
+    kernel = instance;
+
+    childProcess.exit(1);
+
+    expect(instance._readyProbe).toBe(null);
+    expect(instance._ackWatchdog).toBe(null);
+  });
+
+  it("leaves the timers alone while restarting", () => {
+    // A restart kills the old process and arms the new kernel's probe before
+    // this event arrives, so stopping here would stop the new one.
+    const { instance, childProcess } = exitingKernel("restarting");
+    kernel = instance;
+
+    childProcess.exit(0);
+
+    expect(instance._readyProbe).not.toBe(null);
+    expect(instance._ackWatchdog).not.toBe(null);
   });
 });
