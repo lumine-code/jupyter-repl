@@ -51,11 +51,6 @@
         "^1.0.0": "consumeJupyterAdapter"
       }
     },
-    "claude-chat": {
-      "versions": {
-        "^1.0.0": "consumeClaudeChat"
-      }
-    },
     "image-editor": {
       "versions": {
         "^1.0.0": "consumeImageEditor"

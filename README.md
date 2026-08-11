@@ -62,7 +62,6 @@ Commands available in `lumine-workspace`:
 - `jupyter-repl:open-examples`: open example files,
 - `jupyter-repl:edit-gateways`: open `gateways.json`,
 - `jupyter-repl:shutdown-all-kernels`: shutdown all running kernels,
-- `jupyter-repl:attach-to-claude`: attach code and output to claude-chat,
 - `jupyter-repl:debug-toggle`: toggle debug logging,
 - `jupyter-repl:open-terminal`: open Jupyter console attached to active kernel in an embedded terminal pane,
 - `jupyter-repl:spawn-terminal`: spawn Jupyter console attached to active kernel in a system terminal,
@@ -101,7 +100,6 @@ Rendered in the editor under Settings, and readable here:
 - **terminal** (`^1.0.0`): consumed to run the Jupyter console in an embedded terminal pane.
 - **terminal-spawn** (`^1.0.0`): consumed to run the Jupyter console in a system terminal.
 - **image-editor** (`^1.0.0`): consumed to open image outputs in a full image editor.
-- **claude-chat** (`^1.0.0`): consumed to attach code and its output to a chat conversation.
 
 ## Contributing
 
