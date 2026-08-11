@@ -3,3 +3,4 @@ node_modules
 examples
 assets
 package-lock.json
+lib/vendor
