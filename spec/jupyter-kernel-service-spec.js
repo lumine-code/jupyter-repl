@@ -155,6 +155,36 @@ describe("JupyterKernel#execute", () => {
 
       expect((await answer).status).toBe("ok");
     });
+
+    // The execution runs on after the timeout — that is what a timeout means
+    // here — but nothing will read this array again. The runaway loop a
+    // timeout exists for would fill it until the kernel was restarted.
+    it("stops collecting output once it has given up", async () => {
+      const answer = wrapper.execute("while True: print(1)", { timeoutMs: 20 });
+      emit(STREAM);
+      const { outputs } = await answer;
+      expect(outputs.length).toBe(1);
+
+      for (let i = 0; i < 100; i++) {
+        emit(STREAM);
+      }
+
+      expect(outputs.length).toBe(1);
+    });
+
+    // A late reply must not resolve a promise that already settled as a
+    // timeout, nor undo the guard above.
+    it("ignores a reply that arrives after it gave up", async () => {
+      const answer = wrapper.execute("slow()", { timeoutMs: 20 });
+      const settled = await answer;
+      expect(settled.status).toBe("timeout");
+
+      emit(STREAM);
+      emit({ data: "ok", stream: "status" });
+
+      expect(settled.outputs.length).toBe(0);
+      expect((await answer).status).toBe("timeout");
+    });
   });
 });
 

@@ -182,6 +182,29 @@ describe("the Jupyter MCP tools", () => {
       expect(answer.text.length).toBeLessThan(500);
     });
 
+    // Stripping the colour out walks the whole string several times, so a cell
+    // that printed megabytes used to be converted in full to produce twenty
+    // kilobytes — half a second of blocked renderer for text already destined
+    // for the bin. The answer has to stay exactly what it was.
+    it("bounds a huge output before it converts it, not after", async () => {
+      const coloured = "value [31m42[0m for this row\n";
+      const huge = coloured.repeat(40000);
+      kernel.execute = async () => ({
+        status: "ok",
+        executionCount: 1,
+        outputs: [{ output_type: "stream", name: "stdout", text: huge }],
+      });
+
+      const answer = await run("JupyterExecute", { code: "print(df)", maxLength: 2000 });
+
+      expect(answer.truncated).toBe(true);
+      expect(answer.text.length).toBe(2000);
+      expect(answer.text).not.toContain("[");
+      // The same first 2000 characters converting the whole thing would give.
+      const { ansiToText } = require("../lib/output-service").outputService;
+      expect(answer.text).toBe(ansiToText(huge).slice(0, 2000));
+    });
+
     it("passes the timeout down and reports one plainly", async () => {
       let seen = null;
       kernel.execute = async (code, options) => {
