@@ -294,7 +294,12 @@ class ResultViewComponent {
       this.wheelHandler = null;
     }
     this.storeSubscription.dispose();
-    return etch.destroy(this);
+    // destroySync, not destroy: etch defers an ordinary destroy to the next
+    // animation frame, and by then the caller has already torn down what owned
+    // this. If that frame never arrives — package deactivation, window close —
+    // nothing here is cleaned up at all, and a renderer holding a live view
+    // keeps receiving updates into DOM nobody can see.
+    return etch.destroySync(this);
   }
 }
 
