@@ -61,8 +61,26 @@ describe("what eager activation is allowed to load", () => {
       "@nteract/any-vega",
       "plotly.js-dist",
       "@mathjax/src",
+      // The widget stack. `jupyter-widgets` is the pre-bundled copy under
+      // lib/vendor, about 700 KB; the scoped names are banned too so a direct
+      // require of one is caught rather than resolving to the same weight by
+      // another road.
+      "@jupyter-widgets/base",
+      "@jupyter-widgets/base-manager",
+      "@jupyter-widgets/controls",
+      "@jupyter-widgets/output",
+      "@lumino/widgets",
     ]);
-    const bannedLocals = new Set(["jmp", "zmq-kernel", "ws-kernel", "ws-kernel-picker"]);
+    const bannedLocals = new Set([
+      "jmp",
+      "zmq-kernel",
+      "ws-kernel",
+      "ws-kernel-picker",
+      // Loads the widget bundle. widget-registry, which is what the renderer
+      // actually consults, is dependency-free and deliberately not banned.
+      "widget-manager",
+      "jupyter-widgets",
+    ]);
     const libRoot = path.join(__dirname, "..", "lib");
 
     const resolveLocal = (fromDir, specifier) => {
