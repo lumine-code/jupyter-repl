@@ -217,6 +217,42 @@ describe("comm routing on the ZMQ transport", () => {
     });
   });
 
+  describe("comm_info", () => {
+    it("resolves the comms the kernel reports", async () => {
+      const pending = kernel.requestCommInfo("jupyter.widget");
+      const [requestId] = Object.keys(kernel.executionCallbacks);
+
+      kernel.executionCallbacks[requestId].callback(
+        {
+          header: { msg_id: "r", msg_type: "comm_info_reply" },
+          parent_header: { session: OURS, msg_id: requestId, msg_type: "comm_info_request" },
+          content: { status: "ok", comms: { c9: { target_name: "jupyter.widget" } } },
+        },
+        "shell",
+      );
+
+      expect(await pending).toEqual({ c9: { target_name: "jupyter.widget" } });
+    });
+
+    it("asks about every target when given none", () => {
+      kernel.requestCommInfo();
+
+      expect(kernel.shellSocket.sent.length).toBe(1);
+      expect(kernel.shellSocket.sent[0].content).toEqual({});
+    });
+
+    it("rejects when the request is never answered", async () => {
+      // The watchdog synthesizes an error reply on this same channel, which is
+      // what turns a lost request into a rejection rather than a hang.
+      const pending = kernel.requestCommInfo();
+      const [requestId] = Object.keys(kernel.executionCallbacks);
+
+      kernel._settleUnanswered(requestId, "comm_info_request", "NoReplyError", "lost");
+
+      await expectAsync(pending).toBeRejectedWithError(/lost/);
+    });
+  });
+
   describe("reset", () => {
     it("drops comms and announces it, keeping the target claim", async () => {
       kernel.onIOMessage(commOpen({ session: OURS }));
