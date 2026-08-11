@@ -8,6 +8,7 @@ Supports Python, R, JavaScript, and other languages with rich output including p
 
 - **Interactive execution**: run lines, selections, or automatically detected code blocks with inline results, multiple cursors, and smart Python/bracket/fold detection.
 - **Rich media output**: renders plots, images, video, HTML, LaTeX, and interactive Plotly and Vega charts inline.
+- **Jupyter widgets**: renders the core `ipywidgets` controls live against the kernel, including `interact` and the output widget.
 - **Kernel intelligence**: autocomplete, object introspection, and a shared namespace with one kernel per language across files.
 - **Kernel management**: starts local kernels, connects to remote gateways, and interrupts, restarts or shuts them down.
 - **Notebook support**: imports and exports `.ipynb` notebooks and drives external notebook cells through the `jupyter.adapter` service.
@@ -87,6 +88,7 @@ Rendered in the editor under Settings, and readable here:
 - [Kernels](docs/1_kernels.md) — installing kernels, choosing between them, and remote gateways.
 - [Running code](docs/2_running.md) — what a run sends, what the results do, and the console launcher.
 - [Integration](docs/3_integration.md) — the notebook adapter and the kernel object a service hands over.
+- [Widgets](docs/5_widgets.md) — which `ipywidgets` controls render, and what happens to them when the kernel restarts.
 - [jupyter.kernel](docs/jupyter.kernel.md), [jupyter.output](docs/jupyter.output.md), [jupyter.breakpoints](docs/jupyter.breakpoints.md) — the service contracts.
 
 ## Services
