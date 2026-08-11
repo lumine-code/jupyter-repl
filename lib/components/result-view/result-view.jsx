@@ -6,17 +6,23 @@ const actions = require("./output-actions");
 
 const SCROLL_HEIGHT = 600;
 
+// Small enough to pull a result right back, large enough that the chrome it is
+// dragged around stays usable at the limit.
+const MIN_RESIZE_WIDTH = 64;
+const MIN_RESIZE_HEIGHT = 32;
+
 /**
  * One result bubble: the outputs of a single execution, shown either inline
  * beside the code or as a scrollable block.
  *
- * A block carries two hover overlays — close at the top right, expand at the
- * bottom right when the content overflows. Both sit inside the box, pinned to
- * its right edge and clear of whatever gutter the display's own scrollbars
- * take, so a result filling the editor's width keeps them on screen. Both are
- * positioned out of the layout, so the box is exactly as tall as its content
- * and a one-line result is one line tall. Closing is also middle click, and
- * every action — these two, copy, open and save — is in the context menu.
+ * A block carries its chrome on hover: close and expand in a column at the top
+ * right, and a resize grip in the bottom-right corner. All of it sits inside
+ * the box, pinned to its right edge and clear of whatever gutter the display's
+ * own scrollbars take, so a result filling the editor's width keeps it on
+ * screen — and all of it is positioned out of the layout, so the box is exactly
+ * as tall as its content and a one-line result is one line tall. Closing is
+ * also middle click, and every action — these, copy, open, save and reset — is
+ * in the context menu.
  */
 class ResultViewComponent {
   constructor(props) {
@@ -25,9 +31,15 @@ class ResultViewComponent {
     this.hasImage = false;
     this.showExpandButton = false;
     // Width and height the display's scrollbars take, which is how far in from
-    // the box's edges the overlays have to sit.
+    // the box's edges the chrome has to sit.
     this.gutterRight = 0;
     this.gutterBottom = 0;
+    // Size the grip was dragged to, or null for the natural one. Deliberately
+    // not carried anywhere: a re-run builds a new bubble, and a size dragged for
+    // one result says nothing about what the next one will hold.
+    this.resizedWidth = null;
+    this.resizedHeight = null;
+    this.resizeOrigin = null;
     // Output count the rendered tree was last searched for an image at.
     this.probedOutputCount = -1;
     this.wheelHandler = null;
@@ -91,7 +103,104 @@ class ResultViewComponent {
 
   toggleExpand = () => {
     this.expanded = !this.expanded;
+    // A dragged height is a statement about this one box; fitting it to the
+    // content, or putting it back under the cap, replaces that statement.
+    this.resizedHeight = null;
     etch.update(this);
+  };
+
+  /**
+   * Whether the box is a fixed-height scroller rather than one that fits its
+   * content. A dragged height always is, whatever expand was left at.
+   */
+  get isScroller() {
+    return this.resizedHeight != null || !this.expanded;
+  }
+
+  resetSize = () => {
+    if (this.resizedWidth == null && this.resizedHeight == null) {
+      return;
+    }
+    this.resizedWidth = null;
+    this.resizedHeight = null;
+    etch.update(this);
+  };
+
+  /**
+   * Drag the bottom-right corner. The size lands on the scroller rather than on
+   * the box, because the scroller is what decides wrapping and what grows the
+   * scrollbars — the box then follows it, and the overlays keep measuring the
+   * one element that moved.
+   *
+   * Plain mouse events, not pointer capture: etch declares no pointer props, and
+   * a window-level pair covers the same ground. A move arriving with no button
+   * held is a release that happened outside the window, which is the one thing
+   * capture would have caught for free.
+   */
+  startResize = (event) => {
+    const display = this.refs.display;
+    if (event.button !== 0 || !display) {
+      return;
+    }
+    // The editor ignores a mousedown inside a block decoration, so nothing
+    // upstream starts a selection — but the press must not reach the bubble's
+    // own handlers, and the default drag-select has to go.
+    event.preventDefault();
+    event.stopPropagation();
+
+    const editor = this.props.editor;
+    // Read live. The store's editorWidth is only refreshed when the marker
+    // moves, so it is stale after a pane resize — and a clamp is only worth
+    // having if it is the width the editor has now.
+    if (editor && !editor.isDestroyed?.()) {
+      this.store.updatePosition({
+        editorWidth: editor.element.getWidth(),
+        charWidth: editor.getDefaultCharWidth(),
+      });
+    }
+    const { editorWidth, charWidth } = this.store.position;
+
+    this.resizeOrigin = {
+      x: event.clientX,
+      y: event.clientY,
+      width: display.offsetWidth,
+      height: display.offsetHeight,
+      maxWidth: editorWidth > 0 ? editorWidth - 2 * charWidth : Infinity,
+    };
+    window.addEventListener("mousemove", this.moveResize);
+    window.addEventListener("mouseup", this.endResize);
+    // The owner relaxes its re-measure budget for the duration: a drag is a
+    // hand, and a hand cannot oscillate.
+    this.props.onUserResize?.(true);
+  };
+
+  moveResize = (event) => {
+    const origin = this.resizeOrigin;
+    if (!origin) {
+      return;
+    }
+    if (event.buttons === 0) {
+      this.endResize();
+      return;
+    }
+    this.resizedWidth = Math.max(
+      MIN_RESIZE_WIDTH,
+      Math.min(origin.width + event.clientX - origin.x, origin.maxWidth),
+    );
+    this.resizedHeight = Math.max(MIN_RESIZE_HEIGHT, origin.height + event.clientY - origin.y);
+    // Synchronously, so the box is under the cursor in the frame the move was
+    // reported in rather than the one after it.
+    etch.updateSync(this);
+  };
+
+  endResize = () => {
+    if (!this.resizeOrigin) {
+      return;
+    }
+    this.resizeOrigin = null;
+    window.removeEventListener("mousemove", this.moveResize);
+    window.removeEventListener("mouseup", this.endResize);
+    this.props.onUserResize?.(false);
   };
 
   // Keep a scroll gesture inside a scrollable result instead of letting it
@@ -145,7 +254,14 @@ class ResultViewComponent {
           className="jupyter_cell_display"
           ref="display"
           style={{
-            maxHeight: this.expanded ? "100%" : `${SCROLL_HEIGHT}px`,
+            // Empty rather than absent: etch only writes the style keys its
+            // vdom names, so a key that comes and goes would leave the last
+            // value it wrote on the element forever.
+            width: this.resizedWidth == null ? "" : `${this.resizedWidth}px`,
+            height: this.resizedHeight == null ? "" : `${this.resizedHeight}px`,
+            // A dragged height is the height; anything else would cap it.
+            maxHeight:
+              this.resizedHeight != null ? "none" : this.expanded ? "100%" : `${SCROLL_HEIGHT}px`,
             overflowY: "auto",
           }}
         >
@@ -154,24 +270,30 @@ class ResultViewComponent {
           ))}
         </div>
         {isPlain ? null : (
-          // Overlays inside the right edge but out of the layout: the box stays
+          // Chrome inside the right edge but out of the layout: the box stays
           // exactly as tall as its content, never gives up width, and stays
-          // reachable however wide it grows. Only the two that are about the
-          // box itself are here — copy, open and save are words in the context
-          // menu, which needs no room and no hover to find.
+          // reachable however wide it grows. Only what is about the box itself
+          // is here — copy, open, save and reset are words in the context menu,
+          // which needs neither room nor hover to find.
+          <div className="result-actions" style={{ right: `${this.gutterRight}px` }}>
+            <div className="result-close icon icon-x" onClick={this.props.destroy} />
+            {this.showExpandButton ? (
+              <div
+                className={`result-expand icon icon-${this.expanded ? "fold" : "unfold"}`}
+                onClick={this.toggleExpand}
+              />
+            ) : null}
+          </div>
+        )}
+        {isPlain ? null : (
+          // The corner, which is where a resize grip is looked for. It owns the
+          // corner outright — that is why expand moved up into the column.
           <div
-            className="result-close icon icon-x"
-            style={{ right: `${this.gutterRight}px` }}
-            onClick={this.props.destroy}
+            className="result-resize"
+            style={{ right: `${this.gutterRight}px`, bottom: `${this.gutterBottom}px` }}
+            onMouseDown={this.startResize}
           />
         )}
-        {!isPlain && this.showExpandButton ? (
-          <div
-            className={`result-expand icon icon-${this.expanded ? "fold" : "unfold"}`}
-            style={{ right: `${this.gutterRight}px`, bottom: `${this.gutterBottom}px` }}
-            onClick={this.toggleExpand}
-          />
-        ) : null}
       </div>
     );
   }
@@ -216,8 +338,11 @@ class ResultViewComponent {
     // Not cacheable the same way: a growing stream merges into one output, so
     // the count holds still while the height climbs past the threshold. This
     // one does render — the expand overlay appears with it — so a flip needs
-    // another pass, and only a flip, or measuring would loop forever.
-    const showExpandButton = scrollHeight > SCROLL_HEIGHT;
+    // another pass, and only a flip, or measuring would loop forever. Once a
+    // height has been dragged the cap no longer describes the box, so overflow
+    // is what the question becomes.
+    const showExpandButton =
+      this.resizedHeight != null ? scrollHeight > clientHeight : scrollHeight > SCROLL_HEIGHT;
     let changed = showExpandButton !== this.showExpandButton;
     this.showExpandButton = showExpandButton;
 
@@ -239,7 +364,7 @@ class ResultViewComponent {
 
   syncWheelHandler(isPlain) {
     const display = this.refs.display;
-    const wanted = !this.expanded && !isPlain ? display : null;
+    const wanted = !isPlain && this.isScroller ? display : null;
 
     if (this.wheelElement === wanted) {
       return;
@@ -257,7 +382,7 @@ class ResultViewComponent {
   scrollToBottom(display, scrollHeight, clientHeight, isPlain) {
     if (
       !display ||
-      this.expanded ||
+      !this.isScroller ||
       isPlain ||
       lumine.config.get("jupyter-repl.autoScroll") === false
     ) {
@@ -275,6 +400,9 @@ class ResultViewComponent {
   }
 
   destroy() {
+    // A bubble closed mid-drag would otherwise leave its window listeners
+    // behind, still writing to a component nobody can see.
+    this.endResize();
     if (this.wheelElement && this.wheelHandler) {
       this.wheelElement.removeEventListener("wheel", this.wheelHandler);
       this.wheelElement = null;

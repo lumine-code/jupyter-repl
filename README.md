@@ -72,10 +72,11 @@ Commands available in `lumine-workspace`:
 - `jupyter-repl:open-result-in-editor`: open a result's contents in a new editor,
 - `jupyter-repl:save-result-image`: save a result's image to a file,
 - `jupyter-repl:toggle-result-expansion`: expand or collapse a scrolling result,
+- `jupyter-repl:reset-result-size`: return a dragged result to its natural size,
 - `jupyter-repl:close-result`: remove a result.
 
-The last five act on the result the command was dispatched from — its own
-context menu or its buttons — and otherwise on the result at the cursor's line.
+The last six act on the result the command was dispatched from — its own
+context menu or its chrome — and otherwise on the result at the cursor's line.
 
 Commands available in `.jupyter-repl.kernel-picker`, all listed with their keybindings in the item-actions list (F12):
 

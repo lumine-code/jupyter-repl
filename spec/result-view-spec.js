@@ -28,12 +28,31 @@ function stream(text) {
   return { output_type: "stream", name: "stdout", text };
 }
 
-function build(store) {
+function build(store, props) {
   return new ResultViewComponent({
     store,
     editor: null,
     showResult: true,
+    ...props,
   });
+}
+
+// The floor the grip clamps to, mirrored from result-view.jsx.
+const MIN_RESIZE_WIDTH = 64;
+const MIN_RESIZE_HEIGHT = 32;
+
+function press(element, clientX, clientY) {
+  element.dispatchEvent(
+    new MouseEvent("mousedown", { button: 0, bubbles: true, clientX, clientY }),
+  );
+}
+
+function drag(clientX, clientY) {
+  window.dispatchEvent(new MouseEvent("mousemove", { buttons: 1, clientX, clientY }));
+}
+
+function release() {
+  window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
 }
 
 describe("the result bubble", () => {
@@ -65,12 +84,11 @@ describe("the result bubble", () => {
     expect(component.element.textContent).toContain("42");
   });
 
-  it("gives a block result hover overlays and an inline result none", () => {
-    // The overlays are the only chrome, and they are positioned out of the
-    // layout — the old toolbar is gone, so nothing reserves space beside the
-    // content. Only the two actions about the box itself are here; copy, open
-    // and save are context-menu items. Expand appears once the content
-    // overflows.
+  it("gives a block result hover chrome and an inline result none", () => {
+    // The chrome is positioned out of the layout — the old toolbar is gone, so
+    // nothing reserves space beside the content. Only what is about the box
+    // itself is here; copy, open and save are context-menu items. Expand joins
+    // close in the column once the content overflows.
     const store = blockStore();
     store.appendOutput(stream("a long enough line to stay a block\n"));
     component = build(store);
@@ -78,12 +96,11 @@ describe("the result bubble", () => {
 
     expect(component.element.className).toContain("multiline-container");
     expect(component.element.querySelector(".toolbar")).toBeNull();
-    const close = component.element.querySelector(".result-close");
-    expect(close).not.toBeNull();
-    expect(close.className).toContain("icon-x");
-    const overlays = [...component.element.children].filter((el) => el.classList.contains("icon"));
-    expect(overlays.length).toBe(1);
+    const group = component.element.querySelector(".result-actions");
+    expect(group).not.toBeNull();
+    expect([...group.children].map((el) => el.classList[0])).toEqual(["result-close"]);
     expect(component.element.querySelector(".result-expand")).toBeNull();
+    expect(component.element.querySelector(".result-resize")).not.toBeNull();
 
     component.destroy();
 
@@ -94,14 +111,14 @@ describe("the result bubble", () => {
 
     expect(inline.isPlain).toBe(true);
     expect(component.element.className).toContain("inline-container");
-    expect(component.element.querySelector(".result-close")).toBeNull();
-    expect(component.element.querySelector(".result-expand")).toBeNull();
+    expect(component.element.querySelector(".result-actions")).toBeNull();
+    expect(component.element.querySelector(".result-resize")).toBeNull();
     expect(component.element.children.length).toBe(1);
   });
 
-  it("keeps the overlays clear of the display's scrollbars", () => {
-    // They sit inside the box, so a bar the display grows is a gutter they
-    // have to clear — otherwise the button lands on the bar and takes its drag.
+  it("keeps the chrome clear of the display's scrollbars", () => {
+    // It sits inside the box, so a bar the display grows is a gutter it has to
+    // clear — otherwise a button lands on the bar and the grip takes its drag.
     const store = blockStore();
     store.appendOutput(stream("line\n".repeat(200)));
     component = build(store);
@@ -113,10 +130,10 @@ describe("the result bubble", () => {
     const display = component.refs.display;
     expect(component.gutterRight).toBe(display.offsetWidth - display.clientWidth);
     expect(component.gutterBottom).toBe(display.offsetHeight - display.clientHeight);
-    for (const overlay of component.element.querySelectorAll(".result-close, .result-expand")) {
-      expect(overlay.style.right).toBe(`${component.gutterRight}px`);
+    for (const part of component.element.querySelectorAll(".result-actions, .result-resize")) {
+      expect(part.style.right).toBe(`${component.gutterRight}px`);
     }
-    expect(component.element.querySelector(".result-expand").style.bottom).toBe(
+    expect(component.element.querySelector(".result-resize").style.bottom).toBe(
       `${component.gutterBottom}px`,
     );
   });
@@ -139,6 +156,79 @@ describe("the result bubble", () => {
 
     expect(component.expanded).toBe(true);
     expect(component.element.querySelector(".result-expand").className).toContain("icon-fold");
+  });
+
+  it("resizes from the grip, clamps to a floor, and can be put back", () => {
+    const store = blockStore();
+    store.appendOutput(stream("line\n".repeat(200)));
+    const onUserResize = jasmine.createSpy("onUserResize");
+    component = build(store, { onUserResize });
+    etch.updateSync(component);
+    jasmine.attachToDOM(component.element);
+    component.afterRender();
+    etch.updateSync(component);
+
+    const display = component.refs.display;
+    const width = display.offsetWidth;
+    const height = display.offsetHeight;
+
+    press(component.element.querySelector(".result-resize"), 500, 500);
+    // The owner has to relax its re-measure budget for the whole gesture, or
+    // the editor freezes at the pre-drag height four frames in.
+    expect(onUserResize).toHaveBeenCalledWith(true);
+
+    drag(420, 460);
+    expect(component.resizedWidth).toBe(Math.max(MIN_RESIZE_WIDTH, width - 80));
+    expect(component.resizedHeight).toBe(Math.max(MIN_RESIZE_HEIGHT, height - 40));
+    expect(display.style.width).toBe(`${component.resizedWidth}px`);
+    expect(display.style.height).toBe(`${component.resizedHeight}px`);
+    // A dragged height is the height: the 600px cap no longer describes the box.
+    expect(display.style.maxHeight).toBe("none");
+
+    // Far past the floor in both axes.
+    drag(-5000, -5000);
+    expect(component.resizedWidth).toBe(MIN_RESIZE_WIDTH);
+    expect(component.resizedHeight).toBe(MIN_RESIZE_HEIGHT);
+
+    release();
+    expect(onUserResize).toHaveBeenCalledWith(false);
+
+    // The window listeners went with the release, so a stray move is nothing.
+    drag(900, 900);
+    expect(component.resizedWidth).toBe(MIN_RESIZE_WIDTH);
+
+    component.resetSize();
+    etch.updateSync(component);
+    expect(component.resizedWidth).toBeNull();
+    expect(display.style.width).toBe("");
+    expect(display.style.height).toBe("");
+    expect(display.style.maxHeight).toBe("600px");
+  });
+
+  it("hands the box back to expand when it is toggled after a drag", () => {
+    // Both answer the same question, so the last one asked wins: fitting to the
+    // content cannot leave a dragged height capping it.
+    const store = blockStore();
+    store.appendOutput(stream("line\n".repeat(200)));
+    component = build(store);
+    etch.updateSync(component);
+    jasmine.attachToDOM(component.element);
+    component.afterRender();
+    etch.updateSync(component);
+
+    press(component.element.querySelector(".result-resize"), 500, 500);
+    drag(400, 400);
+    release();
+    expect(component.resizedHeight).not.toBeNull();
+    expect(component.isScroller).toBe(true);
+
+    component.toggleExpand();
+    etch.updateSync(component);
+
+    expect(component.resizedHeight).toBeNull();
+    expect(component.expanded).toBe(true);
+    expect(component.isScroller).toBe(false);
+    expect(component.refs.display.style.maxHeight).toBe("100%");
   });
 
   it("searches the rendered output for an image only when the outputs change", () => {
@@ -266,6 +356,62 @@ describe("measuring after attachment", () => {
 
       view.handleElementResize();
       expect(updates).toHaveBeenCalled();
+
+      view.destroy();
+      editor.destroy();
+    } finally {
+      global.ResizeObserver = previousResizeObserver;
+    }
+  });
+
+  it("keeps claiming re-measures for as long as the grip is held", async () => {
+    // claimSelfResize budgets self-driven re-measures, because content that
+    // sizes itself from the box it is measured in oscillates between two
+    // heights forever. A drag changes the height every frame and so never
+    // leaves the quiet gap that refills the budget — without the bypass the
+    // allowance runs out four frames in and the editor holds the pre-drag
+    // height while the content reflows under it.
+    const ResultView = require("../lib/components/result-view");
+    const MarkerStore = require("../lib/store/markers");
+    const previousResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    try {
+      const editor = await lumine.workspace.open();
+      const markers = new MarkerStore();
+      // Both halves of the budget are wall-clock, and the runner's clock does
+      // not advance on its own; drive it by hand so a frame is a frame.
+      let now = 100000;
+      spyOn(Date, "now").and.callFake(() => now);
+      const view = new ResultView(markers, editor, 0, true);
+      // claimSelfResize answers false for anything detached, since a detached
+      // bubble has no layout to have resized.
+      jasmine.attachToDOM(view.element);
+      expect(document.contains(view.element)).toBe(true);
+
+      const frame = (height) => {
+        now += 16;
+        return view.claimSelfResize([{ borderBoxSize: [{ blockSize: height }] }]);
+      };
+      const frames = (count, base) => Array.from({ length: count }, (_, i) => frame(base + i));
+
+      // Unaided, a run of frames spends the burst allowance and then starves:
+      // no gap between them is ever long enough to refill it.
+      expect(frames(6, 100)).toEqual([true, true, true, true, false, false]);
+
+      // Held, every frame claims — for as long as the gesture runs.
+      view.component.props.onUserResize(true);
+      expect(frames(8, 200)).toEqual([true, true, true, true, true, true, true, true]);
+
+      // Released, and the budget is in charge again: still starved, until a gap
+      // long enough to be something other than a drag refills it.
+      view.component.props.onUserResize(false);
+      expect(frame(300)).toBe(false);
+      now += ResultView.SELF_RESIZE_BURST_MS;
+      expect(frame(301)).toBe(true);
 
       view.destroy();
       editor.destroy();

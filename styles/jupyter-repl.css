@@ -302,49 +302,55 @@
     }
   }
 
-  /* Hover overlays: close at the top right, expand at the bottom right, both
-     inside the box and pinned to its right edge. Positioned out of the layout,
-     so a one-line result's box is one line tall and an image keeps its full
-     width — and inside rather than beyond the edge, so a result as wide as the
-     editor still has them on screen. The component writes `right` and `bottom`,
-     because how far in from the edge they sit is whatever gutter the display's
-     scrollbars take: flush against the box when there is none, flush against
-     the bar when there is, and never on top of one. */
-  .multiline-container .result-close,
-  .multiline-container .result-expand {
+  /* Hover chrome: close and expand in a column at the top right, and the resize
+     grip in the bottom-right corner. All of it inside the box and pinned to its
+     right edge — outside, it went off screen exactly when the result filled the
+     editor. Positioned out of the layout, so a one-line result's box is one line
+     tall and an image keeps its full width.
+
+     The component writes `right` and `bottom`, because how far in from the edge
+     they sit is whatever gutter the display's scrollbars take: flush against the
+     box when there is none, flush against the bar when there is, and never on
+     top of one — a grip over a scrollbar would take its drag. */
+  .multiline-container .result-actions,
+  .multiline-container .result-resize {
     position: absolute;
     z-index: 1;
-    /* No transition in either direction: the buttons are there the moment the
+    /* No transition in either direction: the chrome is there the moment the
        pointer enters the box and gone the moment it leaves. Visibility rather
-       than pointer-events, so a button is clickable for exactly as long as it
-       is on screen and never while invisible. */
+       than pointer-events, so it is usable for exactly as long as it is on
+       screen and never while invisible. */
     visibility: hidden;
-    cursor: pointer;
     background: var(--jupyter-repl-inline-background);
   }
 
-  /* They sit over the content now, so each is bordered only on the two sides
-     that face it; the box's own border, or the scrollbar, closes the others. */
-  .multiline-container .result-close {
+  /* It sits over the content now, so each piece is bordered only on the two
+     sides that face it; the box's own border, or the scrollbar, closes the
+     others. */
+  .multiline-container .result-actions {
     top: 0;
+    display: flex;
+    flex-direction: column;
     border-left: solid 1px var(--base-border-color);
     border-bottom: solid 1px var(--base-border-color);
     border-bottom-left-radius: var(--component-border-radius);
   }
 
-  .multiline-container .result-expand {
-    border-left: solid 1px var(--base-border-color);
+  /* One border around the column, divided between the buttons. */
+  .multiline-container .result-actions > :not(:first-child) {
     border-top: solid 1px var(--base-border-color);
-    border-top-left-radius: var(--component-border-radius);
   }
 
-  .multiline-container:hover .result-close,
-  .multiline-container:hover .result-expand {
+  .multiline-container:hover .result-actions,
+  .multiline-container:hover .result-resize {
     visibility: visible;
   }
 
-  .multiline-container .result-close::before,
-  .multiline-container .result-expand::before {
+  .multiline-container .result-actions .icon {
+    cursor: pointer;
+  }
+
+  .multiline-container .result-actions .icon::before {
     margin: 0;
     width: 1.6em;
     line-height: 1.6em;
@@ -352,9 +358,32 @@
     text-align: center;
   }
 
-  .multiline-container .result-close:hover,
-  .multiline-container .result-expand:hover {
+  .multiline-container .result-actions .icon:hover {
     color: var(--jupyter-repl-inline-color);
+  }
+
+  /* The grip. Hatched rather than iconic: diagonal strokes into a corner are
+     what a resize handle looks like everywhere, and they need no glyph. */
+  .multiline-container .result-resize {
+    width: 0.9em;
+    height: 0.9em;
+    cursor: nwse-resize;
+    border-left: solid 1px var(--base-border-color);
+    border-top: solid 1px var(--base-border-color);
+    border-top-left-radius: var(--component-border-radius);
+    background-image: repeating-linear-gradient(
+      -45deg,
+      var(--base-border-color) 0 1px,
+      transparent 1px 3px
+    );
+  }
+
+  .multiline-container .result-resize:hover {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      var(--jupyter-repl-inline-color) 0 1px,
+      transparent 1px 3px
+    );
   }
 
   /* -------------- Spinner ----------------- */
