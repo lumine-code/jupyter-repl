@@ -106,4 +106,25 @@ describe("LaTeX MathJax rendering (async ESM load)", () => {
   it("renders text-mode markup inside \\text via textmacros", async () => {
     clean(soleMath(await renderLatexRuns("$\\text{\\textbf{Material}: S355}$")));
   });
+
+  it("loads dynamic font chunks for glyphs outside the base set", async () => {
+    // Double-struck, fraktur and script glyphs live in font chunks MathJax
+    // fetches on demand through mathjax.asyncLoad; without that hook and the
+    // promise-based convert, \mathbb{R} throws MathJax's retry signal.
+    clean(soleMath(await renderLatexRuns("$\\mathbb{R}$")));
+    clean(soleMath(await renderLatexRuns("$\\mathfrak{g}$")));
+    clean(soleMath(await renderLatexRuns("$\\mathscr{L}$")));
+  });
+
+  it("keeps overlapping renders whole", async () => {
+    // convertPromise can yield mid-conversion to load a chunk; concurrent
+    // callers must each get their own complete result.
+    const [a, b] = await Promise.all([
+      renderLatexRuns("$\\mathbb{N}$ and $x$"),
+      renderLatexRuns("$\\mathfrak{sl}_2$"),
+    ]);
+    expect(a.map((run) => run.kind)).toEqual(["math", "text", "math"]);
+    clean(a[0]);
+    clean(soleMath(b));
+  });
 });

@@ -33,6 +33,11 @@ function ensureMathJax() {
         import("@mathjax/src/mjs/adaptors/liteAdaptor.js"),
         import("@mathjax/src/mjs/handlers/html.js"),
         import("@mathjax/src/mjs/input/tex/FindTeX.js"),
+        // Registers mathjax.asyncLoad. The font ships glyphs outside the base
+        // set (double-struck, fraktur, script, …) as chunks loaded on demand;
+        // without this hook a \mathbb{R} throws MathJax's retry signal, which
+        // is also why every conversion below goes through convertPromise.
+        import("@mathjax/src/mjs/util/asyncLoad/esm.js"),
       ]);
 
     // TeX packages register themselves as import side effects (v4 requires
@@ -149,6 +154,12 @@ function splitRuns(findTeX, source) {
   return runs;
 }
 
+// Renders are chained, not raced: convertPromise can yield mid-conversion to
+// load a font chunk, and with the shared TeX instance the order \newcommand
+// definitions land in is part of the output — two overlapping renders must
+// not interleave.
+let renderChain = Promise.resolve();
+
 /**
  * Ensure MathJax is loaded, split the input into runs, and convert each math
  * run to an SVG string. Returns an array of `{ kind: "text", text }` and
@@ -159,11 +170,20 @@ function splitRuns(findTeX, source) {
  */
 async function renderLatexRuns(source) {
   const api = await ensureMathJax();
-  return splitRuns(api.findTeX, source || "").map((run) => {
-    if (run.kind === "text") return run;
-    const node = api.htmlDoc.convert(run.math, { display: run.display });
-    return { kind: "math", display: run.display, svg: api.adaptor.innerHTML(node) };
+  const job = renderChain.then(async () => {
+    const runs = [];
+    for (const run of splitRuns(api.findTeX, source || "")) {
+      if (run.kind === "text") {
+        runs.push(run);
+        continue;
+      }
+      const node = await api.htmlDoc.convertPromise(run.math, { display: run.display });
+      runs.push({ kind: "math", display: run.display, svg: api.adaptor.innerHTML(node) });
+    }
+    return runs;
   });
+  renderChain = job.catch(() => {});
+  return job;
 }
 
 /**
