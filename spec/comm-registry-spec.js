@@ -331,6 +331,22 @@ describe("CommRegistry", () => {
       expect([0, 1, 2, 3].map((i) => view.getUint8(i))).toEqual([1, 2, 3, 4]);
     });
 
+    it("hands over a view that owns its whole buffer without copying it", () => {
+      // Node pools small allocations, which is what makes the copy above
+      // mandatory. A view spanning its entire ArrayBuffer is not a window onto
+      // anyone else's memory, and it is exactly the large payload — an image
+      // frame, a canvas update — where copying every message would show.
+      const owned = new Uint8Array([1, 2, 3, 4]);
+      expect(owned.byteOffset).toBe(0);
+      expect(owned.byteLength).toBe(owned.buffer.byteLength);
+
+      const [view] = fromWireBuffers([owned]);
+
+      expect(view instanceof DataView).toBe(true);
+      expect(view.buffer).toBe(owned.buffer);
+      expect([0, 1, 2, 3].map((i) => view.getUint8(i))).toEqual([1, 2, 3, 4]);
+    });
+
     it("converts an ArrayBuffer for the wire", () => {
       // zeromq refuses a bare ArrayBuffer, which is what ipywidgets produces.
       const source = Uint8Array.from([1, 2, 3]);

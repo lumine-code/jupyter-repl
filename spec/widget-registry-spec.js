@@ -86,5 +86,39 @@ describe("the widget registry", () => {
       expect(registry.managerForHost("kernel-1")).toBe(null);
       expect(registry.managerForModelId("m1")).toBe(null);
     });
+
+    // This map holds its managers strongly, and a manager holds every model,
+    // every view and their DOM. Releasing the host is the only thing that lets
+    // any of it go.
+    it("disconnects the manager it releases", () => {
+      let disconnected = 0;
+      const manager = { disconnect: () => disconnected++ };
+      registry.registerHost("kernel-2", manager);
+
+      registry.releaseHost("kernel-2");
+
+      expect(disconnected).toBe(1);
+      expect(registry.managerForHost("kernel-2")).toBe(null);
+    });
+
+    it("still releases a manager whose teardown throws", () => {
+      const manager = {
+        disconnect() {
+          throw new Error("boom");
+        },
+      };
+      registry.registerHost("kernel-2", manager);
+      registry.claimModel("m2", manager);
+      spyOn(console, "error");
+
+      registry.releaseHost("kernel-2");
+
+      expect(registry.managerForHost("kernel-2")).toBe(null);
+      expect(registry.managerForModelId("m2")).toBe(null);
+    });
+
+    it("releases a host that has no manager without complaining", () => {
+      expect(() => registry.releaseHost("kernel-never-seen")).not.toThrow();
+    });
   });
 });

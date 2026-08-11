@@ -62,6 +62,44 @@ function build(transport) {
   return new LumineWidgetManager({ hostId, transport });
 }
 
+// The registry holds its managers strongly, and a manager holds every model,
+// every view and their DOM. Nothing but the kernel's own teardown can let that
+// go, and until it did, every kernel that ever showed a widget kept the lot for
+// the life of the window — one set per kernel, and per restart.
+describe("a kernel that showed a widget", () => {
+  const Kernel = require("../lib/kernel");
+  const registryModule = require("../lib/widget-registry");
+
+  it("releases its widget host when it is destroyed", () => {
+    const transport = fakeTransport();
+    transport.registerCommTarget = () => ({ dispose: () => {} });
+    transport.destroy = () => {};
+    const kernel = new Kernel(transport);
+
+    // What opening a widget comm does: build the manager for this kernel.
+    const manager = new LumineWidgetManager({ hostId: kernel.id, transport });
+    registryModule.claimModel("model-1", manager);
+    expect(registryModule.managerForHost(kernel.id)).toBe(manager);
+
+    kernel.destroy();
+
+    expect(registryModule.managerForHost(kernel.id)).toBe(null);
+    expect(registryModule.managerForModelId("model-1")).toBe(null);
+  });
+
+  it("is destroyed without loading the widget bundle when it never showed one", () => {
+    // The registry is the dependency-free half of the widget code precisely so
+    // teardown can reach it. Releasing a host nobody registered must be inert.
+    const transport = fakeTransport();
+    transport.registerCommTarget = () => ({ dispose: () => {} });
+    transport.destroy = () => {};
+    const kernel = new Kernel(transport);
+
+    expect(() => kernel.destroy()).not.toThrow();
+    expect(registryModule.managerForHost(kernel.id)).toBe(null);
+  });
+});
+
 describe("the widget manager", () => {
   let transport;
   let manager;
