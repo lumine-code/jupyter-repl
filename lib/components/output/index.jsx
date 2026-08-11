@@ -40,32 +40,51 @@ const MIME_PRIORITY = [
   "text/plain",
 ];
 
+const PRIORITIZED_MEDIA_TYPES = new Set(MIME_PRIORITY);
+
 /**
  * Render the best available representation of a MIME bundle.
  *
+ * A renderer that returns nothing has declined, and the next representation is
+ * tried instead. That is what lets a media type sit high in the priority list
+ * without having to render every bundle that carries it: the live form of a
+ * value is always preferable, but only when it can actually be produced, and
+ * the kernel virtually always sends a plain-text repr alongside.
+ *
  * @param {Object} data - The MIME bundle, keyed by media type
  * @param {Object} metadata - Per-media-type metadata from the same output
- * @param {Object} renderers - Media type to `(data, metadata) => vnode`
- * @returns {*} Virtual nodes, or null when nothing in the bundle is supported
+ * @param {Object} renderers - Media type to `(data, metadata, bundle) => vnode|null`
+ * @returns {*} Virtual nodes, or null when nothing in the bundle can be rendered
  */
 function renderRichMedia(data, metadata, renderers) {
   if (!data || typeof data !== "object") {
     return null;
   }
 
+  // The whole bundle is passed alongside the matched representation, so a
+  // renderer that can only partly represent its own media type can fall back
+  // to what the kernel sent with it rather than showing a bare error.
   const render = (mediaType) =>
-    renderers[mediaType](data[mediaType], metadata && metadata[mediaType]);
+    renderers[mediaType](data[mediaType], metadata && metadata[mediaType], data);
 
   for (const mediaType of MIME_PRIORITY) {
     if (data[mediaType] !== undefined && renderers[mediaType]) {
-      return render(mediaType);
+      const vnode = render(mediaType);
+      if (vnode != null) {
+        return vnode;
+      }
     }
   }
 
   // A bundle may carry a supported type that is not in the priority list.
+  // Anything the loop above already offered is skipped rather than declined a
+  // second time.
   for (const mediaType of Object.keys(data)) {
-    if (renderers[mediaType]) {
-      return render(mediaType);
+    if (renderers[mediaType] && !PRIORITIZED_MEDIA_TYPES.has(mediaType)) {
+      const vnode = render(mediaType);
+      if (vnode != null) {
+        return vnode;
+      }
     }
   }
 

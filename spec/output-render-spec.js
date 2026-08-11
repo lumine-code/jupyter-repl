@@ -197,3 +197,93 @@ describe("output scroll list", () => {
     list.destroy();
   });
 });
+
+describe("declining a media type", () => {
+  // A renderer that returns nothing has declined, and the next representation
+  // is tried instead. That is what lets a media type sit high in the priority
+  // list without having to render every bundle carrying it — the live form of
+  // a value is always preferable, but only when it can actually be produced.
+  const renderers = {
+    "text/html": (data) => (data ? etch.dom.div({ className: "from-html" }, data) : null),
+    "text/plain": (data) => etch.dom.div({ className: "from-plain" }, data),
+  };
+
+  it("takes the higher-priority type when it renders", () => {
+    const vnode = renderOutput(
+      { output_type: "display_data", data: { "text/html": "<b>x</b>", "text/plain": "x" } },
+      renderers,
+    );
+
+    expect(vnode.props.className).toBe("from-html");
+  });
+
+  it("falls through to the next type when the higher one declines", () => {
+    const vnode = renderOutput(
+      { output_type: "display_data", data: { "text/html": "", "text/plain": "x" } },
+      renderers,
+    );
+
+    expect(vnode.props.className).toBe("from-plain");
+  });
+
+  it("renders nothing when every type declines", () => {
+    const vnode = renderOutput(
+      { output_type: "display_data", data: { "text/html": "" } },
+      { "text/html": renderers["text/html"] },
+    );
+
+    expect(vnode).toBe(null);
+  });
+
+  it("offers a type outside the priority list only once", () => {
+    // The second pass exists for a supported type the priority list does not
+    // name; it must not re-offer one the first pass already declined.
+    let calls = 0;
+    const counting = {
+      "text/html": () => {
+        calls++;
+        return null;
+      },
+    };
+
+    renderOutput({ output_type: "display_data", data: { "text/html": "x" } }, counting);
+
+    expect(calls).toBe(1);
+  });
+
+  it("hands a renderer the whole bundle alongside its own representation", () => {
+    // A renderer that can only partly represent its media type falls back to
+    // what the kernel sent with it rather than showing a bare error.
+    let seen = null;
+    renderOutput(
+      { output_type: "display_data", data: { "text/plain": "x", "text/html": "<b>x</b>" } },
+      {
+        "text/html": (data, metadata, bundle) => {
+          seen = bundle;
+          return etch.dom.div({}, data);
+        },
+      },
+    );
+
+    expect(seen).toEqual({ "text/plain": "x", "text/html": "<b>x</b>" });
+  });
+});
+
+describe("teardown", () => {
+  // etch defers an ordinary destroy to the next animation frame, and by then
+  // the caller has already torn down what owned the component. If that frame
+  // never arrives — package deactivation, window close — nothing is cleaned up
+  // at all, and a renderer holding a live view keeps receiving updates into DOM
+  // nobody can see. The package's own roots therefore destroy synchronously.
+  it("disposes a child renderer without waiting for a frame", () => {
+    const destroyed = spyOn(HTML.prototype, "destroy").and.callThrough();
+    const list = new ScrollList({
+      outputs: [{ _id: 1, output_type: "display_data", data: { "text/html": "<b>x</b>" } }],
+    });
+    etch.updateSync(list);
+
+    list.destroy();
+
+    expect(destroyed).toHaveBeenCalled();
+  });
+});
