@@ -79,6 +79,7 @@ describe("what eager activation is allowed to load", () => {
       // Loads the widget bundle. widget-registry, which is what the renderer
       // actually consults, is dependency-free and deliberately not banned.
       "widget-manager",
+      "widget-output",
       "jupyter-widgets",
     ]);
     const libRoot = path.join(__dirname, "..", "lib");
