@@ -354,8 +354,12 @@ describe("measuring after attachment", () => {
       view.component.afterRender();
 
       expect(invalidations).toHaveBeenCalledWith(view.decoration);
+      // One update flushes every bubble that grew this frame, so it is queued
+      // as a microtask — after they have all invalidated, still before paint.
+      await Promise.resolve();
       if (syncUpdates) {
         expect(syncUpdates).toHaveBeenCalled();
+        expect(syncUpdates.calls.count()).toBe(1);
       }
 
       // A content-free re-render must not re-measure — the gate that stops
@@ -366,6 +370,53 @@ describe("measuring after attachment", () => {
       expect(invalidations).not.toHaveBeenCalled();
 
       view.destroy();
+      editor.destroy();
+    } finally {
+      global.ResizeObserver = previousResizeObserver;
+    }
+  });
+
+  it("updates the editor once for every bubble that grew in the same frame", async () => {
+    // A run-all fills many bubbles per frame. Each has to invalidate its own
+    // decoration, but one editor update flushes all of them — twenty asking
+    // separately measured at half the wall time of a twenty-bubble run.
+    const ResultView = require("../lib/components/result-view");
+    const MarkerStore = require("../lib/store/markers");
+    const previousResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    try {
+      const editor = await lumine.workspace.open();
+      const markers = new MarkerStore();
+      const views = [0, 1, 2, 3, 4].map((row) => new ResultView(markers, editor, row, true));
+      for (const view of views) {
+        jasmine.attachToDOM(view.element);
+      }
+      const invalidations = spyOn(editor.element, "invalidateBlockDecorationDimensions");
+      const syncUpdates = editor.component
+        ? spyOn(editor.component, "updateSync").and.stub()
+        : null;
+
+      for (const view of views) {
+        view.outputStore.appendOutput(stream("line\n".repeat(20)));
+        etch.updateSync(view.component);
+        view.component.afterRender();
+      }
+      await Promise.resolve();
+
+      // Every bubble still reports its own decoration as dirty...
+      expect(invalidations.calls.count()).toBe(views.length);
+      // ...and they are flushed together.
+      if (syncUpdates) {
+        expect(syncUpdates.calls.count()).toBe(1);
+      }
+
+      for (const view of views) {
+        view.destroy();
+      }
       editor.destroy();
     } finally {
       global.ResizeObserver = previousResizeObserver;
