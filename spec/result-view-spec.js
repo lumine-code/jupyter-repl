@@ -409,4 +409,20 @@ describe("the copy action", () => {
 
     expect(lumine.clipboard.write).toHaveBeenCalledWith("rendered text");
   });
+
+  it("falls back to the LaTeX source for a math-only bundle", async () => {
+    // IPython.display.Latex sends text/latex alone; the source is the only
+    // text there is, and it is what a user would want on the clipboard.
+    spyOn(lumine.clipboard, "write");
+    const mathOnly = {
+      output_type: "display_data",
+      data: { "text/latex": "$x^2$" },
+      metadata: {},
+    };
+
+    expect(actions.hasCopyableContent([mathOnly])).toBe(true);
+    await actions.copyToClipboard(document.createElement("div"), [mathOnly]);
+
+    expect(lumine.clipboard.write).toHaveBeenCalledWith("$x^2$");
+  });
 });

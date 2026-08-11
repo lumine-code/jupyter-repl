@@ -6,50 +6,108 @@
  * @mathjax/src via dynamic import(), so the large component modules load off
  * the render path the first time LaTeX output appears (a placeholder shows
  * meanwhile) instead of blocking the UI with a synchronous require. The
- * headless liteAdaptor + SVG output produce an SVG string we inject directly.
+ * headless liteAdaptor + SVG output produce SVG strings we inject directly.
+ *
+ * The input is split by MathJax's own FindTeX — the same scanner it runs over
+ * a page — so a bundle is what it is in a notebook: prose stays prose, every
+ * `$…$`/`$$…$$`/`\(…\)`/`\[…\]` run and every top-level environment becomes
+ * math, and `\$` stays a dollar sign. Each math run is converted on its own,
+ * which is also what lets consecutive environments render instead of tripping
+ * TeX's "erroneous nesting".
  */
 const etch = require("@lumine-code/etch");
 
-// Memoized initialization promise; resolves to { adaptor, htmlDoc }. Reset to
-// null on failure so a later render can retry.
+// Memoized initialization promise; resolves to { adaptor, htmlDoc, findTeX }.
+// Reset to null on failure so a later render can retry.
 let mjPromise = null;
 
 function ensureMathJax() {
   if (mjPromise) return mjPromise;
 
   mjPromise = (async () => {
-    const [{ mathjax }, { TeX }, { SVG }, { liteAdaptor }, { RegisterHTMLHandler }] =
+    const [{ mathjax }, { TeX }, { SVG }, { liteAdaptor }, { RegisterHTMLHandler }, { FindTeX }] =
       await Promise.all([
         import("@mathjax/src/mjs/mathjax.js"),
         import("@mathjax/src/mjs/input/tex.js"),
         import("@mathjax/src/mjs/output/svg.js"),
         import("@mathjax/src/mjs/adaptors/liteAdaptor.js"),
         import("@mathjax/src/mjs/handlers/html.js"),
+        import("@mathjax/src/mjs/input/tex/FindTeX.js"),
       ]);
 
     // TeX packages register themselves as import side effects (v4 requires
-    // explicit registration).
+    // explicit registration). The set is MathJax's own default-autoload list —
+    // autoload itself needs the component loader, which the direct mjs imports
+    // bypass — plus mathtools, and noundefined so an unknown macro renders as
+    // red literal text instead of an error, as it does in a notebook.
     await Promise.all([
       import("@mathjax/src/mjs/input/tex/base/BaseConfiguration.js"),
       import("@mathjax/src/mjs/input/tex/ams/AmsConfiguration.js"),
       import("@mathjax/src/mjs/input/tex/newcommand/NewcommandConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/configmacros/ConfigMacrosConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/noundefined/NoUndefinedConfiguration.js"),
       import("@mathjax/src/mjs/input/tex/action/ActionConfiguration.js"),
       import("@mathjax/src/mjs/input/tex/color/ColorConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/boldsymbol/BoldsymbolConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/braket/BraketConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/cancel/CancelConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/mathtools/MathtoolsConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/mhchem/MhchemConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/textcomp/TextcompConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/textmacros/TextMacrosConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/unicode/UnicodeConfiguration.js"),
+      import("@mathjax/src/mjs/input/tex/upgreek/UpgreekConfiguration.js"),
     ]);
 
     const adaptor = liteAdaptor();
     RegisterHTMLHandler(adaptor);
 
+    // One shared TeX instance, deliberately: \newcommand definitions persist
+    // across renders, files, and kernels — the same page-global behavior a
+    // notebook has, where defining a macro in one cell makes it available in
+    // every later render.
     const tex = new TeX({
-      packages: ["base", "ams", "newcommand", "action", "color"],
+      packages: [
+        "base",
+        "ams",
+        "newcommand",
+        "configmacros",
+        "noundefined",
+        "action",
+        "color",
+        "boldsymbol",
+        "braket",
+        "cancel",
+        "mathtools",
+        "mhchem",
+        "textcomp",
+        "textmacros",
+        "unicode",
+        "upgreek",
+      ],
     });
     const svg = new SVG({
       fontCache: "local",
-      linebreaks: { inline: false, width: "100000em" }, // Disable line-breaking
+      // Wide math wraps instead of running out the side of the bubble:
+      // display math breaks internally at the width below, inline math is
+      // emitted as sibling <svg> segments that wrap like words at whatever
+      // width the surrounding container really has.
+      displayOverflow: "linebreak",
+      linebreaks: { inline: true, width: "50em" },
     });
     const htmlDoc = mathjax.document("", { InputJax: tex, OutputJax: svg });
 
-    return { adaptor, htmlDoc };
+    // `$…$` is off by default in MathJax (too many false positives on a web
+    // page); a text/latex bundle is TeX by declaration, so it is on here.
+    // processEscapes and processEnvironments are on by default.
+    const findTeX = new FindTeX({
+      inlineMath: [
+        ["$", "$"],
+        ["\\(", "\\)"],
+      ],
+    });
+
+    return { adaptor, htmlDoc, findTeX };
   })().catch((err) => {
     console.error("MathJax initialization error:", err);
     mjPromise = null;
@@ -59,96 +117,63 @@ function ensureMathJax() {
   return mjPromise;
 }
 
-// Strip math delimiters from LaTeX string
-function stripDelimiters(latex) {
-  let stripped = latex.trim();
-
-  // Check for multiple equation environments - extract and combine them
-  const envPattern =
-    /\\begin\{(equation\*?|align\*?|gather\*?|multline\*?|eqnarray\*?)\}([\s\S]*?)\\end\{\1\}/g;
-  const envMatches = [...stripped.matchAll(envPattern)];
-
-  if (envMatches.length > 1) {
-    // Multiple environments - combine contents into gathered
-    const contents = envMatches.map((m) => m[2].trim());
-    return {
-      math: "\\begin{gathered}" + contents.join(" \\\\ ") + "\\end{gathered}",
-      displayMode: true,
-    };
-  }
-
-  if (envMatches.length === 1) {
-    // Single environment - just extract content
-    return { math: envMatches[0][2].trim(), displayMode: true };
-  }
-
-  // Check for multiple $...$ or $$...$$ blocks
-  const inlineMathPattern = /\$\$([^$]+)\$\$|\$([^$]+)\$/g;
-  const mathMatches = [...stripped.matchAll(inlineMathPattern)];
-
-  if (mathMatches.length > 1) {
-    // Multiple inline/display math blocks - combine into gathered
-    const contents = mathMatches.map((m) => (m[1] || m[2]).trim());
-    return {
-      math: "\\begin{gathered}" + contents.join(" \\\\ ") + "\\end{gathered}",
-      displayMode: true,
-    };
-  }
-
-  // Remove display math delimiters
-  if (stripped.startsWith("$$") && stripped.endsWith("$$")) {
-    return { math: stripped.slice(2, -2), displayMode: true };
-  }
-  if (stripped.startsWith("\\[") && stripped.endsWith("\\]")) {
-    return { math: stripped.slice(2, -2), displayMode: true };
-  }
-
-  // Remove inline math delimiters
-  if (stripped.startsWith("$") && stripped.endsWith("$") && stripped.length > 2) {
-    return { math: stripped.slice(1, -1), displayMode: false };
-  }
-  if (stripped.startsWith("\\(") && stripped.endsWith("\\)")) {
-    return { math: stripped.slice(2, -2), displayMode: false };
-  }
-
-  // No math delimiters found - treat as plain text
-  return { math: null, isTextMode: true, original: stripped };
-}
-
-// Render LaTeX to an SVG string using an initialized MathJax api.
-function renderToSvg(api, latex, displayMode) {
-  const node = api.htmlDoc.convert(latex, { display: displayMode });
-  return api.adaptor.innerHTML(node);
-}
-
 /**
- * Strip delimiters, ensure MathJax is loaded, and render LaTeX to an SVG string.
- * Returns `{ textContent }` for non-math input or `{ svg, displayMode }` for
- * math. Exposed for tests so the async ESM load + render path can be exercised
- * headlessly (the liteAdaptor needs no browser DOM).
+ * Split a text/latex string into text and math runs with MathJax's FindTeX.
+ * An item without a display flag is a character replacement (`\$` → `$`) and
+ * folds back into the surrounding text.
  */
-async function renderLatexToSvg(latex) {
-  const result = stripDelimiters(latex || "");
-  if (result.isTextMode) {
-    return { textContent: result.original };
-  }
-  const api = await ensureMathJax();
-  return {
-    svg: renderToSvg(api, result.math, result.displayMode),
-    displayMode: result.displayMode,
+function splitRuns(findTeX, source) {
+  const items = findTeX.findMath([source]);
+  const runs = [];
+  const pushText = (text) => {
+    if (!text) return;
+    const last = runs[runs.length - 1];
+    if (last && last.kind === "text") {
+      last.text += text;
+    } else {
+      runs.push({ kind: "text", text });
+    }
   };
+
+  let at = 0;
+  for (const item of items) {
+    pushText(source.slice(at, item.start.n));
+    if (item.display == null) {
+      pushText(item.math);
+    } else {
+      runs.push({ kind: "math", math: item.math, display: item.display });
+    }
+    at = item.end.n;
+  }
+  pushText(source.slice(at));
+  return runs;
 }
 
 /**
- * Renders LaTeX to SVG, showing a placeholder until MathJax has loaded and the
+ * Ensure MathJax is loaded, split the input into runs, and convert each math
+ * run to an SVG string. Returns an array of `{ kind: "text", text }` and
+ * `{ kind: "math", display, svg }` runs. Exposed for tests so the async ESM
+ * load + render path can be exercised headlessly (the liteAdaptor needs no
+ * browser DOM). A TeX error never rejects — MathJax renders it as an merror
+ * group carrying a `data-mjx-error` attribute.
+ */
+async function renderLatexRuns(source) {
+  const api = await ensureMathJax();
+  return splitRuns(api.findTeX, source || "").map((run) => {
+    if (run.kind === "text") return run;
+    const node = api.htmlDoc.convert(run.math, { display: run.display });
+    return { kind: "math", display: run.display, svg: api.adaptor.innerHTML(node) };
+  });
+}
+
+/**
+ * Renders LaTeX, showing a placeholder until MathJax has loaded and the
  * conversion has finished.
  */
 class LaTeX {
   constructor(props) {
     this.props = props;
-    this.svg = null;
-    this.textContent = null;
-    this.displayMode = false;
+    this.runs = null;
     this.error = null;
     this.destroyed = false;
     // Increments per render request so a slow async render can detect that a
@@ -162,55 +187,52 @@ class LaTeX {
   async renderLatex() {
     const token = ++this.renderToken;
     try {
-      const out = await renderLatexToSvg(this.props.data || "");
+      const runs = await renderLatexRuns(this.props.data || "");
       if (this.destroyed || token !== this.renderToken) return;
-      this.svg = out.svg || null;
-      this.displayMode = Boolean(out.displayMode);
-      this.textContent = out.textContent || null;
+      this.runs = runs;
       this.error = null;
     } catch (err) {
+      // TeX errors render as merror groups; reaching here means MathJax
+      // itself failed to load or convert.
       console.error("MathJax rendering error:", err);
       if (this.destroyed || token !== this.renderToken) return;
-      this.svg = null;
-      this.textContent = null;
+      this.runs = null;
       this.error = err.message || "MathJax failed to initialize";
     }
     return etch.update(this);
   }
 
   render() {
-    const latex = this.props.data || "";
-
-    // MathJax error - show original LaTeX
+    // MathJax failed to load — show the original LaTeX source.
     if (this.error) {
       return (
         <div className="output-latex output-latex-error">
-          <code style={{ color: "#cc0000" }}>{latex}</code>
+          <code>{this.props.data || ""}</code>
         </div>
       );
     }
 
-    // Text-mode LaTeX (no math), as inline text so it composes with the math
-    // runs around it. A block child here would split the inline wrapper in
-    // two and leave an empty line box above and below the text.
-    if (this.textContent) {
+    if (this.runs) {
       return (
-        <div className="output-latex output-latex-text">
-          <span style={{ whiteSpace: "pre-wrap" }}>{this.textContent}</span>
+        <div className="output-latex">
+          {this.runs.map((run) => {
+            if (run.kind === "text") {
+              return <span className="latex-text">{run.text}</span>;
+            }
+            return run.display ? (
+              <div className="latex-display" innerHTML={run.svg} />
+            ) : (
+              <span className="latex-inline" innerHTML={run.svg} />
+            );
+          })}
         </div>
       );
-    }
-
-    // Successfully rendered math
-    if (this.svg) {
-      const style = this.displayMode ? { textAlign: "center", margin: "0.5em 0" } : {};
-      return <div className="output-latex" style={style} innerHTML={this.svg} />;
     }
 
     // Loading state
     return (
       <div className="output-latex output-latex-loading">
-        <span style={{ color: "#888" }}>Rendering...</span>
+        <span>Rendering...</span>
       </div>
     );
   }
@@ -232,4 +254,4 @@ class LaTeX {
 
 const latexRenderer = (data) => <LaTeX data={data} />;
 
-module.exports = { LaTeX, latexRenderer, renderLatexToSvg };
+module.exports = { LaTeX, latexRenderer, renderLatexRuns };

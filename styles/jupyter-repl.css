@@ -36,10 +36,61 @@
     display: block;
   }
 
-  /* LaTeX text-mode bundles render as inline text between math runs. */
-  .output-latex-text {
-    display: inline;
-    padding: 0 0.3em;
+  /* MathJax output. The renderer injects bare <svg> elements — the
+     mjx-container wrapper and the document stylesheet MathJax attaches to it
+     are not used — so the container rules the SVGs rely on are restated here,
+     scoped and theme-aware. */
+  .output-latex {
+    .latex-text {
+      white-space: pre-wrap;
+    }
+
+    svg {
+      /* Chromium's UA sheet hides overflow on a non-root <svg>, and MathJax
+         glyphs (radicals, wide accents) can paint just past the viewBox. */
+      overflow: visible;
+      min-width: 1px;
+      min-height: 1px;
+    }
+
+    /* Inline math flows with the text runs around it; each svg carries its
+       own vertical-align, and a long formula arrives as sibling svgs that
+       wrap like words. */
+    .latex-inline svg {
+      display: inline-block;
+    }
+
+    .latex-display {
+      margin: 0.5em 0;
+
+      svg {
+        display: block;
+        margin: 0 auto;
+      }
+    }
+
+    /* A TeX error renders as an merror group. MathJax's own colors (red on
+       yellow) ship on the stripped container stylesheet; without them the
+       message and its backing rect both inherit currentColor and the text
+       disappears into its own background. */
+    g[data-mml-node="merror"] > g {
+      fill: var(--text-color-error);
+      stroke: var(--text-color-error);
+    }
+
+    g[data-mml-node="merror"] > rect[data-background] {
+      fill: color-mix(in srgb, var(--text-color-error) 15%, transparent);
+      stroke: none;
+    }
+  }
+
+  /* MathJax itself failed to load — the raw source shows instead. */
+  .output-latex-error code {
+    color: var(--text-color-error);
+  }
+
+  .output-latex-loading {
+    color: var(--text-color-subtle);
   }
 
   table {
@@ -169,20 +220,6 @@
 
   .multiline-container .jupyter_cell_display {
     padding: var(--component-padding);
-    gap: var(--component-padding);
-
-    /* LaTeX: center SVG outputs while keeping vertical stacking */
-    &:has(.output-latex) {
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* A block SVG sits outside the line box, so it needs no line-height reset
-       to sit flush — and a reset here would reach the text-carrying variants
-       (text mode, the error, the loading note) and collapse their lines. */
-    .output-latex svg {
-      display: block;
-    }
 
     /* Style fix for plotly toolbar */
     .cell_display {
