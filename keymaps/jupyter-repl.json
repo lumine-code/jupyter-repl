@@ -5,6 +5,7 @@
   // keystroke at all.
   "lumine-workspace": {
     "alt-j o": "jupyter-repl:toggle-output-area",
+    "alt-j k m": "jupyter-repl:toggle-kernel-commands",
     "alt-j k i": "jupyter-repl:interrupt-kernel",
     "alt-j k r": "jupyter-repl:restart-kernel",
     "alt-j k c": "jupyter-repl:clear-and-restart",

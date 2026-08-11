@@ -28,12 +28,14 @@ describe("jupyter-repl package assets", () => {
       keymap["lumine-workspace lumine-text-editor:not([mini]):not(lumine-dock lumine-text-editor)"];
     expect(editorBlock["alt-enter"]).toBeUndefined();
     expect(editorBlock["alt-shift-enter"]).toBe("jupyter-repl:run-cell");
+    expect(keymap["lumine-workspace"]["alt-j k m"]).toBe("jupyter-repl:toggle-kernel-commands");
 
     const menu = JSON.parse(fs.readFileSync(path.join(root, "menus/jupyter-repl.json"), "utf8"));
     expect(Array.isArray(menu.menu)).toBe(true);
     // Every menu entry must use the valid `command` key, never the `commands`
     // typo that silently disabled two entries in the old CSON menu.
     expect(JSON.stringify(menu)).not.toContain('"commands"');
+    expect(JSON.stringify(menu)).toContain('"jupyter-repl:toggle-kernel-commands"');
   });
 
   it("ships a CSS stylesheet built on custom properties, not Less", () => {

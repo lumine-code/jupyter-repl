@@ -10,6 +10,10 @@
               "label": "Kernel",
               "submenu": [
                 {
+                  "label": "Kernel Commands",
+                  "command": "jupyter-repl:toggle-kernel-commands"
+                },
+                {
                   "label": "Start Local Kernel",
                   "command": "jupyter-repl:start-local-kernel"
                 },

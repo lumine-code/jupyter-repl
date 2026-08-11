@@ -40,6 +40,7 @@ Commands available in `lumine-workspace`:
 - `jupyter-repl:clear-and-restart`: clear results and restart kernel,
 - `jupyter-repl:clear-and-center`: clear results and center cursor,
 - `jupyter-repl:toggle-output-area`: toggle output area mode,
+- `jupyter-repl:toggle-kernel-commands`: toggle the active kernel's command picker,
 - `jupyter-repl:start-local-kernel`: start a local kernel,
 - `jupyter-repl:connect-to-remote-kernel`: connect to a remote kernel via gateway,
 - `jupyter-repl:connect-to-existing-kernel`: connect to an existing kernel,

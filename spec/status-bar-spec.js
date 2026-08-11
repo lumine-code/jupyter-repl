@@ -166,4 +166,36 @@ describe("status bar consumer", () => {
     disposable.dispose();
     expect(tile.destroy).toHaveBeenCalled();
   });
+
+  it("dispatches the kernel commands command from the tile and advertises its keybinding", () => {
+    const store = fakeStore(fakeKernel());
+    store.subscriptions = { add: jasmine.createSpy("add") };
+    const tile = { destroy: jasmine.createSpy("destroy") };
+    const statusBar = {
+      addLeftTile: jasmine.createSpy("addLeftTile").and.returnValue(tile),
+    };
+    const tooltip = { dispose: jasmine.createSpy("dispose") };
+    const tooltipSpy = spyOn(lumine.tooltips, "add").and.returnValue(tooltip);
+    const dispatchSpy = spyOn(lumine.commands, "dispatch");
+    const consumer = new StatusBarConsumer();
+
+    const disposable = consumer.addStatusBar(store, statusBar);
+    const statusBarElement = statusBar.addLeftTile.calls.mostRecent().args[0].item;
+
+    const [tooltipElement, tooltipOptions] = tooltipSpy.calls.mostRecent().args;
+    expect(tooltipElement).toBe(statusBarElement);
+    expect(tooltipOptions.title).toBe("Kernel commands");
+    expect(tooltipOptions.keyBindingCommand).toBe("jupyter-repl:toggle-kernel-commands");
+    expect(tooltipOptions.keyBindingTarget).toBe(lumine.views.getView(lumine.workspace));
+
+    statusBarElement.querySelector("span").click();
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      lumine.views.getView(lumine.workspace),
+      "jupyter-repl:toggle-kernel-commands",
+    );
+
+    disposable.dispose();
+    expect(tooltip.dispose).toHaveBeenCalled();
+  });
 });
