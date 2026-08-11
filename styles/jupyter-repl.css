@@ -303,82 +303,47 @@
   }
 
   /* Hover overlays: close at the top right, expand at the bottom right, both
-     sitting entirely outside the box's right edge. Positioned out of the
-     layout, so a one-line result's box is one line tall and an image keeps
-     its full width — and being outside they never cover the content or the
-     display's scrollbar, however narrow the result is. */
-  .multiline-container .result-actions,
+     inside the box and pinned to its right edge. Positioned out of the layout,
+     so a one-line result's box is one line tall and an image keeps its full
+     width — and inside rather than beyond the edge, so a result as wide as the
+     editor still has them on screen. The component writes `right` and `bottom`,
+     because how far in from the edge they sit is whatever gutter the display's
+     scrollbars take: flush against the box when there is none, flush against
+     the bar when there is, and never on top of one. */
+  .multiline-container .result-close,
   .multiline-container .result-expand {
     position: absolute;
-    /* An absolute offset is measured from the padding box, so `right: 0`
-       would start the group inside the container's own border and lay a
-       second 1px line over it. Clear the border, then hand the group's left
-       edge to the container: one line, not two.
-       The extra pixel matters. A result's right edge rarely lands on a whole
-       device pixel, so the border straddles two of them — and a group that
-       begins at the border's exact end still paints over the fraction of the
-       last one, washing the line out precisely when the buttons appear. One
-       pixel of clear air leaves the border a device pixel of its own. */
-    right: -1px;
-    transform: translateX(calc(100% + 1px));
     z-index: 1;
-    opacity: 0;
+    /* No transition in either direction: the buttons are there the moment the
+       pointer enters the box and gone the moment it leaves. Visibility rather
+       than pointer-events, so a button is clickable for exactly as long as it
+       is on screen and never while invisible. */
     visibility: hidden;
-    /* The buttons follow the pointer without hesitation in either direction.
-       Visibility rather than pointer-events, and switched only once the fade
-       has finished: a button is then clickable for exactly as long as it is
-       on screen, and never while invisible. */
-    transition:
-      opacity 0.12s ease-out,
-      visibility 0s linear 0.12s;
-    background: var(--jupyter-repl-inline-background);
-    border: solid 1px var(--base-border-color);
-    border-left: none;
-    border-top-right-radius: var(--component-border-radius);
-    border-bottom-right-radius: var(--component-border-radius);
-  }
-
-  .multiline-container .result-actions {
-    top: -1px;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* Too short a result to wear a column: lay the buttons across the margin
-     beside it instead, which a short result always has to spare. */
-  .multiline-container .result-actions.result-actions-row {
-    flex-direction: row;
-  }
-
-  .multiline-container .result-expand {
-    bottom: -1px;
-  }
-
-  .multiline-container:hover .result-actions,
-  .multiline-container:hover .result-expand {
-    opacity: 1;
-    visibility: visible;
-    transition:
-      opacity 0.12s ease-out,
-      visibility 0s linear;
-  }
-
-  /* One border around the group, divided between the buttons. */
-  .multiline-container .result-actions > :not(:first-child) {
-    border-top: solid 1px var(--base-border-color);
-  }
-
-  .multiline-container .result-actions-row > :not(:first-child) {
-    border-top: none;
-    border-left: solid 1px var(--base-border-color);
-  }
-
-  .multiline-container .result-actions .icon,
-  .multiline-container .result-expand {
     cursor: pointer;
+    background: var(--jupyter-repl-inline-background);
   }
 
-  .multiline-container .result-actions .icon::before,
+  /* They sit over the content now, so each is bordered only on the two sides
+     that face it; the box's own border, or the scrollbar, closes the others. */
+  .multiline-container .result-close {
+    top: 0;
+    border-left: solid 1px var(--base-border-color);
+    border-bottom: solid 1px var(--base-border-color);
+    border-bottom-left-radius: var(--component-border-radius);
+  }
+
+  .multiline-container .result-expand {
+    border-left: solid 1px var(--base-border-color);
+    border-top: solid 1px var(--base-border-color);
+    border-top-left-radius: var(--component-border-radius);
+  }
+
+  .multiline-container:hover .result-close,
+  .multiline-container:hover .result-expand {
+    visibility: visible;
+  }
+
+  .multiline-container .result-close::before,
   .multiline-container .result-expand::before {
     margin: 0;
     width: 1.6em;
@@ -387,7 +352,7 @@
     text-align: center;
   }
 
-  .multiline-container .result-actions .icon:hover,
+  .multiline-container .result-close:hover,
   .multiline-container .result-expand:hover {
     color: var(--jupyter-repl-inline-color);
   }

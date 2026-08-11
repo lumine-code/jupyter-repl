@@ -68,7 +68,9 @@ describe("the result bubble", () => {
   it("gives a block result hover overlays and an inline result none", () => {
     // The overlays are the only chrome, and they are positioned out of the
     // layout — the old toolbar is gone, so nothing reserves space beside the
-    // content. Expand appears only once the content overflows.
+    // content. Only the two actions about the box itself are here; copy, open
+    // and save are context-menu items. Expand appears once the content
+    // overflows.
     const store = blockStore();
     store.appendOutput(stream("a long enough line to stay a block\n"));
     component = build(store);
@@ -76,14 +78,11 @@ describe("the result bubble", () => {
 
     expect(component.element.className).toContain("multiline-container");
     expect(component.element.querySelector(".toolbar")).toBeNull();
-    const group = component.element.querySelector(".result-actions");
-    expect(group).not.toBeNull();
-    // Close and open-in-editor always; copy because this result has text.
-    expect([...group.children].map((el) => el.className.replace("icon icon-", ""))).toEqual([
-      "x",
-      "clippy",
-      "link-external",
-    ]);
+    const close = component.element.querySelector(".result-close");
+    expect(close).not.toBeNull();
+    expect(close.className).toContain("icon-x");
+    const overlays = [...component.element.children].filter((el) => el.classList.contains("icon"));
+    expect(overlays.length).toBe(1);
     expect(component.element.querySelector(".result-expand")).toBeNull();
 
     component.destroy();
@@ -95,27 +94,31 @@ describe("the result bubble", () => {
 
     expect(inline.isPlain).toBe(true);
     expect(component.element.className).toContain("inline-container");
-    expect(component.element.querySelector(".result-actions")).toBeNull();
+    expect(component.element.querySelector(".result-close")).toBeNull();
     expect(component.element.querySelector(".result-expand")).toBeNull();
     expect(component.element.children.length).toBe(1);
   });
 
-  it("adds the save button only to a result carrying an image", () => {
+  it("keeps the overlays clear of the display's scrollbars", () => {
+    // They sit inside the box, so a bar the display grows is a gutter they
+    // have to clear — otherwise the button lands on the bar and takes its drag.
     const store = blockStore();
-    store.appendOutput({
-      output_type: "display_data",
-      data: { "image/png": "AAAA" },
-      metadata: {},
-    });
+    store.appendOutput(stream("line\n".repeat(200)));
     component = build(store);
     etch.updateSync(component);
-    component.hasImage = true;
+    jasmine.attachToDOM(component.element);
+    component.afterRender();
     etch.updateSync(component);
 
-    const classes = [...component.element.querySelectorAll(".result-actions .icon")].map((el) =>
-      el.className.replace("icon icon-", ""),
+    const display = component.refs.display;
+    expect(component.gutterRight).toBe(display.offsetWidth - display.clientWidth);
+    expect(component.gutterBottom).toBe(display.offsetHeight - display.clientHeight);
+    for (const overlay of component.element.querySelectorAll(".result-close, .result-expand")) {
+      expect(overlay.style.right).toBe(`${component.gutterRight}px`);
+    }
+    expect(component.element.querySelector(".result-expand").style.bottom).toBe(
+      `${component.gutterBottom}px`,
     );
-    expect(classes).toContain("desktop-download");
   });
 
   it("offers expand only while the content overflows, and toggles it", () => {

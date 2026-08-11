@@ -11,10 +11,12 @@ const SCROLL_HEIGHT = 600;
  * beside the code or as a scrollable block.
  *
  * A block carries two hover overlays — close at the top right, expand at the
- * bottom right when the content overflows. Both are positioned out of the
- * layout, so the box is exactly as tall as its content and a one-line result
- * is one line tall. Closing is also middle click, and every action including
- * these two is in the bubble's context menu.
+ * bottom right when the content overflows. Both sit inside the box, pinned to
+ * its right edge and clear of whatever gutter the display's own scrollbars
+ * take, so a result filling the editor's width keeps them on screen. Both are
+ * positioned out of the layout, so the box is exactly as tall as its content
+ * and a one-line result is one line tall. Closing is also middle click, and
+ * every action — these two, copy, open and save — is in the context menu.
  */
 class ResultViewComponent {
   constructor(props) {
@@ -22,9 +24,10 @@ class ResultViewComponent {
     this.expanded = false;
     this.hasImage = false;
     this.showExpandButton = false;
-    // Whether the action group is laid out across the margin rather than down
-    // it, because the result is too short to wear a column of buttons.
-    this.actionsInRow = false;
+    // Width and height the display's scrollbars take, which is how far in from
+    // the box's edges the overlays have to sit.
+    this.gutterRight = 0;
+    this.gutterBottom = 0;
     // Output count the rendered tree was last searched for an image at.
     this.probedOutputCount = -1;
     this.wheelHandler = null;
@@ -80,14 +83,6 @@ class ResultViewComponent {
       return;
     }
     this.handleClick(event);
-  };
-
-  copyResult = () => {
-    actions.copyToClipboard(this.refs.display, this.store.outputs);
-  };
-
-  openResult = () => {
-    actions.openInEditor(this.refs.display, this.store.outputs);
   };
 
   saveImage = () => {
@@ -159,28 +154,21 @@ class ResultViewComponent {
           ))}
         </div>
         {isPlain ? null : (
-          // Overlays outside the right edge, so they take no part in layout:
-          // the box stays exactly as tall as its content and never gives up
-          // width. Revealed on hover; the context menu names each in words.
+          // Overlays inside the right edge but out of the layout: the box stays
+          // exactly as tall as its content, never gives up width, and stays
+          // reachable however wide it grows. Only the two that are about the
+          // box itself are here — copy, open and save are words in the context
+          // menu, which needs no room and no hover to find.
           <div
-            className={`result-actions${this.actionsInRow ? " result-actions-row" : ""}`}
-            ref="actions"
-          >
-            <div className="icon icon-x" onClick={this.props.destroy} />
-            {actions.hasCopyableContent(outputs) ? (
-              <div className="icon icon-clippy" onClick={this.copyResult} />
-            ) : null}
-            <div className="icon icon-link-external" onClick={this.openResult} />
-            {this.hasImage ? (
-              <div className="icon icon-desktop-download" onClick={this.saveImage} />
-            ) : null}
-          </div>
+            className="result-close icon icon-x"
+            style={{ right: `${this.gutterRight}px` }}
+            onClick={this.props.destroy}
+          />
         )}
         {!isPlain && this.showExpandButton ? (
-          // Pinned to the bottom corner: it is about how far the box extends,
-          // and keeping it out of the group leaves that group a slot shorter.
           <div
             className={`result-expand icon icon-${this.expanded ? "fold" : "unfold"}`}
+            style={{ right: `${this.gutterRight}px`, bottom: `${this.gutterBottom}px` }}
             onClick={this.toggleExpand}
           />
         ) : null}
@@ -198,12 +186,19 @@ class ResultViewComponent {
     const display = this.refs.display;
     const isPlain = this.store.isPlain;
 
-    // Both metrics are read before anything writes: scrollToBottom sets
+    // Every metric is read before anything writes: scrollToBottom sets
     // scrollTop, and reading scrollHeight after that write forces a synchronous
     // layout. This runs after every patch, so once per frame while output
     // streams in.
     const scrollHeight = display ? display.scrollHeight : 0;
     const clientHeight = display ? display.clientHeight : 0;
+    // What the display's own scrollbars take, which is how far in from the
+    // box's edges the overlays sit. Measured rather than assumed: the width is
+    // the platform's, and an overlay scrollbar's is zero. Absolute offsets are
+    // measured from the container's padding box, which is exactly this
+    // element's border box — so these are the offsets directly.
+    const gutterRight = display ? display.offsetWidth - display.clientWidth : 0;
+    const gutterBottom = display ? display.offsetHeight - display.clientHeight : 0;
 
     this.scrollToBottom(display, scrollHeight, clientHeight, isPlain);
     this.syncWheelHandler(isPlain);
@@ -226,20 +221,12 @@ class ResultViewComponent {
     let changed = showExpandButton !== this.showExpandButton;
     this.showExpandButton = showExpandButton;
 
-    // The action group hangs off the right edge, so a column of it can only
-    // be as tall as the result: a one-line bubble has room for about two
-    // buttons and would wear the rest over the lines below. Lay them in a row
-    // instead when they do not fit — short results are narrow, so the margin
-    // beside them is exactly where the room is. Measured from the button
-    // count rather than the rendered group, which would otherwise report a
-    // row as fitting and oscillate between the two layouts every frame.
-    const group = this.refs.actions;
-    if (group && group.firstElementChild) {
-      const needed = group.children.length * group.firstElementChild.offsetHeight;
-      const actionsInRow = needed > this.element.clientHeight;
-      changed = changed || actionsInRow !== this.actionsInRow;
-      this.actionsInRow = actionsInRow;
-    }
+    // A gutter appears and disappears with the content, so the offsets are
+    // state like the flag above. The overlays are out of the layout and cannot
+    // move a scrollbar, so re-rendering on a change settles rather than loops.
+    changed = changed || gutterRight !== this.gutterRight || gutterBottom !== this.gutterBottom;
+    this.gutterRight = gutterRight;
+    this.gutterBottom = gutterBottom;
 
     if (changed) {
       etch.update(this);
