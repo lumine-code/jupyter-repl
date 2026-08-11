@@ -190,13 +190,13 @@ class LaTeX {
       );
     }
 
-    // Text-mode LaTeX (no math) - show as preformatted text
+    // Text-mode LaTeX (no math), as inline text so it composes with the math
+    // runs around it. A block child here would split the inline wrapper in
+    // two and leave an empty line box above and below the text.
     if (this.textContent) {
       return (
         <div className="output-latex output-latex-text">
-          <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
-            {this.textContent}
-          </pre>
+          <span style={{ whiteSpace: "pre-wrap" }}>{this.textContent}</span>
         </div>
       );
     }
