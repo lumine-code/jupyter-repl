@@ -5,6 +5,7 @@ const { vegaRenderer } = require("./vega");
 const { markdownRenderer } = require("./markdown");
 const { htmlRenderer } = require("./html");
 const { latexRenderer } = require("./latex");
+const { widgetRenderer } = require("./widget");
 
 /**
  * Every media type this package can render, mapped to the function that renders
@@ -13,6 +14,7 @@ const { latexRenderer } = require("./latex");
  * `isTextOutputOnly` ask what is supported without walking a virtual tree.
  */
 const MEDIA_RENDERERS = {
+  "application/vnd.jupyter.widget-view+json": widgetRenderer,
   "application/vnd.vega.v5+json": vegaRenderer("application/vnd.vega.v5+json"),
   "application/vnd.vega.v4+json": vegaRenderer("application/vnd.vega.v4+json"),
   "application/vnd.vega.v3+json": vegaRenderer("application/vnd.vega.v3+json"),

@@ -12,6 +12,60 @@
   --jupyter-repl-inline-color: hsl(from var(--syntax-text-color) h s calc(l + 10));
   --jupyter-repl-error-color: color-mix(in srgb, var(--syntax-text-color), red);
 
+  /* The ipywidgets stylesheets are written entirely against JupyterLab's --jp-*
+     palette. Upstream declares those names in labvariables.css, on :root and
+     hard-coded to a light theme; that file is deliberately not loaded (see
+     lib/components/result-view/widget-styles.js) and these declarations stand in
+     for it, derived from the active Lumine theme so a widget follows a theme
+     change like everything else here. Custom properties inherit, so declaring
+     them once on this element covers every widget the package renders and leaks
+     into nothing else.
+
+     Only the names the widget stylesheets consume without defining are here;
+     widgets-base.css declares its own --jp-widgets-* family and those are
+     scoped alongside these by the loader. spec/widget-styles-spec.js fails if
+     that set ever stops matching this block. */
+
+  /* Backgrounds, deepest to most raised. */
+  --jp-layout-color0: var(--syntax-background-color);
+  --jp-layout-color1: var(--jupyter-repl-inline-background);
+  --jp-layout-color2: hsl(from var(--syntax-background-color) h s calc(l + 6));
+  --jp-layout-color3: hsl(from var(--syntax-background-color) h s calc(l + 12));
+
+  /* Text, strongest to faintest. */
+  --jp-ui-font-color0: var(--text-color);
+  --jp-ui-font-color1: var(--syntax-text-color);
+  --jp-ui-font-color2: var(--text-color-subtle);
+  --jp-content-font-color1: var(--syntax-text-color);
+  --jp-ui-font-size1: var(--font-size);
+
+  /* Text on top of a brand-coloured surface. ipywidgets uses both spellings. */
+  --jp-inverse-ui-font-color0: var(--text-color-selected);
+  --jp-inverse-ui-font-color1: var(--text-color-selected);
+  --jp-ui-inverse-font-color0: var(--text-color-selected);
+  --jp-ui-inverse-font-color1: var(--text-color-selected);
+
+  /* Borders. */
+  --jp-border-color1: var(--base-border-color);
+  --jp-border-color2: color-mix(in srgb, var(--base-border-color) 60%, transparent);
+  --jp-border-width: 1px;
+
+  /* The accent a slider track, a checked box and a selected tab take. */
+  --jp-brand-color0: var(--button-background-color-selected);
+  --jp-brand-color1: var(--background-color-selected);
+  --jp-brand-color2: color-mix(in srgb, var(--background-color-selected) 60%, transparent);
+
+  /* Semantic. The 0 and 1 pairs differ by emphasis upstream; the theme exposes
+     one of each, so a mix stands in for the stronger. */
+  --jp-error-color0: color-mix(in srgb, var(--text-color-error) 80%, black);
+  --jp-error-color1: var(--text-color-error);
+  --jp-warn-color0: color-mix(in srgb, var(--text-color-warning) 80%, black);
+  --jp-warn-color1: var(--text-color-warning);
+  --jp-success-color0: color-mix(in srgb, var(--text-color-success) 80%, black);
+  --jp-success-color1: var(--text-color-success);
+  --jp-info-color0: color-mix(in srgb, var(--text-color-info) 80%, black);
+  --jp-info-color1: var(--text-color-info);
+
   /* -------------- Globals ----------------- */
 
   code,
@@ -91,6 +145,21 @@
 
   .output-latex-loading {
     color: var(--text-color-subtle);
+  }
+
+  /* A widget before its view exists, and when it cannot be built at all. The
+     rendered widget itself is styled entirely by the upstream stylesheets. */
+  .output-widget-loading {
+    color: var(--text-color-subtle);
+  }
+
+  .output-widget-error {
+    color: var(--text-color-error);
+  }
+
+  .output-widget-error .output-text {
+    /* The repr the kernel sent alongside, shown as ordinary output. */
+    color: var(--syntax-text-color);
   }
 
   table {

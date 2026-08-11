@@ -12,6 +12,12 @@ const { ansiNodes, truncateOutput } = require("../../ansi-utils");
  * representations of the same value.
  */
 const MIME_PRIORITY = [
+  // ipywidgets. A live view of a kernel-side object, and the only entry that
+  // can decline: without a manager there is nothing to render, and the repr the
+  // kernel sent in the same bundle is what a stored notebook should show. Above
+  // the plot formats too — a figure widget emits one precisely because it wants
+  // to be driven from Python, and the static spec is the degraded form.
+  "application/vnd.jupyter.widget-view+json",
   // Vega/Vega-Lite (interactive visualizations)
   "application/vnd.vega.v5+json",
   "application/vnd.vega.v4+json",

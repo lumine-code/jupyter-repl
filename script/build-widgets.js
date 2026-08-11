@@ -37,6 +37,11 @@ const ENTRY = [
   'export * as base from "@jupyter-widgets/base";',
   'export * as baseManager from "@jupyter-widgets/base-manager";',
   'export * as controls from "@jupyter-widgets/controls";',
+  // @lumino/widgets is in here anyway as a dependency of controls, and the
+  // renderer needs its attach messages: a box, tab or accordion view lays
+  // itself out only once Lumino tells it it is attached. Exporting the copy
+  // already bundled costs nothing and avoids a second, unresolvable require.
+  'export * as lumino from "@lumino/widgets";',
 ].join("\n");
 
 // Left out of the bundle and required from node_modules at runtime. Every one
