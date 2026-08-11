@@ -107,11 +107,12 @@ class StatusBar {
   }
 
   render() {
-    // Etch keeps one DOM element per component, so the root tag stays an anchor
-    // whether or not there is anything to show; the tile itself is hidden in
-    // writeAfterUpdate.
+    // Etch keeps one DOM element per component, so the root tag stays whether
+    // or not there is anything to show; the tile itself is hidden in
+    // writeAfterUpdate. A span rather than an anchor: this is the tile's
+    // content, and nothing here is a link.
     const kernel = this.isHidden ? null : this.store.kernel;
-    return <a onClick={this.handleClick}>{kernel ? this.segments(kernel) : ""}</a>;
+    return <span onClick={this.handleClick}>{kernel ? this.segments(kernel) : ""}</span>;
   }
 
   // A DOM write that belongs to the surrounding tile rather than to this
