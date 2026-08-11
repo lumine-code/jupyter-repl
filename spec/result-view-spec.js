@@ -32,7 +32,6 @@ function build(store) {
   return new ResultViewComponent({
     store,
     editor: null,
-    destroy: () => {},
     showResult: true,
   });
 }
@@ -66,14 +65,26 @@ describe("the result bubble", () => {
     expect(component.element.textContent).toContain("42");
   });
 
-  it("gives a block result a toolbar and an inline result none", () => {
+  it("gives a block result hover overlays and an inline result none", () => {
+    // The overlays are the only chrome, and they are positioned out of the
+    // layout — the old toolbar is gone, so nothing reserves space beside the
+    // content. Expand appears only once the content overflows.
     const store = blockStore();
     store.appendOutput(stream("a long enough line to stay a block\n"));
     component = build(store);
     etch.updateSync(component);
 
-    expect(component.element.querySelector(".toolbar")).not.toBeNull();
     expect(component.element.className).toContain("multiline-container");
+    expect(component.element.querySelector(".toolbar")).toBeNull();
+    const group = component.element.querySelector(".result-actions");
+    expect(group).not.toBeNull();
+    // Close and open-in-editor always; copy because this result has text.
+    expect([...group.children].map((el) => el.className.replace("icon icon-", ""))).toEqual([
+      "x",
+      "clippy",
+      "link-external",
+    ]);
+    expect(component.element.querySelector(".result-expand")).toBeNull();
 
     component.destroy();
 
@@ -83,8 +94,48 @@ describe("the result bubble", () => {
     etch.updateSync(component);
 
     expect(inline.isPlain).toBe(true);
-    expect(component.element.querySelector(".toolbar")).toBeNull();
     expect(component.element.className).toContain("inline-container");
+    expect(component.element.querySelector(".result-actions")).toBeNull();
+    expect(component.element.querySelector(".result-expand")).toBeNull();
+    expect(component.element.children.length).toBe(1);
+  });
+
+  it("adds the save button only to a result carrying an image", () => {
+    const store = blockStore();
+    store.appendOutput({
+      output_type: "display_data",
+      data: { "image/png": "AAAA" },
+      metadata: {},
+    });
+    component = build(store);
+    etch.updateSync(component);
+    component.hasImage = true;
+    etch.updateSync(component);
+
+    const classes = [...component.element.querySelectorAll(".result-actions .icon")].map((el) =>
+      el.className.replace("icon icon-", ""),
+    );
+    expect(classes).toContain("desktop-download");
+  });
+
+  it("offers expand only while the content overflows, and toggles it", () => {
+    const store = blockStore();
+    store.appendOutput(stream("line\n".repeat(200)));
+    component = build(store);
+    etch.updateSync(component);
+    jasmine.attachToDOM(component.element);
+    component.afterRender();
+    etch.updateSync(component);
+
+    const expand = component.element.querySelector(".result-expand");
+    expect(expand).not.toBeNull();
+    expect(expand.className).toContain("icon-unfold");
+
+    expand.onclick ? expand.onclick() : component.toggleExpand();
+    etch.updateSync(component);
+
+    expect(component.expanded).toBe(true);
+    expect(component.element.querySelector(".result-expand").className).toContain("icon-fold");
   });
 
   it("searches the rendered output for an image only when the outputs change", () => {
@@ -144,7 +195,9 @@ describe("measuring after attachment", () => {
     component = null;
   });
 
-  it("recovers the expand button once the element has a real size", () => {
+  it("recovers the expand overlay once the element has a real size", () => {
+    // The overlay and the context menu both read this flag, so a
+    // detached-then-attached bubble must still end up knowing it overflows.
     const store = blockStore();
     store.appendOutput(stream("line\n".repeat(200)));
     component = build(store);
@@ -160,7 +213,36 @@ describe("measuring after attachment", () => {
     etch.updateSync(component);
 
     expect(component.showExpandButton).toBe(true);
-    expect(component.element.querySelector(".icon-unfold")).not.toBeNull();
+    expect(component.element.querySelector(".result-expand")).not.toBeNull();
+  });
+
+  it("middle click closes the result wherever on it the press lands", async () => {
+    // The same gesture that closes a tab; the listener sits on the wrapper,
+    // so the status icon, an inline value and a block all answer to it.
+    const ResultView = require("../lib/components/result-view");
+    const MarkerStore = require("../lib/store/markers");
+    const previousResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    try {
+      const editor = await lumine.workspace.open();
+      const markers = new MarkerStore();
+      const view = new ResultView(markers, editor, 0, true);
+      view.outputStore.appendOutput(stream("42\n"));
+      etch.updateSync(view.component);
+
+      view.component.element.dispatchEvent(
+        new MouseEvent("mousedown", { button: 1, bubbles: true }),
+      );
+
+      expect(view.destroyed).toBe(true);
+      editor.destroy();
+    } finally {
+      global.ResizeObserver = previousResizeObserver;
+    }
   });
 
   it("the resize hook re-renders the component", async () => {
@@ -293,24 +375,17 @@ describe("measuring after attachment", () => {
 
 describe("the copy action", () => {
   // A kernel that renders a result as LaTeX still sends text/plain alongside
-  // in the same bundle. The button must be offered for it, and the copy must
-  // produce that text even though the rendered SVG has none to select.
+  // in the same bundle. The context menu must offer copy for it, and the copy
+  // must produce that text even though the rendered SVG has none to select.
   const latexOutput = {
     output_type: "execute_result",
     data: { "text/plain": "24.775 deg", "text/latex": "$24.775\\,\\mathrm{deg}$" },
     metadata: {},
   };
 
-  it("offers the copy button for a LaTeX-rendered bundle", () => {
+  it("counts a LaTeX-rendered bundle as copyable", () => {
+    // The gate the context menu's Copy Result item shows itself by.
     expect(actions.hasCopyableContent([latexOutput])).toBe(true);
-
-    const store = blockStore();
-    store.appendOutput(latexOutput);
-    const component = build(store);
-    etch.updateSync(component);
-
-    expect(component.element.querySelector(".icon-clippy")).not.toBeNull();
-    component.destroy();
   });
 
   it("copies the bundle's own text when the rendered DOM has none", async () => {

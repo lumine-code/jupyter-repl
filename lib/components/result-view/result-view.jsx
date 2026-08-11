@@ -1,6 +1,5 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch");
-const { CompositeDisposable } = require("lumine");
 const { renderDisplay } = require("./display");
 const { renderStatus } = require("./status");
 const actions = require("./output-actions");
@@ -9,7 +8,13 @@ const SCROLL_HEIGHT = 600;
 
 /**
  * One result bubble: the outputs of a single execution, shown either inline
- * beside the code or as a scrollable block with a toolbar.
+ * beside the code or as a scrollable block.
+ *
+ * A block carries two hover overlays — close at the top right, expand at the
+ * bottom right when the content overflows. Both are positioned out of the
+ * layout, so the box is exactly as tall as its content and a one-line result
+ * is one line tall. Closing is also middle click, and every action including
+ * these two is in the bubble's context menu.
  */
 class ResultViewComponent {
   constructor(props) {
@@ -17,14 +22,13 @@ class ResultViewComponent {
     this.expanded = false;
     this.hasImage = false;
     this.showExpandButton = false;
+    // Whether the action group is laid out across the margin rather than down
+    // it, because the result is too short to wear a column of buttons.
+    this.actionsInRow = false;
     // Output count the rendered tree was last searched for an image at.
     this.probedOutputCount = -1;
     this.wheelHandler = null;
     this.wheelElement = null;
-    this.containerTooltip = new CompositeDisposable();
-    this.buttonTooltip = new CompositeDisposable();
-    this.closeTooltip = new CompositeDisposable();
-    this.saveTooltip = new CompositeDisposable();
 
     etch.initialize(this);
 
@@ -76,6 +80,14 @@ class ResultViewComponent {
       return;
     }
     this.handleClick(event);
+  };
+
+  copyResult = () => {
+    actions.copyToClipboard(this.refs.display, this.store.outputs);
+  };
+
+  openResult = () => {
+    actions.openInEditor(this.refs.display, this.store.outputs);
   };
 
   saveImage = () => {
@@ -146,29 +158,29 @@ class ResultViewComponent {
             <div key={output._id || output.output_type}>{renderDisplay(output)}</div>
           ))}
         </div>
-        {isPlain ? null : this.renderToolbar(outputs)}
-      </div>
-    );
-  }
-
-  renderToolbar(outputs) {
-    return (
-      <div className="toolbar">
-        <div className="icon icon-x" onClick={this.props.destroy} ref="closeButton" />
-
-        <div style={{ flex: 1, minHeight: "0.25em" }} />
-
-        {actions.hasCopyableContent(outputs) ? (
-          <div className="icon icon-clippy" onClick={this.handleClick} ref="copyButton" />
-        ) : null}
-
-        {this.hasImage ? (
-          <div className="icon icon-desktop-download" onClick={this.saveImage} ref="saveButton" />
-        ) : null}
-
-        {this.showExpandButton ? (
+        {isPlain ? null : (
+          // Overlays outside the right edge, so they take no part in layout:
+          // the box stays exactly as tall as its content and never gives up
+          // width. Revealed on hover; the context menu names each in words.
           <div
-            className={`icon icon-${this.expanded ? "fold" : "unfold"}`}
+            className={`result-actions${this.actionsInRow ? " result-actions-row" : ""}`}
+            ref="actions"
+          >
+            <div className="icon icon-x" onClick={this.props.destroy} />
+            {actions.hasCopyableContent(outputs) ? (
+              <div className="icon icon-clippy" onClick={this.copyResult} />
+            ) : null}
+            <div className="icon icon-link-external" onClick={this.openResult} />
+            {this.hasImage ? (
+              <div className="icon icon-desktop-download" onClick={this.saveImage} />
+            ) : null}
+          </div>
+        )}
+        {!isPlain && this.showExpandButton ? (
+          // Pinned to the bottom corner: it is about how far the box extends,
+          // and keeping it out of the group leaves that group a slot shorter.
+          <div
+            className={`result-expand icon icon-${this.expanded ? "fold" : "unfold"}`}
             onClick={this.toggleExpand}
           />
         ) : null}
@@ -177,7 +189,7 @@ class ResultViewComponent {
   }
 
   // Etch runs this after each patch, which is where the rendered DOM can be
-  // measured and the tooltips and wheel handler re-attached.
+  // measured and the wheel handler re-attached.
   readAfterUpdate() {
     this.afterRender();
   }
@@ -194,30 +206,39 @@ class ResultViewComponent {
     const clientHeight = display ? display.clientHeight : 0;
 
     this.scrollToBottom(display, scrollHeight, clientHeight, isPlain);
-    this.syncTooltips(isPlain);
     this.syncWheelHandler(isPlain);
-
-    let changed = false;
 
     // An image can only arrive as a new output, since reduceOutputs merges a
     // stream into the one already there — so the output count is enough to know
-    // when it is worth walking the rendered tree again.
+    // when it is worth walking the rendered tree again. Only the context menu
+    // reads this one, so a change needs no re-render of its own.
     const outputCount = this.store.outputs.length;
     if (outputCount !== this.probedOutputCount) {
       this.probedOutputCount = outputCount;
-      const hasImage = display ? actions.getImage(display) !== null : false;
-      if (hasImage !== this.hasImage) {
-        this.hasImage = hasImage;
-        changed = true;
-      }
+      this.hasImage = display ? actions.getImage(display) !== null : false;
     }
 
     // Not cacheable the same way: a growing stream merges into one output, so
-    // the count holds still while the height climbs past the threshold.
+    // the count holds still while the height climbs past the threshold. This
+    // one does render — the expand overlay appears with it — so a flip needs
+    // another pass, and only a flip, or measuring would loop forever.
     const showExpandButton = scrollHeight > SCROLL_HEIGHT;
-    if (showExpandButton !== this.showExpandButton) {
-      this.showExpandButton = showExpandButton;
-      changed = true;
+    let changed = showExpandButton !== this.showExpandButton;
+    this.showExpandButton = showExpandButton;
+
+    // The action group hangs off the right edge, so a column of it can only
+    // be as tall as the result: a one-line bubble has room for about two
+    // buttons and would wear the rest over the lines below. Lay them in a row
+    // instead when they do not fit — short results are narrow, so the margin
+    // beside them is exactly where the room is. Measured from the button
+    // count rather than the rendered group, which would otherwise report a
+    // row as fitting and oscillate between the two layouts every frame.
+    const group = this.refs.actions;
+    if (group && group.firstElementChild) {
+      const needed = group.children.length * group.firstElementChild.offsetHeight;
+      const actionsInRow = needed > this.element.clientHeight;
+      changed = changed || actionsInRow !== this.actionsInRow;
+      this.actionsInRow = actionsInRow;
     }
 
     if (changed) {
@@ -227,47 +248,6 @@ class ResultViewComponent {
     // The DOM now shows the latest content; if it changed, the owning view
     // asks the editor to re-measure the block decoration's height.
     this.props.onContentRendered?.();
-  }
-
-  syncTooltips(isPlain) {
-    const display = this.refs.display;
-    if (isPlain && display) {
-      this.addTooltip(this.containerTooltip, () =>
-        lumine.tooltips.addComposite(display, [
-          { title: "Copy", keyBindingExtra: "LMB" },
-          { title: "Open in editor", keyBindingExtra: "cmdorctrl+LMB" },
-        ]),
-      );
-    } else {
-      this.containerTooltip.dispose();
-      this.containerTooltip = new CompositeDisposable();
-    }
-
-    if (this.refs.copyButton) {
-      this.addTooltip(this.buttonTooltip, () =>
-        lumine.tooltips.addComposite(this.refs.copyButton, [
-          { title: "Copy", keyBindingExtra: "LMB" },
-          { title: "Open in editor", keyBindingExtra: "cmdorctrl+LMB" },
-        ]),
-      );
-    }
-    if (this.refs.closeButton) {
-      this.addTooltip(this.closeTooltip, () =>
-        lumine.tooltips.add(this.refs.closeButton, { title: "Close" }),
-      );
-    }
-    if (this.refs.saveButton) {
-      this.addTooltip(this.saveTooltip, () =>
-        lumine.tooltips.add(this.refs.saveButton, { title: "Save image as..." }),
-      );
-    }
-  }
-
-  addTooltip(composite, create) {
-    if (composite.disposables && composite.disposables.size > 0) {
-      return;
-    }
-    composite.add(create());
   }
 
   syncWheelHandler(isPlain) {
@@ -314,10 +294,6 @@ class ResultViewComponent {
       this.wheelHandler = null;
     }
     this.storeSubscription.dispose();
-    this.containerTooltip.dispose();
-    this.buttonTooltip.dispose();
-    this.closeTooltip.dispose();
-    this.saveTooltip.dispose();
     return etch.destroy(this);
   }
 }

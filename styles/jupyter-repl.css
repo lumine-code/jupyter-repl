@@ -155,6 +155,8 @@
   .multiline-container {
     display: flex;
     border: solid 1px var(--base-border-color);
+    /* Anchors the hover overlays; the box itself is unchanged. */
+    position: relative;
 
     &[data-wrap-output="true"] {
       code,
@@ -175,11 +177,11 @@
       flex-direction: column;
     }
 
-    .output-latex {
-      line-height: 0;
-      svg {
-        display: block;
-      }
+    /* A block SVG sits outside the line box, so it needs no line-height reset
+       to sit flush — and a reset here would reach the text-carrying variants
+       (text mode, the error, the loading note) and collapse their lines. */
+    .output-latex svg {
+      display: block;
     }
 
     /* Style fix for plotly toolbar */
@@ -194,26 +196,93 @@
     }
   }
 
-  .multiline-container .toolbar {
-    border-left: solid 1px var(--base-border-color);
+  /* Hover overlays: close at the top right, expand at the bottom right, both
+     sitting entirely outside the box's right edge. Positioned out of the
+     layout, so a one-line result's box is one line tall and an image keeps
+     its full width — and being outside they never cover the content or the
+     display's scrollbar, however narrow the result is. */
+  .multiline-container .result-actions,
+  .multiline-container .result-expand {
+    position: absolute;
+    /* An absolute offset is measured from the padding box, so `right: 0`
+       would start the group inside the container's own border and lay a
+       second 1px line over it. Clear the border, then hand the group's left
+       edge to the container: one line, not two.
+       The extra pixel matters. A result's right edge rarely lands on a whole
+       device pixel, so the border straddles two of them — and a group that
+       begins at the border's exact end still paints over the fraction of the
+       last one, washing the line out precisely when the buttons appear. One
+       pixel of clear air leaves the border a device pixel of its own. */
+    right: -1px;
+    transform: translateX(calc(100% + 1px));
+    z-index: 1;
+    opacity: 0;
+    visibility: hidden;
+    /* The buttons follow the pointer without hesitation in either direction.
+       Visibility rather than pointer-events, and switched only once the fade
+       has finished: a button is then clickable for exactly as long as it is
+       on screen, and never while invisible. */
+    transition:
+      opacity 0.12s ease-out,
+      visibility 0s linear 0.12s;
+    background: var(--jupyter-repl-inline-background);
+    border: solid 1px var(--base-border-color);
+    border-left: none;
+    border-top-right-radius: var(--component-border-radius);
+    border-bottom-right-radius: var(--component-border-radius);
+  }
+
+  .multiline-container .result-actions {
+    top: -1px;
     display: flex;
     flex-direction: column;
   }
 
-  .multiline-container .toolbar > :not(:first-child) {
+  /* Too short a result to wear a column: lay the buttons across the margin
+     beside it instead, which a short result always has to spare. */
+  .multiline-container .result-actions.result-actions-row {
+    flex-direction: row;
+  }
+
+  .multiline-container .result-expand {
+    bottom: -1px;
+  }
+
+  .multiline-container:hover .result-actions,
+  .multiline-container:hover .result-expand {
+    opacity: 1;
+    visibility: visible;
+    transition:
+      opacity 0.12s ease-out,
+      visibility 0s linear;
+  }
+
+  /* One border around the group, divided between the buttons. */
+  .multiline-container .result-actions > :not(:first-child) {
     border-top: solid 1px var(--base-border-color);
   }
 
-  .multiline-container .toolbar .icon::before {
-    margin: 0;
-    width: 2.5em;
-    line-height: 2.5em;
-    height: 2.5em;
+  .multiline-container .result-actions-row > :not(:first-child) {
+    border-top: none;
+    border-left: solid 1px var(--base-border-color);
+  }
+
+  .multiline-container .result-actions .icon,
+  .multiline-container .result-expand {
     cursor: pointer;
+  }
+
+  .multiline-container .result-actions .icon::before,
+  .multiline-container .result-expand::before {
+    margin: 0;
+    width: 1.6em;
+    line-height: 1.6em;
+    height: 1.6em;
     text-align: center;
   }
 
-  .multiline-container .toolbar .icon:hover {
+  .multiline-container .result-actions .icon:hover,
+  .multiline-container .result-expand:hover {
     color: var(--jupyter-repl-inline-color);
   }
 

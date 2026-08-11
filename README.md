@@ -66,7 +66,15 @@ Commands available in `lumine-workspace`:
 - `jupyter-repl:debug-toggle`: toggle debug logging,
 - `jupyter-repl:open-terminal`: open Jupyter console attached to active kernel in an embedded terminal pane,
 - `jupyter-repl:spawn-terminal`: spawn Jupyter console attached to active kernel in a system terminal,
-- `jupyter-repl:copy-console-command`: copy the Jupyter console command to clipboard.
+- `jupyter-repl:copy-console-command`: copy the Jupyter console command to clipboard,
+- `jupyter-repl:copy-result`: copy a result's text or image to clipboard,
+- `jupyter-repl:open-result-in-editor`: open a result's contents in a new editor,
+- `jupyter-repl:save-result-image`: save a result's image to a file,
+- `jupyter-repl:toggle-result-expansion`: expand or collapse a scrolling result,
+- `jupyter-repl:close-result`: remove a result.
+
+The last five act on the result the command was dispatched from — its own
+context menu or its buttons — and otherwise on the result at the cursor's line.
 
 Commands available in `.jupyter-repl.kernel-picker`, all listed with their keybindings in the item-actions list (F12):
 
