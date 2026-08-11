@@ -70,6 +70,8 @@ type JupyterOutputService = {
 
 An `Output` is a Jupyter notebook-format output (`output_type` of `execute_result`, `display_data`, `stream`, or `error`); `msgSpecToNotebookFormat` converts a raw iopub message into one. A `RendererTable` maps media types to render functions — `MEDIA_RENDERERS` is the full table, `pickRenderers` subsets it.
 
+A render function is `(data, metadata, bundle?) => VNode | null`. It receives the representation matched for its own media type, that type's metadata, and the whole bundle. **Returning `null` declines the media type**: `renderRichMedia` moves on to the next representation rather than rendering an empty output. That is what lets a media type sit high in the priority order without having to render every bundle carrying it — an ipywidget view is preferred over the plain-text repr the kernel sends alongside it, but only when there is a live model to render, and otherwise the repr is shown.
+
 ## Minimal example
 
 ```js
