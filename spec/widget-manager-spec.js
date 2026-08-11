@@ -154,10 +154,16 @@ describe("the widget manager", () => {
       const comm = transport.createComm("jupyter.widget", "m1");
 
       manager.handleCommOpen(comm, {
+        // The version metadata is what ipywidgets checks first; without it the
+        // open is refused before it gets anywhere, and every run logs about it.
+        metadata: { version: "2.1.0" },
         content: {
           comm_id: "m1",
           target_name: "jupyter.widget",
-          data: { state: {}, buffer_paths: [] },
+          data: {
+            state: { _model_module: "@jupyter-widgets/controls", _model_name: "IntSliderModel" },
+            buffer_paths: [],
+          },
         },
       });
 
@@ -165,15 +171,37 @@ describe("the widget manager", () => {
       expect(registry.managerForModelId("m1")).toBe(manager);
     });
 
-    it("releases the claim when the open fails", async () => {
+    it("keeps the claim for an unbundled module, so the refusal renders in place", async () => {
+      // ipywidgets does not reject an unknown module: _make_model catches the
+      // loadClass failure and substitutes an error widget carrying the message.
+      // Releasing the claim here would make the renderer decline instead, and
+      // the user would see the repr rather than the reason.
       const comm = transport.createComm("jupyter.widget", "m1");
 
       await manager.handleCommOpen(comm, {
+        metadata: { version: "2.1.0" },
         content: {
           comm_id: "m1",
           target_name: "jupyter.widget",
-          // No state at all: handle_comm_open cannot build a model from this.
-          data: {},
+          data: { state: { _model_module: "jupyter-leaflet", _model_name: "LeafletMapModel" } },
+        },
+      });
+
+      expect(registry.managerForModelId("m1")).toBe(manager);
+      await expectAsync(manager.get_model("m1")).toBeResolved();
+    });
+
+    it("releases the claim when the open cannot be processed at all", async () => {
+      // A protocol version this front end does not speak is refused before any
+      // model exists, so there is nothing for the renderer to resolve.
+      const comm = transport.createComm("jupyter.widget", "m1");
+
+      await manager.handleCommOpen(comm, {
+        metadata: { version: "1.0.0" },
+        content: {
+          comm_id: "m1",
+          target_name: "jupyter.widget",
+          data: { state: {} },
         },
       });
 

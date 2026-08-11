@@ -153,9 +153,7 @@ describe("rendering a widget view", () => {
       expect(view.removed).toBe(1);
     });
 
-    it("disposes a view that arrived after it was destroyed", async () => {
-      // The one place a view is created and never adopted. The model holds a
-      // reference to it until told otherwise, so it cannot simply be dropped.
+    it("never builds a view when it is destroyed while the model resolves", async () => {
       const manager = fakeManager({ defer: true });
       const doomed = new WidgetView({ modelId: "m1", manager });
 
@@ -163,11 +161,35 @@ describe("rendering a widget view", () => {
       manager.release();
       await settle();
 
+      expect(manager.views.length).toBe(0);
+    });
+
+    it("disposes a view that arrived after it was destroyed", async () => {
+      // The one place a view is created and never adopted: the destroy landed
+      // while the view itself was being built. The model holds a reference to
+      // it until told otherwise, so it cannot simply be dropped.
+      const manager = fakeManager();
+      let release;
+      const held = new Promise((resolve) => {
+        release = resolve;
+      });
+      const create = manager.create_view.bind(manager);
+      manager.create_view = async (model) => {
+        await held;
+        return create(model);
+      };
+      const doomed = new WidgetView({ modelId: "m1", manager });
+      await settle();
+
+      doomed.destroy();
+      release();
+      await settle();
+
       expect(manager.views.length).toBe(1);
       expect(manager.views[0].removed).toBe(1);
     });
 
-    it("touches no DOM after it was destroyed", async () => {
+    it("mounts nothing into the DOM after it was destroyed", async () => {
       const manager = fakeManager({ defer: true });
       const doomed = new WidgetView({ modelId: "m1", manager });
       const root = doomed.element;

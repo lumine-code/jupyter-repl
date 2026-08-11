@@ -163,14 +163,25 @@ class WidgetView {
       return;
     }
     this.view = view;
+    // The host element only exists once this patch renders it, and attaching
+    // from etch's own post-patch hook is what keeps the two in step. Awaiting
+    // the update instead ties attachment to when that promise happens to
+    // settle, which is not the same moment — and under a frozen clock is not a
+    // moment at all.
+    return etch.update(this);
+  }
 
-    await etch.update(this);
-    // etch.update resolves on a later frame, and a destroy can land inside it.
-    if (this.destroyed || token !== this.renderToken) {
-      this.teardownView();
-      return;
+  /**
+   * Called by etch once the DOM is patched. Attaching here rather than after an
+   * awaited update means it happens exactly when there is somewhere to attach
+   * to, however the patch was driven — asynchronously, synchronously, or by an
+   * enclosing tree.
+   */
+  writeAfterUpdate() {
+    const host = this.refs.host;
+    if (host && this.view && !host.contains(this.view.el)) {
+      attachWidget(this.view, host);
     }
-    attachWidget(this.view, this.refs.host);
   }
 
   update(props) {
