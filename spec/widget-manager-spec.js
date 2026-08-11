@@ -245,6 +245,107 @@ describe("the widget manager", () => {
     });
   });
 
+  describe("a real control", () => {
+    // Everything else here runs against fakes. This builds an actual
+    // IntSliderModel from the bundle and renders its actual view, which is the
+    // only assertion that the bundled stack works in this renderer at all —
+    // Backbone, Lumino and jQuery included.
+    async function slider() {
+      const model = await manager.new_model(
+        {
+          model_id: "slider1",
+          model_name: "IntSliderModel",
+          model_module: "@jupyter-widgets/controls",
+          model_module_version: "2.0.0",
+        },
+        { value: 7, min: 0, max: 10, _view_name: "IntSliderView" },
+      );
+      return { model, view: await manager.create_view(model) };
+    }
+
+    it("builds a model carrying the kernel's state", async () => {
+      const { model } = await slider();
+
+      expect(model.get("value")).toBe(7);
+      expect(model.get("max")).toBe(10);
+    });
+
+    it("renders a slider into a real element", async () => {
+      const { view } = await slider();
+      jasmine.attachToDOM(view.el);
+
+      expect(view.el.classList.contains("widget-slider")).toBe(true);
+      expect(view.el.querySelector(".slider-container")).not.toBeNull();
+
+      view.remove();
+    });
+
+    it("shows the value the model holds", async () => {
+      const { view } = await slider();
+      jasmine.attachToDOM(view.el);
+
+      expect(view.el.textContent).toContain("7");
+
+      view.remove();
+    });
+
+    it("follows the model when the kernel changes it", async () => {
+      const { model, view } = await slider();
+      jasmine.attachToDOM(view.el);
+
+      model.set("value", 9);
+
+      expect(view.el.textContent).toContain("9");
+
+      view.remove();
+    });
+
+    it("lays a box out through Lumino's attach messages", async () => {
+      // A box view is a Lumino panel: without the attach messages the
+      // renderer sends by hand, it renders collapsed.
+      const { attachWidget, detachWidget } = require("../lib/components/result-view/widget");
+      await manager.new_model(
+        {
+          model_id: "child1",
+          model_name: "LabelModel",
+          model_module: "@jupyter-widgets/controls",
+          model_module_version: "2.0.0",
+        },
+        { value: "inside", _view_name: "LabelView" },
+      );
+      const box = await manager.new_model(
+        {
+          model_id: "box1",
+          model_name: "VBoxModel",
+          model_module: "@jupyter-widgets/controls",
+          model_module_version: "2.0.0",
+        },
+        // Serialized state, so children are references the way the kernel
+        // sends them, not model objects.
+        { children: ["IPY_MODEL_child1"], _view_name: "VBoxView" },
+      );
+      const view = await manager.create_view(box);
+      const host = document.createElement("div");
+      jasmine.attachToDOM(host);
+
+      attachWidget(view, host);
+      // A box adds each child view asynchronously; tearing the box down before
+      // that settles disposes the Lumino layout the child is still inserting
+      // into. Real use never does that, and neither should this.
+      await view.children_views.update(box.get("children"));
+
+      expect(view.el.classList.contains("widget-vbox")).toBe(true);
+      expect(host.contains(view.el)).toBe(true);
+      // The child is really laid out inside the box, which is what the attach
+      // messages buy: without them a Lumino panel renders collapsed.
+      expect(view.el.textContent).toContain("inside");
+      expect(view.luminoWidget.widgets.length).toBe(1);
+
+      detachWidget(view);
+      expect(host.contains(view.el)).toBe(false);
+    });
+  });
+
   describe("without a kernel", () => {
     it("is not live", async () => {
       const staticManager = await staticManagerFor("nb:spec", {
