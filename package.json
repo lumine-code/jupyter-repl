@@ -87,6 +87,11 @@
       "versions": {
         "1.0.0": "provideJupyterOutput"
       }
+    },
+    "mcp.tools": {
+      "versions": {
+        "1.0.0": "provideMcpTools"
+      }
     }
   },
   "configSchema": {

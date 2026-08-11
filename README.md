@@ -95,6 +95,7 @@ Rendered in the editor under Settings, and readable here:
 - **[jupyter.output](docs/jupyter.output.md)** (`1.0.0`): provided to let other packages render Jupyter output bundles with this package's renderers.
 - **autocomplete.provider** (`1.0.0`): provided to feed kernel-backed completions to autocomplete consumers while a kernel is active for the editor.
 - **[jupyter.breakpoints](docs/jupyter.breakpoints.md)** (`1.0.0`): provided to expose breakpoint state to integrations that inspect or render breakpoints.
+- **mcp.tools** (`1.0.0`): provided to let an AI assistant list the running kernels, run code in one, inspect an expression, interrupt a run, and restart a kernel.
 - **jupyter.adapter** (`^1.0.0`): consumed to run cells of external pane items, such as jupyter-view notebooks, through the normal run commands.
 - **status-bar** (`^1.0.0`): consumed to display the kernel of the active editor and its execution state.
 - **terminal** (`^1.0.0`): consumed to run the Jupyter console in an embedded terminal pane.
