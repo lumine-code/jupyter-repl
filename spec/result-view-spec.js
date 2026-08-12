@@ -364,6 +364,52 @@ describe("measuring after attachment", () => {
     }
   });
 
+  it("pins the editor's scroll anchor to the bubble for the length of a drag", async () => {
+    // Growing a block decoration displaces everything after it, and the editor
+    // answers by holding the cursor's row — or, when the cursor is off screen,
+    // the viewport midpoint — still. Either slides this bubble by whatever the
+    // drag just added, so the grip climbs out from under the pointer. For a
+    // drag the bubble is the thing that must not move, so it takes the anchor.
+    const ResultView = require("../lib/components/result-view");
+    const MarkerStore = require("../lib/store/markers");
+    const previousResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    try {
+      const editor = await lumine.workspace.open();
+      const markers = new MarkerStore();
+      const view = new ResultView(markers, editor, 0, true);
+      const dispose = jasmine.createSpy("dispose");
+      const pin = spyOn(editor.element, "pinScrollAnchorToBlockDecoration").and.returnValue({
+        dispose,
+      });
+
+      view.setUserResizing(true);
+      expect(pin).toHaveBeenCalledWith(view.decoration);
+      expect(dispose).not.toHaveBeenCalled();
+
+      // One gesture, one pin: a repeat start must not strand the first.
+      view.setUserResizing(true);
+      expect(pin.calls.count()).toBe(1);
+
+      view.setUserResizing(false);
+      expect(dispose.calls.count()).toBe(1);
+
+      // A bubble closed mid-drag must not leave the anchor pinned to a
+      // decoration that is about to stop existing.
+      view.setUserResizing(true);
+      view.destroy();
+      expect(dispose.calls.count()).toBe(2);
+
+      editor.destroy();
+    } finally {
+      global.ResizeObserver = previousResizeObserver;
+    }
+  });
+
   it("keeps claiming re-measures for as long as the grip is held", async () => {
     // claimSelfResize budgets self-driven re-measures, because content that
     // sizes itself from the box it is measured in oscillates between two
