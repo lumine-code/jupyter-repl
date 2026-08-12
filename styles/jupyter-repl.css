@@ -324,9 +324,9 @@
     background: var(--jupyter-repl-inline-background);
   }
 
-  /* It sits over the content now, so each piece is bordered only on the two
+  /* The column sits over the content now, so it is bordered only on the two
      sides that face it; the box's own border, or the scrollbar, closes the
-     others. */
+     others. The grip below carries no border at all — a triangle has no box. */
   .multiline-container .result-actions {
     top: 0;
     display: flex;
@@ -362,27 +362,36 @@
     color: var(--jupyter-repl-inline-color);
   }
 
-  /* The grip. Hatched rather than iconic: diagonal strokes into a corner are
-     what a resize handle looks like everywhere, and they need no glyph. */
+  /* The grip: a triangle wedged into the corner, not a box. Hatched rather than
+     iconic, because diagonal strokes running into a corner are what a resize
+     handle looks like everywhere and they need no glyph — and hatched parallel
+     to the hypotenuse, so each stroke is shorter than the last as the wedge
+     narrows. That taper is what reads as a triangle; a square of even hatching
+     read as a swatch.
+
+     Clipped rather than masked on purpose: a clip-path takes the pointer with
+     it, so what can be grabbed is exactly what is drawn. That costs half the
+     square, which is why the square is larger than the drawing wants — the
+     triangle ends up about the size the old box was. */
   .multiline-container .result-resize {
-    width: 0.9em;
-    height: 0.9em;
+    width: 1.4em;
+    height: 1.4em;
     cursor: nwse-resize;
-    border-left: solid 1px var(--base-border-color);
-    border-top: solid 1px var(--base-border-color);
-    border-top-left-radius: var(--component-border-radius);
+    clip-path: polygon(100% 0, 100% 100%, 0 100%);
+    /* The gradient axis points at the corner, so a stop's distance is measured
+       from the tip: the first stroke clears it rather than drawing a dot in it. */
     background-image: repeating-linear-gradient(
       -45deg,
-      var(--base-border-color) 0 1px,
-      transparent 1px 3px
+      transparent 0 2px,
+      var(--base-border-color) 2px 3px
     );
   }
 
   .multiline-container .result-resize:hover {
     background-image: repeating-linear-gradient(
       -45deg,
-      var(--jupyter-repl-inline-color) 0 1px,
-      transparent 1px 3px
+      transparent 0 2px,
+      var(--jupyter-repl-inline-color) 2px 3px
     );
   }
 
