@@ -69,7 +69,7 @@ describe("status bar tile", () => {
   });
 
   const mount = (store) => {
-    component = new StatusBar({ store, container, onClick: () => {} });
+    component = new StatusBar({ store, container });
     container.appendChild(component.element);
     flush(component);
     return component;
@@ -188,7 +188,10 @@ describe("status bar consumer", () => {
     expect(tooltipOptions.keyBindingCommand).toBe("jupyter-repl:toggle-kernel-commands");
     expect(tooltipOptions.keyBindingTarget).toBe(lumine.views.getView(lumine.workspace));
 
-    statusBarElement.querySelector("span").click();
+    // The tile itself, not the span inside it: the span is only as tall as its
+    // text and narrower than the theme's tile padding, so a listener there
+    // leaves most of the tile's visible area dead.
+    statusBarElement.click();
 
     expect(dispatchSpy).toHaveBeenCalledWith(
       lumine.views.getView(lumine.workspace),
@@ -197,5 +200,26 @@ describe("status bar consumer", () => {
 
     disposable.dispose();
     expect(tooltip.dispose).toHaveBeenCalled();
+  });
+
+  it("stops dispatching once the tile is disposed", () => {
+    const store = fakeStore(fakeKernel());
+    store.subscriptions = { add: jasmine.createSpy("add") };
+    const statusBar = {
+      addLeftTile: jasmine
+        .createSpy("addLeftTile")
+        .and.returnValue({ destroy: jasmine.createSpy("destroy") }),
+    };
+    spyOn(lumine.tooltips, "add").and.returnValue({ dispose: () => {} });
+    const dispatchSpy = spyOn(lumine.commands, "dispatch");
+    const consumer = new StatusBarConsumer();
+
+    const disposable = consumer.addStatusBar(store, statusBar);
+    const statusBarElement = statusBar.addLeftTile.calls.mostRecent().args[0].item;
+    disposable.dispose();
+
+    statusBarElement.click();
+
+    expect(dispatchSpy).not.toHaveBeenCalled();
   });
 });

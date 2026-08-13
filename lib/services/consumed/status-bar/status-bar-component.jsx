@@ -9,9 +9,8 @@ const { formatElapsedTime } = require("../../../utils");
 const TICK_MS = 50;
 
 class StatusBar {
-  constructor({ store, onClick, container }) {
+  constructor({ store, container }) {
     this.store = store;
-    this.onClick = onClick;
     this.container = container;
     this.elapsedMs = 0;
     this.timerId = null;
@@ -110,9 +109,10 @@ class StatusBar {
     // Etch keeps one DOM element per component, so the root tag stays whether
     // or not there is anything to show; the tile itself is hidden in
     // writeAfterUpdate. A span rather than an anchor: this is the tile's
-    // content, and nothing here is a link.
+    // content, and nothing here is a link. The click listener belongs to the
+    // tile, not here — this span is only as tall as its text.
     const kernel = this.isHidden ? null : this.store.kernel;
-    return <span onClick={this.handleClick}>{kernel ? this.segments(kernel) : ""}</span>;
+    return <span>{kernel ? this.segments(kernel) : ""}</span>;
   }
 
   // A DOM write that belongs to the surrounding tile rather than to this
@@ -122,10 +122,6 @@ class StatusBar {
       this.container.style.display = this.isHidden ? "none" : "";
     }
   }
-
-  handleClick = () => {
-    this.onClick?.({ kernel: this.store.kernel, markers: this.store.markers });
-  };
 
   update() {
     return etch.update(this);
