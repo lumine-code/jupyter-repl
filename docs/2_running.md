@@ -83,8 +83,7 @@ Images opened via Ctrl+Click are displayed in the image-editor package with full
 
 Middle-clicking anywhere on a result closes it.
 
-A block result carries its own chrome, shown while the pointer is over it and
-sitting inside the box against its right edge, clear of the scrollbars:
+A block result carries its own chrome, shown while the pointer is over it and sitting inside the box against its right edge, clear of the scrollbars:
 
 | Chrome                 | Effect                                                   |
 | ---------------------- | -------------------------------------------------------- |
@@ -92,11 +91,7 @@ sitting inside the box against its right edge, clear of the scrollbars:
 | **Expand**, top right  | Fit the box to its content, or put it back under the cap |
 | **Grip**, bottom right | Drag to set the box's width and height                   |
 
-Expand appears only while the content overflows. A dragged size applies to that
-one result and is not remembered — a re-run builds a fresh result at its natural
-size — and **Reset Result Size** in the result's context menu returns it sooner.
-That context menu also holds every action above in words, plus copy, open in
-editor and save image.
+Expand appears only while the content overflows. A dragged size applies to that one result and is not remembered — a re-run builds a fresh result at its natural size — and **Reset Result Size** in the result's context menu returns it sooner. That context menu also holds every action above in words, plus copy, open in editor and save image.
 
 ## Console launcher
 

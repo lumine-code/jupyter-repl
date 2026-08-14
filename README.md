@@ -17,7 +17,7 @@ Supports Python, R, JavaScript, and other languages with rich output including p
 
 ## Installation
 
-To install `jupyter-repl` search for _jupyter-repl_ in the Install pane of the Lumine settings or run `lumine --install lumine-code/jupyter-repl`.
+To install `jupyter-repl` search for it in the Install pane of the Lumine settings, or run the command `lumine --install lumine-code/jupyter-repl`.
 
 ## Commands
 
@@ -75,8 +75,7 @@ Commands available in `lumine-workspace`:
 - `jupyter-repl:reset-result-size`: return a dragged result to its natural size,
 - `jupyter-repl:close-result`: remove a result.
 
-The last six act on the result the command was dispatched from — its own
-context menu or its chrome — and otherwise on the result at the cursor's line.
+The last six act on the result the command was dispatched from — its own context menu or its chrome — and otherwise on the result at the cursor's line.
 
 Commands available in `.jupyter-repl.kernel-picker`, all listed with their keybindings in the item-actions list (F12):
 
@@ -95,16 +94,16 @@ Rendered in the editor under Settings, and readable here:
 
 ## Services
 
-- **[jupyter.kernel](docs/jupyter.kernel.md)** (`1.0.0`): provided to let other packages execute code, request completions and introspection, and follow kernel state.
-- **[jupyter.output](docs/jupyter.output.md)** (`1.0.0`): provided to let other packages render Jupyter output bundles with this package's renderers.
-- **autocomplete.provider** (`1.0.0`): provided to feed kernel-backed completions to autocomplete consumers while a kernel is active for the editor.
-- **[jupyter.breakpoints](docs/jupyter.breakpoints.md)** (`1.0.0`): provided to expose breakpoint state to integrations that inspect or render breakpoints.
-- **mcp.tools** (`1.0.0`): provided to let an AI assistant list the running kernels, run code in one, inspect an expression, interrupt a run, and restart a kernel.
-- **jupyter.adapter** (`^1.0.0`): consumed to run cells of external pane items, such as jupyter-view notebooks, through the normal run commands.
-- **status-bar** (`^1.0.0`): consumed to display the kernel of the active editor and its execution state.
-- **terminal** (`^1.0.0`): consumed to run the Jupyter console in an embedded terminal pane.
-- **terminal-spawn** (`^1.0.0`): consumed to run the Jupyter console in a system terminal.
-- **image-editor** (`^1.0.0`): consumed to open image outputs in a full image editor.
+- [`jupyter.kernel`](docs/jupyter.kernel.md): provided to let other packages execute code, request completions and introspection, and follow kernel state.
+- [`jupyter.output`](docs/jupyter.output.md): provided to let other packages render Jupyter output bundles with this package's renderers.
+- `autocomplete.provider`: provided to feed kernel-backed completions to autocomplete consumers while a kernel is active for the editor.
+- [`jupyter.breakpoints`](docs/jupyter.breakpoints.md): provided to expose breakpoint state to integrations that inspect or render breakpoints.
+- `mcp.tools`: provided to let an AI assistant list the running kernels, run code in one, inspect an expression, interrupt a run, and restart a kernel.
+- `jupyter.adapter`: consumed to run cells of external pane items, such as jupyter-view notebooks, through the normal run commands.
+- `status-bar`: consumed to display the kernel of the active editor and its execution state.
+- `terminal`: consumed to run the Jupyter console in an embedded terminal pane.
+- `terminal-spawn`: consumed to run the Jupyter console in a system terminal.
+- `image-editor`: consumed to open image outputs in a full image editor.
 
 ## Contributing
 

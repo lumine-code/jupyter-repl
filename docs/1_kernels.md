@@ -103,8 +103,7 @@ The kernel picker can also write the magic comment for you: it offers to insert 
 
 ## Gateways
 
-Connect to remote or local Jupyter servers by configuring kernel gateways in `<config-dir>/gateways.json`.
-Use the `Jupyter: Open Gateways Config` command (`jupyter-repl:edit-gateways`) to open this file in Lumine.
+Connect to remote or local Jupyter servers by configuring kernel gateways in `<config-dir>/gateways.json`. Use the `Jupyter: Open Gateways Config` command (`jupyter-repl:edit-gateways`) to open this file in Lumine.
 
 If `gateways.json` does not exist yet, jupyter-repl creates it automatically the first time it is opened or used.
 
