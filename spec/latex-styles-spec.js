@@ -23,9 +23,8 @@ describe("restated MathJax mjx-break styles", () => {
     ({
       SvgMath: { styles },
     } = await import("@mathjax/src/mjs/output/svg/Wrappers/math.js"));
-    ({ ZeroFontDataUrl: zeroFontDataUrl } = await import(
-      "@mathjax/src/mjs/output/svg/Wrappers/zero.js"
-    ));
+    ({ ZeroFontDataUrl: zeroFontDataUrl } =
+      await import("@mathjax/src/mjs/output/svg/Wrappers/zero.js"));
   });
 
   // MathJax writes '-.999em' and 'MJX-ZERO ! important'; the stylesheet writes
@@ -70,8 +69,9 @@ describe("restated MathJax mjx-break styles", () => {
 
   it("embeds MathJax's own MJX-ZERO font", () => {
     // The src value holds semicolons inside its data URL, so it is matched
-    // verbatim rather than through the declaration parser.
-    expect(css).toContain(`src: ${zeroFontDataUrl};`);
+    // as a whole rather than through the declaration parser — on a
+    // whitespace-collapsed copy, since Prettier wraps the declaration.
+    expect(css.replace(/\s+/g, " ")).toContain(`src: ${zeroFontDataUrl};`);
     expect(declarations("@font-face")["font-family"]).toBe("MJX-ZERO");
   });
 });
