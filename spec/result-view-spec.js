@@ -550,8 +550,9 @@ describe("measuring after attachment", () => {
 
       expect(invalidations).toHaveBeenCalledWith(view.decoration);
       // One update flushes every bubble that grew this frame, so it is queued
-      // as a microtask — after they have all invalidated, still before paint.
-      await Promise.resolve();
+      // on the editor's document scheduler — after they have all invalidated,
+      // still before the frame paints.
+      await lumine.views.getNextUpdatePromise();
       if (syncUpdates) {
         expect(syncUpdates).toHaveBeenCalled();
         expect(syncUpdates.calls.count()).toBe(1);
@@ -600,7 +601,7 @@ describe("measuring after attachment", () => {
         etch.updateSync(view.component);
         view.component.afterRender();
       }
-      await Promise.resolve();
+      await lumine.views.getNextUpdatePromise();
 
       // Every bubble still reports its own decoration as dirty...
       expect(invalidations.calls.count()).toBe(views.length);
