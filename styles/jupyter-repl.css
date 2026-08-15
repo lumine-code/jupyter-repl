@@ -444,19 +444,17 @@
     cursor: nwse-resize;
     clip-path: polygon(100% 0, 100% 100%, 0 100%);
     /* The gradient axis points at the corner, so a stop's distance is measured
-       from the tip: the first stroke clears it rather than drawing a dot in it. */
+       from the tip: the first stroke clears it rather than drawing a dot in it.
+       A 4px period draws three strokes across the wedge — enough for the taper
+       to read as a triangle, few enough that it stays a hint rather than a
+       texture. Wider than this and the strokes stop reading as hatching and
+       become two thick bands. The colour does not answer hover: the grip is
+       chrome that only appears once the pointer is inside the box already, and
+       the cursor turning into a resize arrow is what confirms the target. */
     background-image: repeating-linear-gradient(
       -45deg,
-      transparent 0 2px,
-      var(--base-border-color) 2px 3px
-    );
-  }
-
-  .multiline-container .result-resize:hover {
-    background-image: repeating-linear-gradient(
-      -45deg,
-      transparent 0 2px,
-      var(--jupyter-repl-inline-color) 2px 3px
+      transparent 0 3px,
+      var(--base-border-color) 3px 4px
     );
   }
 
