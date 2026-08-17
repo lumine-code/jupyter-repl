@@ -34,12 +34,12 @@ describe("jupyter-repl kernel picker item actions", () => {
     const insertComment = byCommand.get("jupyter-repl:insert-kernel-comment");
     expect(insertComment.name).toBe("Insert Kernel Comment");
     expect(insertComment.description).toBe(
-      "Insert or update the kernel magic comment on the first line of the editor",
+      "Insert or update the kernel magic comment on the first line of the editor.",
     );
     expect(insertComment.keystrokes).toEqual(["ctrl-enter"]);
 
     const updateKernels = byCommand.get("jupyter-repl:refresh-kernel-list");
-    expect(updateKernels.description).toBe("Rescan the kernel specs on disk and reload the list");
+    expect(updateKernels.description).toBe("Rescan the kernel specs on disk and reload the list.");
     expect(updateKernels.keystrokes).toEqual(["f5"]);
 
     // Every action explains itself with more than a restated title.
