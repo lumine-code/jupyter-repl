@@ -1,5 +1,5 @@
 {
-  // `alt-j` is the Jupyter family's chord prefix, shared with the seven jupyter
+  // `alt-j` is the Jupyter family's chord prefix, shared with the eight jupyter
   // packages. `alt-j k` is this package's kernel sub-family: interrupt and
   // restart are the two most-used actions in a notebook session and had no
   // keystroke at all.
@@ -15,13 +15,6 @@
   "lumine-workspace lumine-text-editor:not([mini]):not(lumine-dock lumine-text-editor)": {
     "cmdorctrl-enter": "jupyter-repl:run",
     "shift-enter": "jupyter-repl:run-and-move-down",
-    // Not alt-enter: that is the cross-editor quick-fix keystroke, and
-    // intentions binds it at lumine-text-editor:not([mini]) as its only command
-    // and its only key. This block is more specific, so it silently took it in
-    // every editor that is not in a dock, leaving intentions palette-only.
-    "alt-shift-enter": "jupyter-repl:run-cell",
-    "cmdorctrl-alt-shift-enter": "jupyter-repl:run-cell-and-move-down",
-    "cmdorctrl-shift-enter": "jupyter-repl:run-all",
     "ctrl-shift-backspace": "jupyter-repl:clear-results",
     "cmdorctrl-alt-backspace": "jupyter-repl:clear-results"
   },

@@ -11,9 +11,9 @@ Supports Python, R, JavaScript, and other languages with rich output including p
 - **Jupyter widgets**: renders the core `ipywidgets` controls live against the kernel, including `interact` and the output widget.
 - **Kernel intelligence**: autocomplete, object introspection, and a shared namespace with one kernel per language across files.
 - **Kernel management**: starts local kernels, connects to remote gateways, and interrupts, restarts or shuts them down.
-- **Notebook support**: imports and exports `.ipynb` notebooks and drives external notebook cells through the `jupyter.adapter` service.
+- **Notebook adapters**: drives external notebook cells, such as jupyter-view's, through the `jupyter.adapter` service.
 - **Jupyter console**: attaches a console to the active kernel in an embedded terminal, a system terminal, or via a copied command.
-- **Extensible services**: provides and consumes services for autocomplete, kernels, breakpoints, and third-party integrations.
+- **Extensible services**: provides and consumes services for autocomplete, kernels, execution, and third-party integrations.
 
 ## Installation
 
@@ -25,15 +25,9 @@ Commands available in `lumine-workspace`:
 
 - `jupyter-repl:run`: run code at cursor,
 - `jupyter-repl:run-and-move-down`: run and move to next block,
-- `jupyter-repl:run-cell`: run current cell,
-- `jupyter-repl:run-cell-and-move-down`: run cell and move to next,
-- `jupyter-repl:run-all`: run all code in editor,
-- `jupyter-repl:run-all-above`: run all code above cursor,
 - `jupyter-repl:run-all-inline`: run all code inline, one statement at a time,
 - `jupyter-repl:run-all-above-inline`: run all code above cursor inline,
 - `jupyter-repl:run-all-below-inline`: run all code below cursor inline,
-- `jupyter-repl:recalculate-all`: clear results, restart kernel, run all,
-- `jupyter-repl:recalculate-all-above`: clear results, restart kernel, run all above,
 - `jupyter-repl:recalculate-all-inline`: clear results, restart kernel, run all inline,
 - `jupyter-repl:recalculate-all-above-inline`: clear results, restart kernel, run all above inline,
 - `jupyter-repl:clear-results`: clear output results,
@@ -50,17 +44,6 @@ Commands available in `lumine-workspace`:
 - `jupyter-repl:rename-remote-session`: rename remote session,
 - `jupyter-repl:disconnect-remote-session`: disconnect remote session,
 - `jupyter-repl:update-kernels`: refresh available kernels list,
-- `jupyter-repl:go-to-next-cell`: jump to next cell,
-- `jupyter-repl:go-to-previous-cell`: jump to previous cell,
-- `jupyter-repl:select-cell`: select current cell,
-- `jupyter-repl:select-previous-cell`: extend cell selection up,
-- `jupyter-repl:select-next-cell`: extend cell selection down,
-- `jupyter-repl:move-cell-up`: move cell up,
-- `jupyter-repl:move-cell-down`: move cell down,
-- `jupyter-repl:fold-current-cell`: fold current cell,
-- `jupyter-repl:fold-all-but-current-cell`: fold all cells except current,
-- `jupyter-repl:export-notebook`: export editor content to `.ipynb`,
-- `jupyter-repl:import-notebook`: import a `.ipynb` notebook,
 - `jupyter-repl:open-examples`: open example files,
 - `jupyter-repl:edit-gateways`: open `gateways.json`,
 - `jupyter-repl:shutdown-all-kernels`: shutdown all running kernels,
@@ -90,14 +73,13 @@ Rendered in the editor under Settings, and readable here:
 - [Running code](docs/2_running.md) — what a run sends, what the results do, and the console launcher.
 - [Integration](docs/3_integration.md) — the notebook adapter and the kernel object a service hands over.
 - [Widgets](docs/5_widgets.md) — which `ipywidgets` controls render, and what happens to them when the kernel restarts.
-- [jupyter.kernel](docs/jupyter.kernel.md), [jupyter.output](docs/jupyter.output.md), [jupyter.breakpoints](docs/jupyter.breakpoints.md), [jupyter.execution](docs/jupyter.execution.md) — the service contracts.
+- [jupyter.kernel](docs/jupyter.kernel.md), [jupyter.output](docs/jupyter.output.md), [jupyter.execution](docs/jupyter.execution.md) — the service contracts.
 
 ## Services
 
 - [`jupyter.kernel`](docs/jupyter.kernel.md): provided to let other packages execute code, request completions and introspection, and follow kernel state.
 - [`jupyter.output`](docs/jupyter.output.md): provided to let other packages render Jupyter output bundles with this package's renderers.
 - `autocomplete.provider`: provided to feed kernel-backed completions to autocomplete consumers while a kernel is active for the editor.
-- [`jupyter.breakpoints`](docs/jupyter.breakpoints.md): provided to expose breakpoint state to integrations that inspect or render breakpoints.
 - [`jupyter.execution`](docs/jupyter.execution.md): provided to run pre-computed code blocks through this package's kernels and result bubbles.
 - `mcp.tools`: provided to let an AI assistant list the running kernels, run code in one, inspect an expression, interrupt a run, and restart a kernel.
 - `jupyter.adapter`: consumed to run cells of external pane items, such as jupyter-view notebooks, through the normal run commands.

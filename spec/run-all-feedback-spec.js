@@ -1,5 +1,5 @@
-const { Point, Range } = require("lumine");
-const { run, runAll, runAllInline } = require("../lib/main");
+const { Range } = require("lumine");
+const { run, runAllInline } = require("../lib/main");
 const result = require("../lib/result");
 const store = require("../lib/store");
 
@@ -140,14 +140,6 @@ describe("batch inline feedback", () => {
 
     expect(fakeKernel.executions.length).toBeGreaterThan(0);
     expect(editor.getCursorBufferPosition().toArray()).toEqual([2, 4]);
-  });
-
-  it("routes run-all through the shared batch path", () => {
-    const batchSpy = spyOn(result, "createResultBatch").and.returnValue(Promise.resolve(true));
-    runAll([new Point(0, 7), new Point(1, 8), new Point(2, 7)]);
-
-    expect(batchSpy).toHaveBeenCalled();
-    expect(batchSpy.calls.mostRecent().args[1].length).toBe(3);
   });
 
   it("routes multi-selection run through the shared batch path", () => {

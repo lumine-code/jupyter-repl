@@ -32,6 +32,20 @@ describe("the services this package declares", () => {
     );
   });
 
+  it("provides the execution pipeline the cell commands moved onto", () => {
+    // Every jupyter-cells run command and jupyter-view's toolbar dispatch
+    // through this; a typo here strands both packages silently.
+    expect(manifest.providedServices["jupyter.execution"].versions["1.0.0"]).toBe(
+      "provideJupyterExecution",
+    );
+    // The breakpoints service retired with the cell layer; the model is
+    // jupyter-cells' to provide, under jupyter.cells.
+    expect(manifest.providedServices["jupyter.breakpoints"]).toBeUndefined();
+    expect(manifest.consumedServices["jupyter.cells"].versions["^1.0.0"]).toBe(
+      "consumeJupyterCells",
+    );
+  });
+
   // `activateServices` runs inside `activateNow`, which a package waiting on an
   // activation command never reaches, so a lazy provider has published nothing.
   // This package used to defer — defensible while everything it provided was

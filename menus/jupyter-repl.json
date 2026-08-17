@@ -81,30 +81,6 @@
                 {
                   "label": "Run and Move Down",
                   "command": "jupyter-repl:run-and-move-down"
-                },
-                {
-                  "label": "Run Cell",
-                  "command": "jupyter-repl:run-cell"
-                },
-                {
-                  "label": "Run Cell and Move Down",
-                  "command": "jupyter-repl:run-cell-and-move-down"
-                },
-                {
-                  "label": "Run All",
-                  "command": "jupyter-repl:run-all"
-                },
-                {
-                  "label": "Run All Above",
-                  "command": "jupyter-repl:run-all-above"
-                },
-                {
-                  "label": "Recalculate All",
-                  "command": "jupyter-repl:recalculate-all"
-                },
-                {
-                  "label": "Recalculate All Above",
-                  "command": "jupyter-repl:recalculate-all-above"
                 }
               ]
             },
@@ -159,14 +135,6 @@
               "type": "separator"
             },
             {
-              "label": "Import Notebook",
-              "command": "jupyter-repl:import-notebook"
-            },
-            {
-              "label": "Export Notebook",
-              "command": "jupyter-repl:export-notebook"
-            },
-            {
               "label": "Open Examples",
               "command": "jupyter-repl:open-examples"
             }
@@ -174,19 +142,5 @@
         }
       ]
     }
-  ],
-  "context-menu": {
-    ".tree-view .file[data-name$=\".ipynb\"]": [
-      {
-        "type": "separator"
-      },
-      {
-        "label": "Import Notebook",
-        "command": "jupyter-repl:import-notebook"
-      },
-      {
-        "type": "separator"
-      }
-    ]
-  }
+  ]
 }

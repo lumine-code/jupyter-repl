@@ -157,7 +157,7 @@ None of the `onDid…` methods replay on subscribe. Read the current value first
 
 A kernel is handed out as a wrapper, and the wrapper for a given kernel is stable, so it can be compared by identity. Every method on it throws once its kernel has been destroyed; subscribe to `onDidDestroy` if you hold one across time.
 
-`getCellRange()` reads from the cell markers the REPL maintains, so it answers `null` when cell markers are switched off in the settings even though the file has cells.
+`getCellRange()` reads from the cell model the jupyter-cells package provides, so it answers `null` when that package is not installed even though the file has `# %%` markers.
 
 `getFocusedEditor()` prefers the focused editor over the active pane item, so it finds the cell editors a notebook renders — the workspace does not report those. `getExpressionAtCursor()` defaults to it, which is why a panel gets the same answer the REPL itself would give instead of parsing the buffer again.
 

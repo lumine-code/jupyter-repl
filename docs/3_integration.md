@@ -87,11 +87,11 @@ module.exports = {
 
 ### JupyterProvider methods
 
-| Method                        | Description                          |
-| ----------------------------- | ------------------------------------ |
-| `getActiveKernel()`           | Get the kernel for the active editor |
-| `onDidChangeKernel(callback)` | Subscribe to kernel changes          |
-| `getCellRange(editor)`        | Get the current cell range           |
+| Method                        | Description                                                  |
+| ----------------------------- | ------------------------------------------------------------ |
+| `getActiveKernel()`           | Get the kernel for the active editor                         |
+| `onDidChangeKernel(callback)` | Subscribe to kernel changes                                  |
+| `getCellRange(editor)`        | Get the current cell range (needs the jupyter-cells package) |
 
 ### JupyterKernel API
 

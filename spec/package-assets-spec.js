@@ -27,7 +27,11 @@ describe("jupyter-repl package assets", () => {
     const editorBlock =
       keymap["lumine-workspace lumine-text-editor:not([mini]):not(lumine-dock lumine-text-editor)"];
     expect(editorBlock["alt-enter"]).toBeUndefined();
-    expect(editorBlock["alt-shift-enter"]).toBe("jupyter-repl:run-cell");
+    // The cell-run bindings moved to the jupyter-cells package with their
+    // commands; nothing here may claim them back.
+    expect(editorBlock["alt-shift-enter"]).toBeUndefined();
+    expect(editorBlock["cmdorctrl-alt-shift-enter"]).toBeUndefined();
+    expect(editorBlock["cmdorctrl-shift-enter"]).toBeUndefined();
     expect(keymap["lumine-workspace"]["alt-j k m"]).toBe("jupyter-repl:toggle-kernel-commands");
 
     const menu = JSON.parse(fs.readFileSync(path.join(root, "menus/jupyter-repl.json"), "utf8"));

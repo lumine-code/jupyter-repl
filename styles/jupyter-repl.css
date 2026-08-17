@@ -647,16 +647,6 @@
   word-break: normal;
 }
 
-.line.jupyter-repl-breakpoint::before {
-  content: "";
-  position: absolute;
-  width: 100%;
-  height: 1px;
-  left: 0;
-  background: var(--jupyter-repl-breakpoint-color, var(--base-border-color));
-  opacity: 0.95;
-}
-
 /* -------------- Overwrite autocomplete suggestion-list style ----------------- */
 
 /* @NOTE: This would pollute global style and could cause some styling issues for users */
