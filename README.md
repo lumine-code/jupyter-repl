@@ -90,7 +90,7 @@ Rendered in the editor under Settings, and readable here:
 - [Running code](docs/2_running.md) — what a run sends, what the results do, and the console launcher.
 - [Integration](docs/3_integration.md) — the notebook adapter and the kernel object a service hands over.
 - [Widgets](docs/5_widgets.md) — which `ipywidgets` controls render, and what happens to them when the kernel restarts.
-- [jupyter.kernel](docs/jupyter.kernel.md), [jupyter.output](docs/jupyter.output.md), [jupyter.breakpoints](docs/jupyter.breakpoints.md) — the service contracts.
+- [jupyter.kernel](docs/jupyter.kernel.md), [jupyter.output](docs/jupyter.output.md), [jupyter.breakpoints](docs/jupyter.breakpoints.md), [jupyter.execution](docs/jupyter.execution.md) — the service contracts.
 
 ## Services
 
@@ -98,8 +98,10 @@ Rendered in the editor under Settings, and readable here:
 - [`jupyter.output`](docs/jupyter.output.md): provided to let other packages render Jupyter output bundles with this package's renderers.
 - `autocomplete.provider`: provided to feed kernel-backed completions to autocomplete consumers while a kernel is active for the editor.
 - [`jupyter.breakpoints`](docs/jupyter.breakpoints.md): provided to expose breakpoint state to integrations that inspect or render breakpoints.
+- [`jupyter.execution`](docs/jupyter.execution.md): provided to run pre-computed code blocks through this package's kernels and result bubbles.
 - `mcp.tools`: provided to let an AI assistant list the running kernels, run code in one, inspect an expression, interrupt a run, and restart a kernel.
 - `jupyter.adapter`: consumed to run cells of external pane items, such as jupyter-view notebooks, through the normal run commands.
+- `jupyter.cells`: consumed to read cell boundaries and markdown-cell metadata where the run paths meet `# %%` markers.
 - `status-bar`: consumed to display the kernel of the active editor and its execution state.
 - `terminal`: consumed to run the Jupyter console in an embedded terminal pane.
 - `terminal-spawn`: consumed to run the Jupyter console in a system terminal.

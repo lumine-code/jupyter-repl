@@ -67,6 +67,11 @@
       "versions": {
         "^1.0.0": "consumeTerminalSpawn"
       }
+    },
+    "jupyter.cells": {
+      "versions": {
+        "^1.0.0": "consumeJupyterCells"
+      }
     }
   },
   "providedServices": {
@@ -88,6 +93,11 @@
     "jupyter.output": {
       "versions": {
         "1.0.0": "provideJupyterOutput"
+      }
+    },
+    "jupyter.execution": {
+      "versions": {
+        "1.0.0": "provideJupyterExecution"
       }
     },
     "mcp.tools": {
