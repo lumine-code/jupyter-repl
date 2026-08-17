@@ -292,7 +292,6 @@
     "@lumine-code/etch": "github:lumine-code/etch#df06b3fca2ec49b1d6b76cb8af3e9f5015a2612c",
     "@mathjax/src": "^4.1.3",
     "@nteract/any-vega": "^1.0.1",
-    "@nteract/commutable": "^7.5.1",
     "anser": "^2.3.5",
     "cross-spawn": "^7.0.6",
     "lodash": "^4.18.1",
