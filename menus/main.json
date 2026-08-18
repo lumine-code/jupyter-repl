@@ -121,10 +121,6 @@
               "command": "jupyter-repl:clear-and-restart"
             },
             {
-              "label": "Clear and Center",
-              "command": "jupyter-repl:clear-and-center"
-            },
-            {
               "type": "separator"
             },
             {

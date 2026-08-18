@@ -32,7 +32,6 @@ Commands available in `lumine-workspace`:
 - `jupyter-repl:recalculate-all-above-inline`: clear results, restart kernel, run all above inline,
 - `jupyter-repl:clear-results`: clear output results,
 - `jupyter-repl:clear-and-restart`: clear results and restart kernel,
-- `jupyter-repl:clear-and-center`: clear results and center cursor,
 - `jupyter-repl:toggle-output-area`: toggle output area mode,
 - `jupyter-repl:toggle-kernel-commands`: toggle the active kernel's command picker,
 - `jupyter-repl:start-local-kernel`: start a local kernel,
