@@ -17,9 +17,7 @@ describe("jupyter-repl package assets", () => {
     // The editor loads keymaps through season, which tolerates comments, so
     // JSON.parse alone is the wrong reader.
     const keymap = JSON.parse(
-      fs
-        .readFileSync(path.join(root, "keymaps/main.json"), "utf8")
-        .replace(/^\s*\/\/.*$/gm, ""),
+      fs.readFileSync(path.join(root, "keymaps/main.json"), "utf8").replace(/^\s*\/\/.*$/gm, ""),
     );
     expect(keymap["lumine-workspace"]).toBeDefined();
     // alt-enter belongs to intentions, whose only command it is; a more
