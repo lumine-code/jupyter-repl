@@ -11,7 +11,7 @@ const {
 
 // The ipywidgets stylesheets are read from node_modules and injected at
 // runtime, with their theme replaced: upstream's labvariables.css declares the
-// whole --jp-* palette on :root, hard-coded light, so styles/jupyter-repl.css
+// whole --jp-* palette on :root, hard-coded light, so styles/main.css
 // supplies those names from the active Lumine theme instead.
 //
 // The load-bearing test is the first one. A widget whose stylesheet references
@@ -20,7 +20,7 @@ const {
 // means no colour at all. An ipywidgets upgrade that introduces a variable must
 // fail here rather than in someone's editor.
 
-const STYLESHEET = path.join(__dirname, "..", "styles", "jupyter-repl.css");
+const STYLESHEET = path.join(__dirname, "..", "styles", "main.css");
 
 function readSource(packageName, relativePath) {
   const manifest = require.resolve(`${packageName}/package.json`);
@@ -116,7 +116,7 @@ describe("the widget stylesheets", () => {
       const stylesDir = path.join(__dirname, "..", "styles");
       const sheets = fs.readdirSync(stylesDir).filter((name) => name.endsWith(".css"));
 
-      expect(sheets).toEqual(["jupyter-repl.css"]);
+      expect(sheets).toEqual(["main.css"]);
     });
 
     it("injects once, however often it is asked", () => {

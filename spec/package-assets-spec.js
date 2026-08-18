@@ -7,8 +7,8 @@ describe("jupyter-repl package assets", () => {
   const root = path.join(__dirname, "..");
 
   it("provides keymaps and menus as JSON, not CSON", () => {
-    expect(fs.existsSync(path.join(root, "keymaps/jupyter-repl.json"))).toBe(true);
-    expect(fs.existsSync(path.join(root, "menus/jupyter-repl.json"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "keymaps/main.json"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "menus/main.json"))).toBe(true);
     expect(fs.existsSync(path.join(root, "keymaps/jupyter-repl.cson"))).toBe(false);
     expect(fs.existsSync(path.join(root, "menus/jupyter-repl.cson"))).toBe(false);
   });
@@ -18,7 +18,7 @@ describe("jupyter-repl package assets", () => {
     // JSON.parse alone is the wrong reader.
     const keymap = JSON.parse(
       fs
-        .readFileSync(path.join(root, "keymaps/jupyter-repl.json"), "utf8")
+        .readFileSync(path.join(root, "keymaps/main.json"), "utf8")
         .replace(/^\s*\/\/.*$/gm, ""),
     );
     expect(keymap["lumine-workspace"]).toBeDefined();
@@ -34,7 +34,7 @@ describe("jupyter-repl package assets", () => {
     expect(editorBlock["cmdorctrl-shift-enter"]).toBeUndefined();
     expect(keymap["lumine-workspace"]["alt-j k m"]).toBe("jupyter-repl:toggle-kernel-commands");
 
-    const menu = JSON.parse(fs.readFileSync(path.join(root, "menus/jupyter-repl.json"), "utf8"));
+    const menu = JSON.parse(fs.readFileSync(path.join(root, "menus/main.json"), "utf8"));
     expect(Array.isArray(menu.menu)).toBe(true);
     // Every menu entry must use the valid `command` key, never the `commands`
     // typo that silently disabled two entries in the old CSON menu.
@@ -43,10 +43,10 @@ describe("jupyter-repl package assets", () => {
   });
 
   it("ships a CSS stylesheet built on custom properties, not Less", () => {
-    expect(fs.existsSync(path.join(root, "styles/jupyter-repl.css"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "styles/main.css"))).toBe(true);
     expect(fs.existsSync(path.join(root, "styles/jupyter-repl.less"))).toBe(false);
 
-    const css = fs.readFileSync(path.join(root, "styles/jupyter-repl.css"), "utf8");
+    const css = fs.readFileSync(path.join(root, "styles/main.css"), "utf8");
     expect(css).toContain("var(--");
     expect(css).not.toContain('@import "ui-variables"');
     expect(css).not.toContain('@import "syntax-variables"');

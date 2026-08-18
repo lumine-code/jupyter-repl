@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 // The renderer injects MathJax's SVG output without the document stylesheet
-// MathJax attaches to its mjx-container, so styles/jupyter-repl.css restates
+// MathJax attaches to its mjx-container, so styles/main.css restates
 // the rules the injected markup relies on. The <mjx-break> set carries exact
 // values — the MJX-ZERO font trick and the per-size letter-spacings that
 // reproduce TeX inter-atom spacing — so this spec pins the restated
@@ -14,7 +14,7 @@ describe("restated MathJax mjx-break styles", () => {
   let zeroFontDataUrl;
 
   beforeAll(async () => {
-    css = fs.readFileSync(path.join(__dirname, "..", "styles", "jupyter-repl.css"), "utf8");
+    css = fs.readFileSync(path.join(__dirname, "..", "styles", "main.css"), "utf8");
     // The output jax first: the wrapper modules form an import cycle, and
     // loading Wrappers/math.js directly reads SvgWrapper before its module
     // has initialized — an error that then poisons the graph for every later
