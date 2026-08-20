@@ -115,9 +115,9 @@
     },
     "autocompleteSuggestionPriority": {
       "title": "Autocomplete suggestion priority",
-      "description": "Autocomplete suggestion priority. Lower value means higher priority relative to other providers. The built-in snippets provider has priority 2.",
+      "description": "Where these suggestions sit relative to other providers. Higher values come first. The default 5 is the live-runtime tier, the top of the ladder, because these come from inspecting the running kernel rather than from reading the source.",
       "type": "integer",
-      "default": 4
+      "default": 5
     },
     "statusBarDisable": {
       "title": "Disable the jupyter-repl status bar",
