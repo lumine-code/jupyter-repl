@@ -214,6 +214,92 @@ describe("settling in-flight executions", () => {
   });
 });
 
+describe("settling in-flight watches", () => {
+  // A watch is an execution too: a restart or a dead process must settle it,
+  // or the consumer's one-fetch-at-a-time latch — and the kernel's own
+  // watch-refetch hold — stay latched for the life of the window.
+  let transport;
+  let kernel;
+  let results;
+
+  const deliverWatchIdle = () =>
+    transport.watchOnResults(
+      {
+        header: { msg_id: "ws", msg_type: "status" },
+        parent_header: { msg_id: "w1", msg_type: "execute_request" },
+        content: { execution_state: "idle" },
+      },
+      "iopub",
+    );
+
+  const deliverWatchReply = () =>
+    transport.watchOnResults(
+      {
+        header: { msg_id: "wr", msg_type: "execute_reply" },
+        parent_header: { msg_id: "w1", msg_type: "execute_request" },
+        content: { status: "ok" },
+      },
+      "shell",
+    );
+
+  beforeEach(() => {
+    transport = new FakeTransport();
+    kernel = new Kernel(transport);
+    results = [];
+    kernel.executeWatch("len(x)", (result) => results.push(result));
+  });
+
+  afterEach(() => {
+    transport.destroy();
+  });
+
+  it("retires a completed watch like any execution", () => {
+    expect(kernel._inFlight.size).toBe(1);
+
+    deliverWatchReply();
+    deliverWatchIdle();
+
+    expect(kernel._inFlight.size).toBe(0);
+    expect(kernel._watchExecutionDepth).toBe(0);
+  });
+
+  it("abortInFlight settles an outstanding watch", () => {
+    kernel.abortInFlight("Kernel restarted");
+
+    const errors = results.filter((r) => r.output_type === "error");
+    const idles = results.filter((r) => r.output_type === "status" && r.execution_state === "idle");
+    expect(errors.length).toBe(1);
+    expect(errors[0].evalue).toBe("Kernel restarted");
+    expect(idles.length).toBe(1);
+    expect(kernel._inFlight.size).toBe(0);
+  });
+
+  it("an aborted watch releases the refetch hold", () => {
+    let refetches = 0;
+    kernel.onDidBecomeIdle(() => refetches++);
+
+    kernel.abortInFlight("Kernel restarted");
+    expect(kernel._watchExecutionDepth).toBe(0);
+
+    // The next real idle refetches again instead of being held forever.
+    transport.setExecutionState("busy");
+    transport.setExecutionState("idle");
+    window.advanceClock(Kernel.WATCH_REFETCH_DEBOUNCE_MS + 50);
+    expect(refetches).toBe(1);
+  });
+
+  it("ignores watch messages that straggle in after an abort", () => {
+    kernel.abortInFlight("Kernel restarted");
+    const settledCount = results.length;
+
+    deliverWatchReply();
+    deliverWatchIdle();
+
+    expect(results.length).toBe(settledCount);
+    expect(kernel._watchExecutionDepth).toBe(0);
+  });
+});
+
 describe("the kernel-wide idle signal", () => {
   let transport;
   let kernel;
