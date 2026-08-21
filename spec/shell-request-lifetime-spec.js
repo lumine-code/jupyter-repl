@@ -27,7 +27,8 @@ function bareKernel() {
   kernel.executionCallbacks = {};
   kernel.lifecycle = "ready";
   kernel.executionState = "idle";
-  kernel.idleSince = Date.now();
+  kernel._reportedExecutionState = "idle";
+  kernel._reportedIdleSince = Date.now();
   kernel.states = [];
   kernel.setExecutionState = (state) => kernel.states.push(state);
   kernel.setExecutionCount = () => {};

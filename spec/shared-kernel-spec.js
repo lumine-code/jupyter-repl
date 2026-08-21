@@ -245,13 +245,16 @@ describe("the acknowledgment watchdog", () => {
   // A kernel with an empty queue acknowledges within milliseconds, so a
   // request still unacknowledged after a long-enough idle stretch was lost.
   // Deliberately idle-gated: while any client's cell runs, a queued request
-  // legitimately hears nothing for as long as that cell takes.
+  // legitimately hears nothing for as long as that cell takes. Idleness is
+  // the reported view — every status message the kernel publishes, our own
+  // suppressed traffic included — never the status-bar `executionState`,
+  // which is blind to suppressed work by design.
   let kernel;
 
   beforeEach(() => {
     kernel = bareKernel();
     kernel.lifecycle = "ready";
-    kernel.executionState = "idle";
+    kernel._reportedExecutionState = "idle";
     kernel._ackWatchdog = null;
     kernel._startAckWatchdog();
   });
@@ -262,7 +265,7 @@ describe("the acknowledgment watchdog", () => {
 
   const registerUnacked = (agoMs) => {
     const replies = [];
-    kernel.idleSince = Date.now() - agoMs;
+    kernel._reportedIdleSince = Date.now() - agoMs;
     kernel.executionCallbacks["execute_lost"] = {
       callback: (message, channel) => replies.push(channel),
       suppressStatus: false,
@@ -273,6 +276,18 @@ describe("the acknowledgment watchdog", () => {
       armedAt: Date.now() - agoMs,
     };
     return replies;
+  };
+
+  const registerSuppressed = (requestId) => {
+    kernel.executionCallbacks[requestId] = {
+      callback: () => {},
+      suppressStatus: true,
+      requestType: "execute_request",
+      replySeen: false,
+      idleSeen: false,
+      acked: false,
+      armedAt: Date.now(),
+    };
   };
 
   it("settles a request the kernel ignored through a long idle stretch", () => {
@@ -286,9 +301,42 @@ describe("the acknowledgment watchdog", () => {
 
   it("waits while the kernel is busy — a queued request is not a lost one", () => {
     const replies = registerUnacked(40000);
-    kernel.executionState = "busy";
+    kernel._reportedExecutionState = "busy";
 
     window.advanceClock(30000);
+
+    expect(replies).toEqual([]);
+    expect(kernel.executionCallbacks["execute_lost"]).toBeDefined();
+  });
+
+  it("waits while our own suppressed work keeps the kernel busy", () => {
+    // A watch refetch or a widget callback runs with suppressStatus, so its
+    // busy never reaches the status bar — but the kernel is exactly as
+    // occupied as by a cell, and a request queued behind it is queued, not
+    // lost. Judged from `executionState`, this settled the queued cell as
+    // unacknowledged and the kernel then executed it anyway.
+    const replies = registerUnacked(40000);
+    registerSuppressed("execute_watch");
+    kernel.onIOMessage(statusMessage(OURS, "busy", "execute_watch"));
+
+    window.advanceClock(30000);
+
+    expect(replies).toEqual([]);
+    expect(kernel.executionCallbacks["execute_lost"]).toBeDefined();
+    // The suppression still holds where it was meant to: the status bar.
+    expect(kernel.states).toEqual([]);
+  });
+
+  it("restarts the idle stretch from a suppressed idle", () => {
+    // The suppressed work finishing is when the kernel's queue may actually
+    // be empty again, so the quiet stretch counts from there — the queued
+    // request gets its full timeout before it is declared lost.
+    const replies = registerUnacked(40000);
+    registerSuppressed("execute_watch");
+    kernel.onIOMessage(statusMessage(OURS, "busy", "execute_watch"));
+    kernel.onIOMessage(statusMessage(OURS, "idle", "execute_watch"));
+
+    window.advanceClock(10000);
 
     expect(replies).toEqual([]);
     expect(kernel.executionCallbacks["execute_lost"]).toBeDefined();
