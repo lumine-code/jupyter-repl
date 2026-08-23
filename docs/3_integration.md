@@ -117,7 +117,7 @@ State is kernel-wide: every field follows the kernel process across all of its c
 | `onDidBecomeIdle(callback)`           | A cell finished (debounced), returns `Disposable` |
 | `interrupt()`                         | Interrupt running execution                       |
 | `restart([callback])`                 | Restart the kernel                                |
-| `shutdown()`                          | Shutdown the kernel                               |
+| `shutdown()`                          | Shutdown the kernel, returns `Promise<void>`      |
 
 #### Introspection
 

@@ -112,7 +112,7 @@ type JupyterKernel = {
   // control
   interrupt(): void;
   restart(onRestarted?: () => void): void;
-  shutdown(): void; // shuts down AND releases: the kernel leaves the running list
+  shutdown(): Promise<void>; // shuts down AND releases: the kernel leaves the running list
   addMiddleware(middleware: object): void;
 };
 ```
@@ -124,6 +124,8 @@ type JupyterKernel = {
 **`execute` settles only when the kernel replies.** Code that never finishes — a `while True:`, a blocked socket — leaves the promise pending for the life of the window unless you pass `timeoutMs`, which resolves with `status: "timeout"` and whatever outputs arrived. The kernel goes on running either way: stopping it is `interrupt()`, and that is a decision for the caller, since a long execution may be doing exactly what the user asked for.
 
 **`complete` and `inspect` time out by default**, unlike `execute`, and the asymmetry is deliberate: a long execution may be doing exactly what the user asked, but a kernel answers an introspection request in milliseconds or not at all. They give up after 10 seconds and resolve with `status: "timeout"` — an empty `matches` for `complete`, `found: false` for `inspect` — so a caller that never checks `status` reads a timeout as "nothing found" rather than throwing. Pass `timeoutMs: 0` to wait indefinitely. `inspect` also carries `status: "error"` with `ename`/`evalue` when the kernel went away mid-request, which is the only thing distinguishing that from a kernel that looked and knew nothing.
+
+**`shutdown` both asks and releases**, and its promise settles once the kernel is actually gone. Await it if you are about to start another kernel in its place; a local kernel is given a couple of seconds to run its own teardown — `atexit` handlers, flushed buffers, released handles — and killed if it overruns.
 
 `executeWatch` is the one to reach for when a panel asks the kernel a question rather than running the user's code: it takes no execution number and does not move the status bar's counter or timer.
 

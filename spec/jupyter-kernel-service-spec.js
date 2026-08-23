@@ -24,6 +24,11 @@ function fakeInternalKernel(name = "Python 3") {
     destroy() {
       this.destroyed = true;
     },
+    // As the real Kernel does: ask, wait, then tear down regardless.
+    async shutdownAndDestroy() {
+      this.shutdown();
+      this.destroy();
+    },
   };
 }
 
@@ -34,7 +39,7 @@ describe("real JupyterKernel wrapper teardown", () => {
   // only sent the request left the dead kernel registered: still listed,
   // and with files still mapped to it, so the next run executed into the
   // corpse instead of starting a fresh kernel.
-  it("shutdown releases the kernel, not just the process", () => {
+  it("shutdown releases the kernel, not just the process", async () => {
     const internal = {
       shutDown: false,
       destroyed: false,
@@ -44,10 +49,14 @@ describe("real JupyterKernel wrapper teardown", () => {
       destroy() {
         this.destroyed = true;
       },
+      async shutdownAndDestroy() {
+        this.shutdown();
+        this.destroy();
+      },
     };
     const wrapper = new JupyterKernel(internal);
 
-    wrapper.shutdown();
+    await wrapper.shutdown();
 
     expect(internal.shutDown).toBe(true);
     expect(internal.destroyed).toBe(true);
@@ -291,12 +300,13 @@ describe("jupyter.kernel service", () => {
     expect(provider.getFilesForKernel({})).toEqual([]);
   });
 
-  it("shuts every kernel down when asked", () => {
+  it("shuts every kernel down when asked", async () => {
     const one = fakeInternalKernel("Python 3");
     const two = fakeInternalKernel("R");
     store.runningKernels = [one, two];
 
     provider.shutdownAllKernels();
+    await Promise.resolve();
 
     expect(one.shutDown).toBe(true);
     expect(one.destroyed).toBe(true);

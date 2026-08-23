@@ -20,7 +20,14 @@ const ZMQKernel = require("../lib/zmq-kernel");
 function fakeSocket() {
   return {
     sent: [],
-    async send(message) {
+    // The real socket evaluates `isStale` on a later microtask, when the
+    // send's turn in the chain comes up — which is the whole reason a request
+    // sent immediately before a teardown can be dropped.
+    async send(message, isStale = null) {
+      await Promise.resolve();
+      if (isStale?.()) {
+        return;
+      }
       this.sent.push(message);
     },
   };
@@ -31,6 +38,7 @@ function bareKernel() {
   kernel._destroyed = false;
   kernel.sessionId = "our-session";
   kernel.executionCallbacks = {};
+  kernel._readyProbeIds = new Set();
   kernel.lifecycle = "ready";
   kernel.executionState = "idle";
   kernel._reportedExecutionState = "idle";
@@ -526,5 +534,106 @@ describe("shell request lifetimes", () => {
 
       expect(kernel.states).toEqual(["busy"]);
     });
+  });
+});
+
+describe("shutting a kernel down", () => {
+  // Every caller pairs shutdown with destroy, and destroy ends in SIGKILL. The
+  // request used to lose that race twice over: `_sendShellMessage` makes a send
+  // conditional on its callback entry surviving until the send's turn comes,
+  // and destroy clears the whole table in the same tick — so the request was
+  // dropped as stale before it went out, and the signal would have beaten it
+  // anyway. Nothing in the kernel's own teardown ever ran.
+  let kernel;
+
+  function exitingProcess() {
+    const listeners = {};
+    return {
+      exitCode: null,
+      signalCode: null,
+      once(event, listener) {
+        listeners[event] = listener;
+      },
+      removeListener() {},
+      exit: () => listeners.exit?.(0, null),
+    };
+  }
+
+  /** The send and the exit wait are several microtask hops apart. */
+  async function flush() {
+    for (let i = 0; i < 8; i++) {
+      await Promise.resolve();
+    }
+  }
+
+  beforeEach(() => {
+    kernel = bareKernel();
+    kernel.kernelProcess = exitingProcess();
+  });
+
+  it("actually sends the request", async () => {
+    const shutdown = kernel.shutdown();
+    await flush();
+    kernel.kernelProcess.exit();
+    await shutdown;
+
+    expect(kernel.shellSocket.sent.length).toBe(1);
+  });
+
+  it("registers no callback entry for it", async () => {
+    // An entry is what made the send conditional on a table that destroy is
+    // about to clear, and nothing is waiting on the reply in any case.
+    const shutdown = kernel.shutdown();
+    await flush();
+    kernel.kernelProcess.exit();
+    await shutdown;
+
+    expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
+  });
+
+  it("survives the state being cleared in the same tick", async () => {
+    const shutdown = kernel.shutdown();
+    kernel._clearState("Kernel shut down");
+    await flush();
+    kernel.kernelProcess.exit();
+    await shutdown;
+
+    expect(kernel.shellSocket.sent.length).toBe(1);
+  });
+
+  it("waits for the process to exit", async () => {
+    let settled = false;
+    kernel.shutdown().then(() => {
+      settled = true;
+    });
+
+    await flush();
+    expect(settled).toBe(false);
+
+    kernel.kernelProcess.exit();
+    await flush();
+    expect(settled).toBe(true);
+  });
+
+  it("gives up on a kernel that will not go", async () => {
+    // Best-effort: the destroy that follows kills it regardless.
+    let settled = false;
+    kernel.shutdown().then(() => {
+      settled = true;
+    });
+    await flush();
+
+    window.advanceClock(ZMQKernel.SHUTDOWN_TIMEOUT_MS);
+    await flush();
+
+    expect(settled).toBe(true);
+  });
+
+  it("does not wait on a process that is already gone", async () => {
+    kernel.kernelProcess.exitCode = 0;
+
+    await kernel.shutdown();
+
+    expect(kernel.shellSocket.sent.length).toBe(1);
   });
 });
