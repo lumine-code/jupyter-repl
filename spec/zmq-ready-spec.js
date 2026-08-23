@@ -37,6 +37,7 @@ function bareKernel() {
   const kernel = Object.create(ZMQKernel.prototype);
   kernel._destroyed = false;
   kernel.executionCallbacks = {};
+  kernel._readyProbeIds = new Set();
   kernel.states = [];
   kernel.setExecutionState = (state) => kernel.states.push(state);
   kernel.shellSocket = fakeSocket();
@@ -130,6 +131,38 @@ describe("kernel launch readiness", () => {
     expect(kernel.ioSocket.listenerCount("message")).toBe(0);
     expect(kernel.ioSocket.listenerCount("connect")).toBe(0);
     expect(kernel.shellSocket.listenerCount("message")).toBe(0);
+  });
+
+  it("keeps the status bar still while it waits", () => {
+    // A slow start would otherwise flash the bar every 500 ms, and on a
+    // restart each pair fires did-become-idle — every watch refetching
+    // against a kernel that has not run its startup code yet.
+    kernel = bareKernel();
+    kernel.monitor(() => {});
+
+    const requestId = Object.keys(kernel.executionCallbacks)[0];
+    expect(kernel.executionCallbacks[requestId].suppressStatus).toBe(true);
+  });
+
+  it("keeps at most one probe outstanding", () => {
+    kernel = bareKernel();
+    kernel.monitor(() => {});
+    window.advanceClock(1600);
+
+    expect(Object.keys(kernel.executionCallbacks).length).toBe(1);
+  });
+
+  it("leaves no probe behind once the kernel is ready", () => {
+    // Nothing else would reclaim them: the watchdog settles what a caller is
+    // waiting for, and no one waits on a probe.
+    kernel = bareKernel();
+    kernel.monitor(() => {});
+    expect(Object.keys(kernel.executionCallbacks).length).toBe(1);
+
+    kernel.shellSocket.emit("message");
+    kernel.ioSocket.emit("message");
+
+    expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
   });
 
   it("arms the ack watchdog once the kernel is ready", () => {
