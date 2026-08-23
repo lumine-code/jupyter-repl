@@ -303,3 +303,85 @@ describe("jupyter.kernel service", () => {
     expect(two.destroyed).toBe(true);
   });
 });
+
+describe("introspection through the plugin API", () => {
+  const JupyterKernel = require("../lib/plugin-api/jupyter-kernel");
+
+  // The transports settle their own requests when a kernel goes away, but two
+  // cases are past their reach: a websocket connection that drops without
+  // JupyterLab disposing its futures, and a plugin middleware that never calls
+  // the callback it was handed. Left unbounded, either leaves the promise
+  // pending for the life of the window — and the MCP inspect tool awaits it.
+  function silentKernel() {
+    return { complete() {}, inspect() {} };
+  }
+
+  /** Let the timer fire, then let the promise it settled be observed. */
+  async function advanceTo(ms) {
+    window.advanceClock(ms);
+    await Promise.resolve();
+  }
+
+  it("resolves a completion that is never answered", async () => {
+    const kernel = new JupyterKernel(silentKernel());
+    const pending = kernel.complete("np.a", { timeoutMs: 50 });
+
+    await advanceTo(50);
+
+    await expectAsync(pending).toBeResolvedTo({ status: "timeout", matches: [] });
+  });
+
+  it("resolves an inspection that is never answered", async () => {
+    const kernel = new JupyterKernel(silentKernel());
+    const pending = kernel.inspect("np.array", 8, { timeoutMs: 50 });
+
+    await advanceTo(50);
+
+    await expectAsync(pending).toBeResolvedTo({ status: "timeout", data: {}, found: false });
+  });
+
+  it("defaults to a timeout even when none is asked for", async () => {
+    const kernel = new JupyterKernel(silentKernel());
+    const pending = kernel.complete("np.a");
+
+    await advanceTo(JupyterKernel.INTROSPECT_TIMEOUT_MS);
+
+    await expectAsync(pending).toBeResolvedTo({ status: "timeout", matches: [] });
+  });
+
+  it("hands back the kernel's own answer when it arrives first", async () => {
+    const kernel = new JupyterKernel({
+      complete: (code, callback) => callback({ matches: ["np.array"] }),
+    });
+
+    await expectAsync(kernel.complete("np.a")).toBeResolvedTo({ matches: ["np.array"] });
+  });
+
+  it("ignores an answer that arrives after the timeout", async () => {
+    let answer = null;
+    const kernel = new JupyterKernel({
+      complete: (code, callback) => {
+        answer = callback;
+      },
+    });
+    const pending = kernel.complete("np.a", { timeoutMs: 50 });
+
+    await advanceTo(50);
+    answer({ matches: ["too late"] });
+
+    await expectAsync(pending).toBeResolvedTo({ status: "timeout", matches: [] });
+  });
+
+  it("waits indefinitely when the timeout is turned off", async () => {
+    // `execute`'s default, for a caller that knows what it is waiting for.
+    let settled = false;
+    const kernel = new JupyterKernel(silentKernel());
+
+    kernel.complete("np.a", { timeoutMs: 0 }).then(() => {
+      settled = true;
+    });
+    await advanceTo(JupyterKernel.INTROSPECT_TIMEOUT_MS * 10);
+
+    expect(settled).toBe(false);
+  });
+});

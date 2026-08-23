@@ -90,8 +90,12 @@ type JupyterKernel = {
   }>;
   executeWithCallback(code: string, onResults: (result: object) => void): void;
   executeWatch(code: string, onResults: (result: object) => void): void;
-  complete(code: string): Promise<object>;
-  inspect(code: string, cursorPos: number): Promise<{ data: object; found: boolean }>;
+  complete(code: string, options?: { timeoutMs?: number }): Promise<object>;
+  inspect(
+    code: string,
+    cursorPos: number,
+    options?: { timeoutMs?: number },
+  ): Promise<{ data: object; found: boolean; status?: "error" | "timeout" }>;
 
   // state — kernel-wide: every field follows the kernel process across all of
   // its clients, so a cell run from a `jupyter console` attached to the same
@@ -118,6 +122,8 @@ type JupyterKernel = {
 `execute`'s `outputs` are **notebook-format outputs** — `stream`, `execute_result`, `display_data`, `error` — in the order they arrived, ready for `jupyter.output`'s `getOutputPlainText` or its renderers. A failed execution also reports `error` separately, lifted from the `error` output.
 
 **`execute` settles only when the kernel replies.** Code that never finishes — a `while True:`, a blocked socket — leaves the promise pending for the life of the window unless you pass `timeoutMs`, which resolves with `status: "timeout"` and whatever outputs arrived. The kernel goes on running either way: stopping it is `interrupt()`, and that is a decision for the caller, since a long execution may be doing exactly what the user asked for.
+
+**`complete` and `inspect` time out by default**, unlike `execute`, and the asymmetry is deliberate: a long execution may be doing exactly what the user asked, but a kernel answers an introspection request in milliseconds or not at all. They give up after 10 seconds and resolve with `status: "timeout"` — an empty `matches` for `complete`, `found: false` for `inspect` — so a caller that never checks `status` reads a timeout as "nothing found" rather than throwing. Pass `timeoutMs: 0` to wait indefinitely. `inspect` also carries `status: "error"` with `ename`/`evalue` when the kernel went away mid-request, which is the only thing distinguishing that from a kernel that looked and knew nothing.
 
 `executeWatch` is the one to reach for when a panel asks the kernel a question rather than running the user's code: it takes no execution number and does not move the status bar's counter or timer.
 

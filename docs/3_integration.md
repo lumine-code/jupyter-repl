@@ -121,10 +121,10 @@ State is kernel-wide: every field follows the kernel process across all of its c
 
 #### Introspection
 
-| Method                     | Description                                         |
-| -------------------------- | --------------------------------------------------- |
-| `complete(code)`           | Get completions, returns `Promise<{matches, ...}>`  |
-| `inspect(code, cursorPos)` | Get documentation, returns `Promise<{data, found}>` |
+| Method                               | Description                                                  |
+| ------------------------------------ | ------------------------------------------------------------ |
+| `complete(code, options?)`           | Get completions, returns `Promise<{matches, ...}>`           |
+| `inspect(code, cursorPos, options?)` | Get documentation, returns `Promise<{data, found, status?}>` |
 
 #### Kernel info
 

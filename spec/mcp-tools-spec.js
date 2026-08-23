@@ -242,10 +242,51 @@ describe("the Jupyter MCP tools", () => {
 
       expect(await run("JupyterInspect", { code: "df" })).toEqual({
         kernelId: "kernel-1",
+        status: "ok",
         found: true,
         text: "docs for df@2",
         truncated: false,
       });
+    });
+
+    it("passes a deadline down to the kernel", async () => {
+      let seen = null;
+      kernel.inspect = async (code, cursorPos, options) => {
+        seen = options;
+        return { data: {}, found: false };
+      };
+
+      await run("JupyterInspect", { code: "df", timeoutMs: 1234 });
+
+      expect(seen.timeoutMs).toBe(1234);
+    });
+
+    it("asks for one even when the caller does not", async () => {
+      let seen = null;
+      kernel.inspect = async (code, cursorPos, options) => {
+        seen = options;
+        return { data: {}, found: false };
+      };
+
+      await run("JupyterInspect", { code: "df" });
+
+      expect(seen.timeoutMs).toBeGreaterThan(0);
+    });
+
+    it("distinguishes a kernel that went away from one that knows nothing", async () => {
+      // Both would otherwise read as `found: false` with empty text, and the
+      // assistant would relay a restart as a fact about the user's code.
+      kernel.inspect = async () => ({
+        data: {},
+        found: false,
+        status: "error",
+        evalue: "Kernel restarted",
+      });
+
+      const answer = await run("JupyterInspect", { code: "df" });
+
+      expect(answer.status).toBe("error");
+      expect(answer.error).toBe("Kernel restarted");
     });
 
     it("says so when the kernel knows nothing", async () => {
