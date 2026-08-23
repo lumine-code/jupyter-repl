@@ -199,4 +199,41 @@ describe("shell request lifetimes", () => {
       expect(kernel.executionCallbacks.execute_1.expectsReply).toBe(true);
     });
   });
+
+  describe("a status whose request is already gone", () => {
+    // The entry is the authority on suppression only while it exists, and it
+    // routinely does not: the kernel replies before it publishes the trailing
+    // idle, and the reply retires the entry. Falling back to "not suppressed"
+    // put an autocomplete keystroke's idle on the status bar — which, mid-cell,
+    // freezes the duration, fires every watch, and leaves the cell's real
+    // completion to emit nothing at all, because the state is already idle.
+    it("is suppressed when it belongs to an introspection request", () => {
+      kernel.executionState = "busy";
+
+      kernel.onIOMessage(statusMessage("complete_orphan", "idle", "complete_request"));
+
+      expect(kernel.states).toEqual([]);
+    });
+
+    it("is suppressed for another client's introspection too", () => {
+      // A foreign request never had an entry here, so nothing but the parent
+      // type can tell this from a cell finishing.
+      kernel.executionState = "busy";
+      const message = statusMessage("their_complete", "idle", "complete_request");
+      message.parent_header.session = "their-session";
+
+      kernel.onIOMessage(message);
+
+      expect(kernel.states).toEqual([]);
+    });
+
+    it("still moves the status bar when it belongs to a cell", () => {
+      // The negative control: a cell is a cell whoever ran it.
+      kernel.executionState = "busy";
+
+      kernel.onIOMessage(statusMessage("execute_orphan", "idle", "execute_request"));
+
+      expect(kernel.states).toEqual(["idle"]);
+    });
+  });
 });
