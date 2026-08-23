@@ -180,6 +180,9 @@ describe("kernel process exit", () => {
     const instance = Object.create(ZMQKernel.prototype);
     instance._destroyed = false;
     instance.lifecycle = lifecycle;
+    // Both real call sites set this to the child they then monitor: the
+    // constructor for the first process, `_socketRestart` for each one after.
+    instance.kernelProcess = childProcess;
     instance.kernelSpec = { display_name: "Python 3" };
     instance.executionCallbacks = {};
     instance.shellSocket = null;
@@ -223,5 +226,34 @@ describe("kernel process exit", () => {
 
     expect(instance._readyProbe).not.toBe(null);
     expect(instance._ackWatchdog).not.toBe(null);
+  });
+
+  it("ignores the exit of a process it has already replaced", () => {
+    // The restart's own timing race: the new process can answer, and finish()
+    // can flip the lifecycle back to "ready", before the old child's exit is
+    // delivered. Read as the live kernel dying, that straggler stops the
+    // timers of a kernel that is up and serving cells — and the watchdog has
+    // no other arming point, so it stays off for good.
+    const { instance, childProcess } = exitingKernel("restarting");
+    kernel = instance;
+    const replacement = { exit: () => {} };
+    instance.kernelProcess = replacement;
+    instance.lifecycle = "ready";
+
+    childProcess.exit(0);
+
+    expect(instance._readyProbe).not.toBe(null);
+    expect(instance._ackWatchdog).not.toBe(null);
+  });
+
+  it("still acts on the exit of the process it is currently running", () => {
+    // The negative control: identity is the test, not staleness in general.
+    const { instance, childProcess } = exitingKernel("ready");
+    kernel = instance;
+
+    childProcess.exit(1);
+
+    expect(instance._readyProbe).toBe(null);
+    expect(instance._ackWatchdog).toBe(null);
   });
 });
