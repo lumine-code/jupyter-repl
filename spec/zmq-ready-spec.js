@@ -49,6 +49,7 @@ describe("kernel launch readiness", () => {
 
   afterEach(() => {
     kernel?._stopReadyProbe();
+    kernel?._stopAckWatchdog();
     kernel = null;
   });
 
@@ -129,6 +130,36 @@ describe("kernel launch readiness", () => {
     expect(kernel.ioSocket.listenerCount("message")).toBe(0);
     expect(kernel.ioSocket.listenerCount("connect")).toBe(0);
     expect(kernel.shellSocket.listenerCount("message")).toBe(0);
+  });
+
+  it("arms the ack watchdog once the kernel is ready", () => {
+    // Not in `connect`: that runs once per object, and a restart re-enters
+    // `monitor` instead. Armed there, the watchdog also spends the whole
+    // launch spinning on a kernel its own gate says is not ready yet.
+    kernel = bareKernel();
+    kernel.monitor(() => {});
+    expect(kernel._ackWatchdog).toBeFalsy();
+
+    kernel.shellSocket.emit("message");
+    kernel.ioSocket.emit("message");
+
+    expect(kernel._ackWatchdog).not.toBe(null);
+  });
+
+  it("arms it again after a restart", () => {
+    // The exit handler stops both timers when a process dies, and a kernel
+    // that died and was restarted used to serve cells with no watchdog at all.
+    kernel = bareKernel();
+    kernel.monitor(() => {});
+    kernel.shellSocket.emit("message");
+    kernel.ioSocket.emit("message");
+    kernel._stopAckWatchdog();
+
+    kernel.monitor(() => {}, true);
+    kernel.shellSocket.emit("message");
+    kernel.ioSocket.emit("message");
+
+    expect(kernel._ackWatchdog).not.toBe(null);
   });
 
   it("does not accumulate listeners across restarts", () => {
