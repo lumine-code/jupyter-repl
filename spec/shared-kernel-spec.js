@@ -272,7 +272,8 @@ describe("the acknowledgment watchdog", () => {
       requestType: "execute_request",
       replySeen: false,
       idleSeen: false,
-      acked: false,
+      // Nothing has been heard about it for the whole stretch.
+      lastProgressAt: Date.now() - agoMs,
       armedAt: Date.now() - agoMs,
     };
     return replies;
@@ -285,7 +286,7 @@ describe("the acknowledgment watchdog", () => {
       requestType: "execute_request",
       replySeen: false,
       idleSeen: false,
-      acked: false,
+      lastProgressAt: Date.now(),
       armedAt: Date.now(),
     };
   };
@@ -342,9 +343,13 @@ describe("the acknowledgment watchdog", () => {
     expect(kernel.executionCallbacks["execute_lost"]).toBeDefined();
   });
 
-  it("leaves acknowledged requests alone however long they run", () => {
+  it("leaves a request the kernel is still working on alone however long it runs", () => {
+    // Progress, not a one-way acknowledgement flag: a kernel that said
+    // something a moment ago is working, and one that said something and then
+    // went silent for the whole timeout has dropped the request after all.
     const replies = registerUnacked(40000);
-    kernel.executionCallbacks["execute_lost"].acked = true;
+    kernel.executionCallbacks["execute_lost"].lastProgressAt = Date.now();
+    kernel._reportedIdleSince = Date.now();
 
     window.advanceClock(30000);
 

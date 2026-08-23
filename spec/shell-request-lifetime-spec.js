@@ -1,15 +1,21 @@
 const ZMQKernel = require("../lib/zmq-kernel");
 
-// Every shell request this package sent until now was answered on the shell
-// channel, so a callback entry was retired on `replySeen && idleSeen`. A comm
-// message is the first that is never answered there: the kernel acknowledges it
-// only with the busy/idle pair it publishes around any shell message. That
-// flips `acked`, which is what the watchdog reclaims on — so the entry is not
-// reclaimed by anything and is stranded for the life of the connection. A
-// dragged slider sends one per frame.
+// A callback entry is retired once the kernel has said everything it will say
+// about its request: the shell reply and the trailing iopub idle, in either
+// order. Every request type now retires that way. Retiring a one-shot reply on
+// the spot — as this used to — dropped the entry before the trailing idle, and
+// the entry is what says a request's status is not a cell's, so every
+// completion dragged the status bar behind it.
 //
-// `expectsReply: false` is the third callback lifetime: retire on the trailing
-// idle alone, and settle silently, because there is no caller waiting.
+// `expectsReply: false` is the second lifetime: a comm message is acknowledged
+// only by the busy/idle pair, so its trailing idle retires it on its own, and
+// it settles silently because there is no caller waiting.
+//
+// The third is a request the kernel half-answered. One of the two frames can
+// simply be lost, and an entry waiting on the other is stranded for the life of
+// the connection — holding, if it was a watch, every watch pane in the window.
+// `halfSettledAt` is when the first of the two arrived; the watchdog makes the
+// missing one good once the grace period is up.
 
 function fakeSocket() {
   return {
@@ -30,6 +36,7 @@ function bareKernel() {
   kernel._reportedExecutionState = "idle";
   kernel._reportedIdleSince = Date.now();
   kernel.states = [];
+  kernel.seen = [];
   kernel.setExecutionState = (state) => kernel.states.push(state);
   kernel.setExecutionCount = () => {};
   kernel.setExecutionStartTime = () => {};
@@ -47,12 +54,37 @@ function statusMessage(requestId, state, requestType = "comm_msg") {
   };
 }
 
-function replyMessage(requestId) {
+function replyMessage(requestId, requestType = "execute_request", content = { status: "ok" }) {
   return {
-    header: { msg_id: `reply_${requestId}`, msg_type: "execute_reply" },
-    parent_header: { session: "our-session", msg_id: requestId, msg_type: "execute_request" },
-    content: { status: "ok" },
+    header: {
+      msg_id: `reply_${requestId}`,
+      msg_type: requestType.replace(/_request$/, "_reply"),
+    },
+    parent_header: { session: "our-session", msg_id: requestId, msg_type: requestType },
+    content,
   };
+}
+
+/**
+ * A callback entry as `_sendShellMessage` would arm it, with the fields a
+ * particular case wants to backdate or pre-satisfy overridden.
+ */
+function armedEntry(kernel, requestId, overrides = {}) {
+  const now = Date.now();
+  kernel.executionCallbacks[requestId] = {
+    callback: (message, channel) => kernel.seen.push([message.header.msg_type, channel]),
+    suppressStatus: false,
+    requestType: "execute_request",
+    expectsReply: true,
+    expectsIdle: true,
+    replySeen: false,
+    idleSeen: false,
+    halfSettledAt: null,
+    lastProgressAt: now,
+    armedAt: now,
+    ...overrides,
+  };
+  return kernel.executionCallbacks[requestId];
 }
 
 describe("shell request lifetimes", () => {
@@ -149,7 +181,7 @@ describe("shell request lifetimes", () => {
         expectsReply: false,
         replySeen: false,
         idleSeen: false,
-        acked: false,
+        lastProgressAt: Date.now(),
         armedAt: Date.now(),
       };
 
@@ -173,7 +205,7 @@ describe("shell request lifetimes", () => {
         expectsReply: true,
         replySeen: false,
         idleSeen: false,
-        acked: false,
+        lastProgressAt: Date.now(),
         armedAt: Date.now(),
       };
 
@@ -197,6 +229,244 @@ describe("shell request lifetimes", () => {
       );
 
       expect(kernel.executionCallbacks.execute_1.expectsReply).toBe(true);
+    });
+  });
+
+  describe("a one-shot request", () => {
+    const sendComplete = () =>
+      kernel._sendShellMessage(
+        kernel._createMessage("complete_request", "complete_1"),
+        "complete_1",
+        (message, channel) => kernel.seen.push([message.header.msg_type, channel]),
+        true,
+      );
+
+    it("is not retired by its reply alone", async () => {
+      await sendComplete();
+
+      kernel.onShellMessage(replyMessage("complete_1", "complete_request"));
+
+      expect(Object.keys(kernel.executionCallbacks)).toEqual(["complete_1"]);
+    });
+
+    it("is retired once the reply and the trailing idle have both arrived", async () => {
+      await sendComplete();
+
+      kernel.onIOMessage(statusMessage("complete_1", "busy", "complete_request"));
+      kernel.onShellMessage(replyMessage("complete_1", "complete_request"));
+      kernel.onIOMessage(statusMessage("complete_1", "idle", "complete_request"));
+
+      expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
+    });
+
+    it("is retired when the idle arrives before the reply", async () => {
+      await sendComplete();
+
+      kernel.onIOMessage(statusMessage("complete_1", "idle", "complete_request"));
+      kernel.onShellMessage(replyMessage("complete_1", "complete_request"));
+
+      expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
+    });
+
+    it("keeps the status bar still when its idle follows its reply", async () => {
+      // The ordering ipykernel actually produces: it publishes idle only once
+      // the handler that sent the reply has returned.
+      await sendComplete();
+
+      kernel.onIOMessage(statusMessage("complete_1", "busy", "complete_request"));
+      kernel.onShellMessage(replyMessage("complete_1", "complete_request"));
+      kernel.onIOMessage(statusMessage("complete_1", "idle", "complete_request"));
+
+      expect(kernel.states).toEqual([]);
+    });
+
+    it("delivers its reply to the caller exactly once", async () => {
+      await sendComplete();
+
+      kernel.onShellMessage(replyMessage("complete_1", "complete_request"));
+      kernel.onIOMessage(statusMessage("complete_1", "idle", "complete_request"));
+      kernel.onShellMessage(replyMessage("complete_1", "complete_request"));
+
+      expect(kernel.seen.filter(([type]) => type === "complete_reply").length).toBe(1);
+    });
+
+    it("is retired even when the callback throws", () => {
+      // The callback now runs before the bookkeeping, and it is a plugin's to
+      // supply through the middleware chain.
+      armedEntry(kernel, "complete_1", {
+        requestType: "complete_request",
+        idleSeen: true,
+        halfSettledAt: Date.now(),
+        callback: () => {
+          throw new Error("plugin blew up");
+        },
+      });
+
+      expect(() => kernel.onShellMessage(replyMessage("complete_1", "complete_request"))).toThrow();
+      expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
+    });
+  });
+
+  describe("a request the kernel half-answered", () => {
+    let watchdogKernel;
+
+    beforeEach(() => {
+      watchdogKernel = kernel;
+      watchdogKernel._ackWatchdog = null;
+      watchdogKernel._startAckWatchdog();
+    });
+
+    afterEach(() => {
+      watchdogKernel._stopAckWatchdog();
+    });
+
+    it("is given the trailing idle its caller is still waiting on", () => {
+      // A batch resolves on reply and idle together, and a watch holds every
+      // watch pane in the window until its idle lands.
+      armedEntry(kernel, "execute_1", {
+        replySeen: true,
+        halfSettledAt: Date.now() - 20000,
+      });
+
+      window.advanceClock(10000);
+
+      expect(kernel.seen).toEqual([["status", "iopub"]]);
+      expect(kernel.states).toEqual(["idle"]);
+      expect(kernel.executionCallbacks.execute_1).toBeUndefined();
+    });
+
+    it("is given no error and no second reply along with it", () => {
+      armedEntry(kernel, "execute_1", {
+        replySeen: true,
+        halfSettledAt: Date.now() - 20000,
+      });
+
+      window.advanceClock(10000);
+
+      expect(kernel.seen.some(([type]) => type === "error" || type === "execute_reply")).toBe(
+        false,
+      );
+    });
+
+    it("releases a suppressed request without moving the status bar", () => {
+      armedEntry(kernel, "watch_1", {
+        suppressStatus: true,
+        replySeen: true,
+        halfSettledAt: Date.now() - 20000,
+      });
+
+      window.advanceClock(10000);
+
+      expect(kernel.seen).toEqual([["status", "iopub"]]);
+      expect(kernel.states).toEqual([]);
+    });
+
+    it("is settled with an error when the reply is what went missing", () => {
+      // The caller has nothing, so it needs the error — but it already had
+      // its idle, and a second one would be a duplicate.
+      armedEntry(kernel, "execute_1", {
+        idleSeen: true,
+        halfSettledAt: Date.now() - 20000,
+      });
+
+      window.advanceClock(10000);
+
+      expect(kernel.seen).toEqual([
+        ["error", "iopub"],
+        ["execute_reply", "shell"],
+      ]);
+      expect(kernel.executionCallbacks.execute_1).toBeUndefined();
+    });
+
+    it("names the synthesized reply after the request it answers", () => {
+      armedEntry(kernel, "complete_1", {
+        requestType: "complete_request",
+        idleSeen: true,
+        halfSettledAt: Date.now() - 20000,
+      });
+
+      window.advanceClock(10000);
+
+      expect(kernel.seen).toContain(["complete_reply", "shell"]);
+    });
+
+    it("waits out the grace period first", () => {
+      // The frame may simply be in flight on the other socket; the grace is
+      // what tells a lost one from a late one.
+      armedEntry(kernel, "execute_1", { replySeen: true, halfSettledAt: Date.now() });
+
+      window.advanceClock(10000);
+      expect(kernel.seen).toEqual([]);
+      expect(kernel.executionCallbacks.execute_1).toBeDefined();
+
+      window.advanceClock(10000);
+      expect(kernel.executionCallbacks.execute_1).toBeUndefined();
+    });
+
+    it("waits while the kernel is busy", () => {
+      kernel._reportedExecutionState = "busy";
+      armedEntry(kernel, "execute_1", {
+        replySeen: true,
+        halfSettledAt: Date.now() - 20000,
+      });
+
+      window.advanceClock(30000);
+
+      expect(kernel.executionCallbacks.execute_1).toBeDefined();
+    });
+
+    it("is not starved by another client's traffic", () => {
+      // `_reportedIdleSince` is refreshed by every idle from every client and
+      // by our own suppressed work, so a dragged slider would hold it at now
+      // and postpone this for as long as the drag lasted.
+      armedEntry(kernel, "execute_1", {
+        replySeen: true,
+        halfSettledAt: Date.now() - 20000,
+      });
+      kernel._reportedIdleSince = Date.now();
+
+      window.advanceClock(10000);
+
+      expect(kernel.executionCallbacks.execute_1).toBeUndefined();
+    });
+
+    it("is left alone while the kernel is still producing output for it", () => {
+      // The negative control for the other watchdog rule: neither answer has
+      // arrived, but the kernel is plainly working.
+      armedEntry(kernel, "execute_1", { lastProgressAt: Date.now() });
+
+      window.advanceClock(30000);
+
+      expect(kernel.executionCallbacks.execute_1).toBeDefined();
+    });
+
+    it("is settled when the kernel produced output and then went quiet", () => {
+      // Progress then silence: the old flag said "acknowledged" once and the
+      // watchdog skipped the entry forever after.
+      kernel._reportedIdleSince = Date.now() - 40000;
+      armedEntry(kernel, "execute_1", {
+        lastProgressAt: Date.now() - 40000,
+        armedAt: Date.now() - 40000,
+      });
+
+      window.advanceClock(10000);
+
+      expect(kernel.seen).toEqual([
+        ["error", "iopub"],
+        ["execute_reply", "shell"],
+        ["status", "iopub"],
+      ]);
+      expect(kernel.executionCallbacks.execute_1).toBeUndefined();
+    });
+  });
+
+  describe("the grace period", () => {
+    it("is at least one watchdog poll", () => {
+      // Below the poll interval it is unenforceable, and the mechanism it
+      // guards would silently never run.
+      expect(ZMQKernel.HALF_SETTLED_GRACE_MS).toBeGreaterThanOrEqual(
+        ZMQKernel.ACK_POLL_INTERVAL_MS,
+      );
     });
   });
 
