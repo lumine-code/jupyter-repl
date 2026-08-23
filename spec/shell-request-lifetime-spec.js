@@ -506,4 +506,25 @@ describe("shell request lifetimes", () => {
       expect(kernel.states).toEqual(["idle"]);
     });
   });
+
+  describe("a status from the process a restart just killed", () => {
+    it("does not put the state back to idle", () => {
+      // Buffered in the SUB socket and delivered after the restart began. The
+      // autocomplete provider gates on this state, so an early "idle" sends
+      // completions into a socket with no process behind it.
+      kernel.lifecycle = "restarting";
+
+      kernel.onIOMessage(statusMessage("execute_straggler", "idle", "execute_request"));
+
+      expect(kernel.states).toEqual([]);
+    });
+
+    it("moves it again once the kernel is ready", () => {
+      kernel.lifecycle = "ready";
+
+      kernel.onIOMessage(statusMessage("execute_1", "busy", "execute_request"));
+
+      expect(kernel.states).toEqual(["busy"]);
+    });
+  });
 });
