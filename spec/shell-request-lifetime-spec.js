@@ -20,6 +20,7 @@ const ZMQKernel = require("../lib/zmq-kernel");
 function fakeSocket() {
   return {
     sent: [],
+    closed: false,
     // The real socket evaluates `isStale` on a later microtask, when the
     // send's turn in the chain comes up — which is the whole reason a request
     // sent immediately before a teardown can be dropped.
@@ -29,6 +30,10 @@ function fakeSocket() {
         return;
       }
       this.sent.push(message);
+    },
+    removeAllListeners() {},
+    close() {
+      this.closed = true;
     },
   };
 }
@@ -544,6 +549,14 @@ describe("shutting a kernel down", () => {
   // and destroy clears the whole table in the same tick — so the request was
   // dropped as stale before it went out, and the signal would have beaten it
   // anyway. Nothing in the kernel's own teardown ever ran.
+  //
+  // The ordering of what follows the send is load-bearing. The sockets must
+  // close while the kernel still lives — it is alive right then, running its
+  // atexit — because a close landing after the process died goes into the RST
+  // storm of a dead peer, and on Windows that corrupts libzmq's shared io
+  // thread: the next kernel's sockets never connect at all, and the window
+  // crashes natively at unload. Waiting for the exit first, as the first cut
+  // of this did, inverted exactly that.
   let kernel;
 
   function exitingProcess() {
@@ -568,16 +581,19 @@ describe("shutting a kernel down", () => {
 
   beforeEach(() => {
     kernel = bareKernel();
+    kernel.ioSocket = fakeSocket();
+    kernel.stdinSocket = fakeSocket();
     kernel.kernelProcess = exitingProcess();
   });
 
   it("actually sends the request", async () => {
+    const socket = kernel.shellSocket;
     const shutdown = kernel.shutdown();
     await flush();
     kernel.kernelProcess.exit();
     await shutdown;
 
-    expect(kernel.shellSocket.sent.length).toBe(1);
+    expect(socket.sent.length).toBe(1);
   });
 
   it("registers no callback entry for it", async () => {
@@ -592,13 +608,14 @@ describe("shutting a kernel down", () => {
   });
 
   it("survives the state being cleared in the same tick", async () => {
+    const socket = kernel.shellSocket;
     const shutdown = kernel.shutdown();
     kernel._clearState("Kernel shut down");
     await flush();
     kernel.kernelProcess.exit();
     await shutdown;
 
-    expect(kernel.shellSocket.sent.length).toBe(1);
+    expect(socket.sent.length).toBe(1);
   });
 
   it("waits for the process to exit", async () => {
@@ -630,10 +647,52 @@ describe("shutting a kernel down", () => {
   });
 
   it("does not wait on a process that is already gone", async () => {
+    const socket = kernel.shellSocket;
     kernel.kernelProcess.exitCode = 0;
 
     await kernel.shutdown();
 
-    expect(kernel.shellSocket.sent.length).toBe(1);
+    expect(socket.sent.length).toBe(1);
+  });
+
+  it("closes the sockets while the process is still alive", async () => {
+    // Not after: a close into a dead peer's RST storm corrupts libzmq's io
+    // thread on Windows, and no socket created afterwards ever connects —
+    // the next kernel's included.
+    const socket = kernel.shellSocket;
+    const shutdown = kernel.shutdown();
+    await flush();
+
+    // The process has not exited yet, and the socket is already down.
+    expect(socket.closed).toBe(true);
+
+    kernel.kernelProcess.exit();
+    await shutdown;
+  });
+
+  it("leaves nothing for destroy to close", async () => {
+    // Destroy runs right after every shutdown; a second close must find the
+    // refs already gone rather than the sockets again.
+    const shutdown = kernel.shutdown();
+    await flush();
+    kernel.kernelProcess.exit();
+    await shutdown;
+
+    expect(kernel.shellSocket).toBe(null);
+    expect(kernel.ioSocket).toBe(null);
+    expect(kernel.stdinSocket).toBe(null);
+  });
+
+  it("closes every socket it holds, once", () => {
+    const shell = kernel.shellSocket;
+    const io = kernel.ioSocket;
+    const stdin = kernel.stdinSocket;
+
+    kernel._releaseSockets(false);
+    kernel._releaseSockets(false);
+
+    expect(shell.closed).toBe(true);
+    expect(io.closed).toBe(true);
+    expect(stdin.closed).toBe(true);
   });
 });
