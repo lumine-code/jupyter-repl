@@ -164,5 +164,41 @@ describe("introspection at the kernel facade", () => {
 
       expect(seen).toEqual([]);
     });
+
+    it("reports why it failed rather than reporting nothing found", () => {
+      // `{found: false}` alone is what the kernel says when it looked and knows
+      // nothing about the name. A kernel that went away mid-request must not
+      // be indistinguishable from that — the MCP inspect tool relays it to an
+      // assistant as a fact about the code.
+      const seen = [];
+      kernel.inspect("np.array", 8, (results) => seen.push(results));
+
+      transport.deliverInspectReply({
+        status: "error",
+        ename: "KernelGone",
+        evalue: "Kernel restarted",
+        traceback: [],
+      });
+
+      expect(seen.length).toBe(1);
+      expect(seen[0].status).toBe("error");
+      expect(seen[0].evalue).toBe("Kernel restarted");
+      expect(seen[0].found).toBeFalsy();
+    });
+  });
+
+  describe("a middleware that answers twice", () => {
+    it("reaches the caller once", () => {
+      // The transports answer once; a plugin's middleware is under no such
+      // obligation, and the caller resolves a promise on the first answer.
+      const seen = [];
+      kernel.complete("np.a", (results) => seen.push(results));
+
+      transport.deliverCompleteReply({ matches: ["np.array"] });
+      transport.deliverCompleteReply({ matches: ["np.arange"] });
+
+      expect(seen.length).toBe(1);
+      expect(seen[0].matches).toEqual(["np.array"]);
+    });
   });
 });

@@ -30,6 +30,7 @@ function bareKernel() {
   kernel._destroyed = false;
   kernel.sessionId = OURS;
   kernel.executionCallbacks = {};
+  kernel._readyProbeIds = new Set();
   kernel.lifecycle = "ready";
   kernel.executionState = "idle";
   kernel._reportedExecutionState = "idle";
