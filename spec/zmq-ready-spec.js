@@ -24,13 +24,23 @@ function fakeSocket() {
     listenerCount(event) {
       return (this.listeners[event] || []).length;
     },
-    emit(event) {
-      for (const listener of [...(this.listeners[event] || [])]) listener({});
+    emit(event, payload = {}) {
+      for (const listener of [...(this.listeners[event] || [])]) listener(payload);
     },
     async send(message) {
       this.sent.push(message);
     },
   };
+}
+
+/**
+ * What the kernel echoes for a probe: any message whose parent names the
+ * probe's request id. The one thing a killed process cannot produce, which is
+ * why a restart's readiness listens for nothing else.
+ */
+function probeEcho(kernel) {
+  const probeId = [...kernel._readyProbeIds][0];
+  return { parent_header: { msg_id: probeId, msg_type: "kernel_info_request" } };
 }
 
 function bareKernel() {
@@ -102,7 +112,7 @@ describe("kernel launch readiness", () => {
     expect(started).toBe(1);
   });
 
-  it("waits for reconnection traffic during a restart", () => {
+  it("completes a restart when this round's probe is answered", () => {
     kernel = bareKernel();
     kernel.shellSocket.isConnected = true;
     kernel.ioSocket.isConnected = true;
@@ -113,9 +123,60 @@ describe("kernel launch readiness", () => {
     // gone, and only the new one can produce traffic.
     expect(restarted).toBe(0);
 
-    kernel.shellSocket.emit("message");
-    kernel.ioSocket.emit("message");
+    const echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", echo);
     expect(restarted).toBe(1);
+  });
+
+  it("is not satisfied by the dead process's stragglers during a restart", () => {
+    // The sockets stay connected across a restart and keep draining what the
+    // killed process left behind — replies to our own old requests, buffered
+    // statuses — all carrying our session. Counted as readiness, they put the
+    // kernel at "ready" with nothing behind the ports.
+    kernel = bareKernel();
+    let restarted = 0;
+    kernel.monitor(() => restarted++, true);
+
+    kernel.shellSocket.emit("message", {
+      parent_header: { msg_id: "execute_old", msg_type: "execute_request" },
+    });
+    kernel.ioSocket.emit("message", {
+      parent_header: { msg_id: "execute_old", msg_type: "execute_request" },
+    });
+    // A previous round's probe is a straggler too: the old process may have
+    // answered it just as the user restarted.
+    kernel.shellSocket.emit("message", {
+      parent_header: { msg_id: "ready_probe_0_stale", msg_type: "kernel_info_request" },
+    });
+
+    expect(restarted).toBe(0);
+  });
+
+  it("does not let a reconnect event stand in for the new process answering", () => {
+    // The sockets reconnect the moment the new process binds its ports, which
+    // says nothing about the kernel behind them serving yet.
+    kernel = bareKernel();
+    let restarted = 0;
+    kernel.monitor(() => restarted++, true);
+
+    kernel.shellSocket.emit("connect");
+    kernel.ioSocket.emit("connect");
+
+    expect(restarted).toBe(0);
+  });
+
+  it("still takes the fast paths on first launch", () => {
+    // First launch has no dead process to drain, so any traffic — and the
+    // Observer's connect events — remain honest evidence there.
+    kernel = bareKernel();
+    let started = 0;
+    kernel.monitor(() => started++);
+
+    kernel.shellSocket.emit("connect");
+    kernel.ioSocket.emit("message");
+
+    expect(started).toBe(1);
   });
 
   // One of the readiness listeners rides `message`, so leaving them attached
@@ -189,8 +250,9 @@ describe("kernel launch readiness", () => {
     kernel._stopAckWatchdog();
 
     kernel.monitor(() => {}, true);
-    kernel.shellSocket.emit("message");
-    kernel.ioSocket.emit("message");
+    const echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", echo);
 
     expect(kernel._ackWatchdog).not.toBe(null);
   });
@@ -204,8 +266,9 @@ describe("kernel launch readiness", () => {
     for (let restart = 0; restart < 5; restart++) {
       kernel.monitor(() => {}, true);
       expect(kernel.ioSocket.listenerCount("message")).toBe(1);
-      kernel.shellSocket.emit("message");
-      kernel.ioSocket.emit("message");
+      const echo = probeEcho(kernel);
+      kernel.shellSocket.emit("message", echo);
+      kernel.ioSocket.emit("message", echo);
       expect(kernel.ioSocket.listenerCount("message")).toBe(0);
     }
   });
