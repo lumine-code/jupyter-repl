@@ -1,0 +1,376 @@
+{
+  "recordedWith": "jupyter_client, kernel python3",
+  "session": "72ce7634-6406949cba46729f17706e3c",
+  "requests": [
+    {
+      "msg_id": "kernel_info_0f9092e2",
+      "msg_type": "kernel_info_request"
+    },
+    {
+      "msg_id": "complete_fe49e2f3",
+      "msg_type": "complete_request"
+    },
+    {
+      "msg_id": "inspect_88f28073",
+      "msg_type": "inspect_request"
+    },
+    {
+      "msg_id": "comm_info_094661fd",
+      "msg_type": "comm_info_request"
+    },
+    {
+      "msg_id": "is_complete_fef01663",
+      "msg_type": "is_complete_request"
+    },
+    {
+      "msg_id": "history_85dce8fe",
+      "msg_type": "history_request"
+    }
+  ],
+  "messages": [
+    {
+      "channel": "shell",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_13",
+        "msg_type": "kernel_info_reply"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "kernel_info_0f9092e2",
+        "msg_type": "kernel_info_request"
+      },
+      "content": {
+        "status": "ok",
+        "protocol_version": "5.3",
+        "implementation": "ipython",
+        "implementation_version": "9.14.1",
+        "language_info": {
+          "name": "python",
+          "version": "3.14.6",
+          "mimetype": "text/x-python",
+          "codemirror_mode": {
+            "name": "ipython",
+            "version": 3
+          },
+          "pygments_lexer": "ipython3",
+          "nbconvert_exporter": "python",
+          "file_extension": ".py"
+        },
+        "banner": "",
+        "help_links": [
+          {
+            "text": "Python Reference",
+            "url": "https://docs.python.org/3.14"
+          },
+          {
+            "text": "IPython Reference",
+            "url": "https://ipython.readthedocs.io/en/stable/"
+          },
+          {
+            "text": "NumPy Reference",
+            "url": "https://docs.scipy.org/doc/numpy/reference/"
+          },
+          {
+            "text": "SciPy Reference",
+            "url": "https://docs.scipy.org/doc/scipy/reference/"
+          },
+          {
+            "text": "Matplotlib Reference",
+            "url": "https://matplotlib.org/contents.html"
+          },
+          {
+            "text": "SymPy Reference",
+            "url": "http://docs.sympy.org/latest/index.html"
+          },
+          {
+            "text": "pandas Reference",
+            "url": "https://pandas.pydata.org/pandas-docs/stable/"
+          }
+        ],
+        "supported_features": ["kernel subshells", "debugger"]
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_12",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "kernel_info_0f9092e2",
+        "msg_type": "kernel_info_request"
+      },
+      "content": {
+        "execution_state": "busy"
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_14",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "kernel_info_0f9092e2",
+        "msg_type": "kernel_info_request"
+      },
+      "content": {
+        "execution_state": "idle"
+      }
+    },
+    {
+      "channel": "shell",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_16",
+        "msg_type": "complete_reply"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "complete_fe49e2f3",
+        "msg_type": "complete_request"
+      },
+      "content": {
+        "matches": ["print"],
+        "cursor_end": 3,
+        "cursor_start": 0,
+        "metadata": {
+          "_jupyter_types_experimental": [
+            {
+              "start": 0,
+              "end": 3,
+              "text": "print",
+              "type": "function",
+              "signature": "(*values: object, sep: str | None=\" \", end: str | None=\"\\n\", file: SupportsWrite[str] | None=None, flush: Literal[False]=False) -> None"
+            }
+          ]
+        },
+        "status": "ok"
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_15",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "complete_fe49e2f3",
+        "msg_type": "complete_request"
+      },
+      "content": {
+        "execution_state": "busy"
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_17",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "complete_fe49e2f3",
+        "msg_type": "complete_request"
+      },
+      "content": {
+        "execution_state": "idle"
+      }
+    },
+    {
+      "channel": "shell",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_19",
+        "msg_type": "inspect_reply"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "inspect_88f28073",
+        "msg_type": "inspect_request"
+      },
+      "content": {
+        "status": "ok",
+        "data": {
+          "text/plain": "\u001b[31mSignature:\u001b[39m print(*args, sep=\u001b[33m' '\u001b[39m, end=\u001b[33m'\\n'\u001b[39m, file=\u001b[38;5;28;01mNone\u001b[39;00m, flush=\u001b[38;5;28;01mFalse\u001b[39;00m)\n\u001b[31mDocstring:\u001b[39m\nPrints the values to a stream, or to sys.stdout by default.\n\nsep\n  string inserted between values, default a space.\nend\n  string appended after the last value, default a newline.\nfile\n  a file-like object (stream); defaults to the current sys.stdout.\nflush\n  whether to forcibly flush the stream.\n\u001b[31mType:\u001b[39m      builtin_function_or_method"
+        },
+        "metadata": {},
+        "found": true
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_18",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "inspect_88f28073",
+        "msg_type": "inspect_request"
+      },
+      "content": {
+        "execution_state": "busy"
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_20",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "inspect_88f28073",
+        "msg_type": "inspect_request"
+      },
+      "content": {
+        "execution_state": "idle"
+      }
+    },
+    {
+      "channel": "shell",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_22",
+        "msg_type": "comm_info_reply"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "comm_info_094661fd",
+        "msg_type": "comm_info_request"
+      },
+      "content": {
+        "comms": {},
+        "status": "ok"
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_21",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "comm_info_094661fd",
+        "msg_type": "comm_info_request"
+      },
+      "content": {
+        "execution_state": "busy"
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_23",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "comm_info_094661fd",
+        "msg_type": "comm_info_request"
+      },
+      "content": {
+        "execution_state": "idle"
+      }
+    },
+    {
+      "channel": "shell",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_25",
+        "msg_type": "is_complete_reply"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "is_complete_fef01663",
+        "msg_type": "is_complete_request"
+      },
+      "content": {
+        "status": "complete"
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_24",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "is_complete_fef01663",
+        "msg_type": "is_complete_request"
+      },
+      "content": {
+        "execution_state": "busy"
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_26",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "is_complete_fef01663",
+        "msg_type": "is_complete_request"
+      },
+      "content": {
+        "execution_state": "idle"
+      }
+    },
+    {
+      "channel": "shell",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_28",
+        "msg_type": "history_reply"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "history_85dce8fe",
+        "msg_type": "history_request"
+      },
+      "content": {
+        "status": "ok",
+        "history": [
+          [
+            3399,
+            4,
+            "\nbcdr.setme.PARAM(language='pl', country='PL', variant='2')\n\nbcdr.verrs.set('txgen:ppic', True)\n\ndoc = bcdr.latex.Document()\n\ndoc.style.title(\n    id_1 = r'ANALIZA NO\u015aNO\u015aCI I U\u017bYTKOWALNO\u015aCI',\n    id_2 = r'Obiekt mostowy przeznaczony do ruchu kolejowego',\n    id_3 = r'Prz\u0119s\u0142o w km 8+355 linii kolejowej nr 73',\n)\n\nchk = bcdr.check.Checks()\nchk.init('ecr')\nchk.init('e15')\nchk.init('fat')\n\nbcdr.sofia.SETTS(prj_path='../[f] sofi')\nbcdr.sofia.find_version()\n\ntrd = bcdr.trade.Trade(trd_path='[x] data.dat')\n\nsof = bcdr.sofdb.Readers(cdb_path='[c] main.cdb', sof_dllv='edu')\n\ncdb = bcdr.dbase.init('main.pkl')\n\ndoc.s(1, r'Wst\u0119p') #?#\n\ndoc.s(2, r'Przedmiot i cel opracowania') #?#\n\ndoc.x(r'''\nPrzedmiotem opracowania jest analiza no\u015bno\u015bci i u\u017cytkowalno\u015bci obiektu mostowego przeznaczonego do ruchu kolejowego. Celem analizy jest okre\u015blenie no\u015bno\u015bci wybranych element\u00f3w zgodnie z normami projektowymi z serii Eurokod, m.in. PN-EN~1991-2~\\cite{pn-en_1991-2:2007}.\n\nDodatkowo okre\u015bla si\u0119 kategorie linii wynikaj\u0105cej ze sprawdzenia mo\u017cliwo\u015bci przenoszenia obci\u0105\u017cenia przez obiekt od modeli obci\u0105\u017ce\u0144 i charakterystyk geometrycznych wagon\u00f3w wzorcowych okre\u015blonych w normie PN-EN~15528 \\cite{pn-en_15528:2015}.\n\nAnaliz\u0119 no\u015bno\u015bci i u\u017cytkowalno\u015bci obiektu wykonuje si\u0119 w oparciu o zasady przeprowadzania oblicze\u0144 statyczno-wytrzyma\u0142o\u015bciowych uj\u0119tych w instrukcji wykonywania oblicze\u0144 istniej\u0105cych most\u00f3w i wiadukt\u00f3w kolejowych Id-16-A1 wersja 2.0 \\cite{rym_kol_id16_a1-2.0}.\n''')\n\ndoc.s(2, r'Status wynik\u00f3w', label='status') #?#\n\ndoc.x(r'''\nPoj\u0119cie [no\u015bno\u015bci::i] w kombinacjach z pojazdami rzeczywistymi, wykonywanych zgodnie z instrukcj\u0105 \\cite{rym_kol_id16_a1-2.0}, nie jest to\u017csame z no\u015bno\u015bci\u0105 okre\u015blon\u0105 w normach z serii Eurokod ani w Polskich Normach. Z uwagi na brak odpowiednich bada\u0144 oraz analiz, no\u015bno\u015b\u0107 ta cechuje si\u0119 [nieokre\u015blonym poziomem niezawodno\u015bci::b] konstrukcji. W niniejszym opracowaniu zagadnienie to przedstawiono jako zestaw wsp\u00f3\u0142czynnik\u00f3w [R::b], stosowanych wy\u0142\u0105cznie w wybranych kombinacjach z obci\u0105\u017ceniami od pojazd\u00f3w rzeczywistych.\n\nZestawy wsp\u00f3\u0142czynnik\u00f3w [A::b], [B::b] i [C::b] odpowiadaj\u0105 sytuacjom projektowym dla obiekt\u00f3w nowoprojektowanych wed\u0142ug norm z serii Eurokod. Wykorzystuje si\u0119 je do obliczenia wsp\u00f3\u0142czynnika $\u03b1$ oraz do sprawdze\u0144 dotycz\u0105cych ci\u0119\u017ckiego ruchu kolejowego.\n''')\n\ndoc.s(2, r'Oprogramowanie') #?#\n\ndoc.civil.software(1)\n\ndoc.s(2, r'Opis konstrukcji') #?#\n\ndoc.p(r'assets/view-1.jpg', r'Widok konstrukcji od boku')\n\ndoc.p(r'assets/view-2.jpg', r'Widok konstrukcji od g\u00f3ry')\n\ndoc.p(r'assets/view-3.jpg', r'Widok poprzeczki naro\u017cnej')\n\ndoc.p(r'assets/view-4.jpg', r'Widok st\u0119\u017cenia pod\u0142u\u017cnic')\n\ndoc.p(r'assets/view-5.jpg', r'Widok po\u0142\u0105czenia pod\u0142u\u017cnicy z poprzecznic\u0105')\n\ndoc.s(1, r'Dane modelowe', flow=2) #?#\n\ndoc.s(2, r'Za\u0142o\u017cenia i parametry modelowe', label='rules') #?#\n\ndoc.x(r'''\nWprowadza si\u0119 wybrane zmienne obowi\u0105zuj\u0105ce na przestrzeni ca\u0142ego raportu. Odwzorowuj\u0105 one podstawowe parametry \u015brodowiska oraz konstrukcji w zagadnieniach fizycznych, geometrycznych, z zakresu analizy numerycznej, procedur wymiarowania oraz innych.\n''')\n\ndoc.i(r'przyspieszenie ziemskie', rf'{g_a:,5}')\n\nA_sea = 225[m]\ndoc.i('przybli\u017cona \u015brednia wysoko\u015b\u0107 terenu', rf'{A_sea:_,1:m}~[n.p.m.::r]')\n\nt_now = 2026[yr]-1953[yr]\ndoc.i('aktualny okres u\u017cytkowania obiektu', rf'{t_now::yr}')\n\nt_des = max(100[yr], t_now+10[yr])\ndoc.i('projektowany okres u\u017cytkowania obiektu', rf'{t_des::yr}')\n\nL_T = 62.5[m] ; trd.varsto('L_T', L_T &m)\ndoc.i(r'rozpi\u0119to\u015b\u0107 teoretyczna prz\u0119s\u0142a w linii \u015brodkowej obiektu', rf'L_T={L_T:,1:m}')\n\ntrd.varsto('L_sum', L_T &m)\n\ndoc.x(r'''\nZak\u0142ada si\u0119 nast\u0119puj\u0105cy schemat orientowania przestrzeni:\n<*> kierunek X -- zorientowany zgodnie ze \u015brodkow\u0105 osi\u0105 pod\u0142u\u017cn\u0105 obiektu,\n<*> kierunek Z -- zorientowany zgodnie z kierunkiem si\u0142y ci\u0119\u017cko\u015bci,\n<*> kierunek Y -- zorientowany na podstawie kierunku X oraz Z z zachowaniem uk\u0142adu prawoskr\u0119tnego.\n''')\n\ndoc.s(2, r'Stal konstrukcyjna') #?#\n\ndoc.x(r'''\nNa podstawie dokumentacji archiwalnej przyj\u0119to stal gatunku St3, dla kt\u00f3rej podstawowe napr\u0119\u017cenie dopuszczalne, okre\u015blone w \u00f3wczesnych normatywach projektowych dla element\u00f3w o grubo\u015bci do 16\\,mm, wynosi\u0142o 200\\,MPa. Warto\u015b\u0107 wsp\u00f3\u0142czynnika $\u03b3_m$ skalibrowano w celu uwzgl\u0119dnienia niepewno\u015bci zwi\u0105zanej z w\u0142a\u015bciwo\u015bciami materia\u0142owymi stali historycznej. W analizie stan\u00f3w granicznych uwzgl\u0119dniono ponadto odpowiednie modyfikacje wytrzyma\u0142o\u015bci obliczeniowej \\cite[3.4.1.7, 3.4.1.8]{pn-s-10052:1982}.\n''')\n\nmate = mA = bcdr.mates.SSteelEC('PL-2', grade='St3', f_yk=235e6, f_uk=373e6, k_\u03b3=235/200, t_max=16e-3)\ndoc.civil.auto(mate)\n\n# doc.s(2, r'Pasy g\u00f3rne d\u017awigar\u00f3w kratowych') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-1.png')\n#\n# doc.s(2, r'Pasy dolne d\u017awigar\u00f3w kratowych') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-2.png')\n#\n# doc.s(2, r'Krzy\u017culce d\u017awigar\u00f3w kratowych') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-3.png')\n#\n# doc.s(2, r'Poprzecznice po\u015brednie') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-4.png')\n#\n# doc.s(2, r'Poprzecznice skrajne') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-5.png')\n#\n# doc.s(2, r'Belki naro\u017cne') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-6.png')\n#\n# doc.s(2, r'Pod\u0142u\u017cnice kolejowe') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-7.png')\n#\n# doc.s(2, r'St\u0119\u017cenia g\u00f3rne') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-8.png')\n#\n# doc.s(2, r'St\u0119\u017cenia dolne') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-9.png')\n#\n# doc.s(2, r'St\u0119\u017cenia hamowne') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-10.png')\n#\n# doc.s(2, r'St\u0119\u017cenia pod\u0142u\u017cnic') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-11.png')\n#\n# doc.s(2, r'Schemat \u0142o\u017cyskowania') #?#\n#\n# doc.p(r'assets/[c] main/[r] model-12.png', r'Schemat \u0142o\u017cysk g\u0142\u00f3wnych')\n#\n# k_v = 1e7[kN/m]\n# doc.i(r'sztywno\u015b\u0107 pionowych wi\u0119z\u00f3w podporowych', rf'k_v={k_v::MN/mm}', width='+')\n#\n# k_t = 1e6[kN/m]\n# doc.i(r'sztywno\u015b\u0107 poziomych wi\u0119z\u00f3w podporowych', rf'k_t={k_t::MN/mm}', width='+')\n\ndoc.s(1, r'Oddzia\u0142ywania na konstrukcj\u0119', flow=2) #?#\n\ndoc.s(2, r'Oddzia\u0142ywanie sta\u0142e konstrukcyjne') #?#\n\ndoc.x(r'''\nObci\u0105\u017cenie sta\u0142e konstrukcyjne zosta\u0142o wygenerowane automatycznie z uwagi na przekr\u00f3j element\u00f3w sko\u0144czonych oraz ci\u0119\u017car obj\u0119to\u015bciowy materia\u0142u. Zastosowanie ma norma projektowa \\cite{pn-en_1991-1-1:2004}.\n''')\n\nact = bcdr.actme.action('EC/2', 'G', \u03b3_GR_sup=1.20, \u03b3_GR_inf=1.00)\ndoc.civil.auto(act)\n\nk_\u03b3 = 1.025[u]\ndoc.i('mno\u017cnik ci\u0119\u017caru stali konstrukcyjnej z uwagi na blachy w\u0119z\u0142owe, \u017cebra poprzeczne, warstwy antykorozyjne itd.', rf'k_\u03b3={k_\u03b3:,3}')\n\n\u0394\u03b3 = 1.4[kN/m**3]\ndoc.i('dodatek do ci\u0119\u017caru konstrukcji spawanych', rf'\u0394\u03b3={\u0394\u03b3:,1}')\n\n\u03b3_tot = mA.\u03b3*N/m**3*k_\u03b3+\u0394\u03b3 ; trd.varsto('r_tot' , \u03b3_tot &N/m**3)\ndoc.i('obliczeniowy ci\u0119\u017car stali konstrukcyjnej', rf'\u03b3_tot=\u03b3 k_\u03b3+\u0394\u03b3={\u03b3_tot:,1}')\n\ndoc.s(2, 'Oddzia\u0142ywanie sta\u0142e niekonstrukcyjne', page=False) #?#\n\ndoc.x(r'''\nUwzgl\u0119dnia si\u0119 ci\u0119\u017car znacz\u0105cych element\u00f3w niekonstrukcyjnych znajduj\u0105cych si\u0119 na obiekcie. Zastosowanie ma norma projektowa \\cite{pn-en_1991-1-1:2004}.\n''')\n\nact = bcdr.actme.action('EC/2', 'G', \u03b3_GR_sup=1.20, \u03b3_GR_inf=1.00)\ndoc.civil.auto(act)\n\nq_k = 1.70[kN/m] ; trd.varsto('q_sk', q_k &N/m)\ndoc.i(r'ci\u0119\u017car dw\u00f3ch szyn z zam. toru', rf'q_k={q_k:,2:kN}')\n\nq_k = 1.70[kN/m] ; trd.varsto('q_ok', q_k &N/m)\ndoc.i(r'ci\u0119\u017car dw\u00f3ch odbojnic z zam. toru', rf'q_k={q_k:,2:kN}')\n\nh=23.5[cm] ; b=26[cm] ; L=4.055[m] ; r=600[mm] ; \u03b3=8[kN/m**3] ; q_k=h*b*L/r*\u03b3 ; trd.varsto('q_mk', q_k &N/m)\ndoc.i(rf'ci\u0119\u017car mostownic drewnianych co ${r::mm}$', rf'q_k={q_k:,2:kN}')\n\np_k = 0.25[kN/m**2] ; trd.varsto('p_dk', p_k &N/m**2)\ndoc.i(r'ci\u0119\u017car kraty pomostowej', rf'p_k={p_k:,2:kN}')\n\nt=10[mm] ; \u03b3=78.5[kN/m**3] ; p_k=t*\u03b3 ; trd.varsto('p_rk', p_k &N/m**2)\ndoc.i(r'ci\u0119\u017car blachy ryflowanej', rf'p_k={t}*{\u03b3}={p_k:,2:kN}')\n\ndoc.s(2, 'Oddzia\u0142ywanie wiatru') #?#\n\ndoc.x(r'''\nOddzia\u0142ywanie wiatru na konstrukcj\u0119 uwzgl\u0119dnia lokalizacj\u0119 obiektu, orografi\u0119 terenu oraz op\u00f3r aerodynamiczny element\u00f3w konstrukcji, wyposa\u017cenia oraz powierzchni dodatkowych. Obci\u0105\u017cenie zawsze oddzia\u0142uje prostopadle do rozpatrywanej powierzchni. Oznaczenia kierunku dzia\u0142ania wiatru przyj\u0119to zgodnie z kierunkami globalnymi w projekcie \\refs{rules}. Zastosowanie ma norma projektowa \\cite{pn-en_1991-1-4:2008}.\n''')\n\nact = bcdr.actme.action('EC/2', 'railb', 'W', 'PT', \u03b3_QR=1.20)\ndoc.civil.auto(act)\n\nwpr = bcdr.loads.WindProb(t=t_des.v, K=0.2, n=0.5)\n\nwqp = bcdr.loads.WindPressurePL(WZ='1', TC='II', A_sea=A_sea.v, z_e=8.5, c_dir=1, c_season=1, c_prob=wpr.c_prob)\n\ndoc.s(3, 'Parametry regionalne i konstrukcyjne') #?#\n\ndoc.civil.auto(wqp, 1)\n\ndoc.s(3, 'Szczytowe ci\u015bnienie pr\u0119dko\u015bci wiatru', page=True) #?#\n\ndoc.civil.auto(wqp, 2, lim=False)\n\ndoc.s(3, 'Op\u00f3r aerodynamiczny pomostu w~kierunku~Y', label='wind-deck-Y') #?#\n\nwby = bcdr.loads.WindBridgeY(q_pe=wqp.q_pe, b_tot=5.45, d_tot=8.8, c_s=1, c_d=1, mode='b')\ndoc.civil.auto(wby) ; trd.varsto('p_wy_e', wby.p_wy)\n\ndoc.s(2, r'Oddzia\u0142ywanie normowego taboru kolejowego', label='rail-ec') #?#\n\ndoc.x(r'''\nOddzia\u0142ywanie taboru kolejowego zosta\u0142o podzielone na grupy, kt\u00f3re rozpatruj\u0105 najniekorzystniejsze sytuacje ustawienia pojazdu z uwzgl\u0119dnieniem odpowiedniego stopnia prawdopodobie\u0144stwa jednoczesno\u015bci sk\u0142adowych wewn\u0105trz modelu obci\u0105\u017cenia oraz interakcji z innymi oddzia\u0142ywaniami \\cite[Tab. A2.3]{pn-en_1990:2004}. Zastosowanie ma norma projektowa \\cite{pn-en_1991-2:2007}.\n''')\n\nact = bcdr.actme.action('EC/2', 'railb', 'gr11:15')\ndoc.civil.auto(act, caption='Wsp\u00f3\u0142czynniki kombinacyjne dla gr11:15')\n\nact = bcdr.actme.action('EC/2', 'railb', 'gr16:17')\ndoc.civil.auto(act, caption='Wsp\u00f3\u0142czynniki kombinacyjne dla gr16:17')\n\ndoc.s(3, 'Grupy obci\u0105\u017ce\u0144 taboru kolejowego', label='railb-groups', page=True) #?#\n\ndoc.x('''\nObci\u0105\u017cenia kolejowe s\u0105 z\u0142o\u017cone z wielu element\u00f3w sk\u0142adowych, kt\u00f3rych prawdopodobie\u0144stwo wyst\u0105pienia jest okre\u015blone przez grupy obci\u0105\u017ce\u0144.\n''')\n\ndoc.civil.picture(r'assets/temp/railb-groups.png')\n\ndoc.s(3, r'Oddzia\u0142ywanie pionowe LM71', page=True) #?#\n\ndoc.x(r'''\nModel obci\u0105\u017cenia 71 jest reprezentowany przez blok si\u0142 skupionych oraz bloki si\u0142 r\u00f3wnomiernie roz\u0142o\u017conych \\cite[6.3.2]{pn-en_1991-2:2007}. Dowolna cz\u0119\u015b\u0107 modelu mo\u017ce zosta\u0107 pomini\u0119ta, je\u017celi wywo\u0142uje ona korzystne oddzia\u0142ywanie w analizowanym przekroju. Obci\u0105\u017cenie pojazdem podlega klasyfikacji linii kolejowej wsp\u00f3\u0142czynnikiem $\u03b1$.\n\nW modelach obci\u0105\u017cenia uwzgl\u0119dnia si\u0119 mimo\u015br\u00f3d obci\u0105\u017cenia. Stosunek nacisku k\u00f3\u0142 oblicza si\u0119 z przeci\u0105\u017ceniem 1.25:1.00 \\cite[6.3.5]{pn-en_1991-2:2007}. Rozk\u0142ada si\u0119 oddzia\u0142ywania pionowe przez elementy po\u015brednie \\cite[6.3.6]{pn-en_1991-2:2007}.\n''')\n\ndoc.civil.picture(r'assets/temp/ec-lm71.png')\n\ndoc.s(3, r'Oddzia\u0142ywanie pionowe SW/0 i SW/2') #?#\n\ndoc.x(r'''\nModele przedstawiaj\u0105 efekty statyczne obci\u0105\u017cenia pionowego normalnym SW/0 lub ci\u0119\u017ckim SW/2 ruchem kolejowym \\cite[6.3.3]{pn-en_1991-2:2007}. Rozk\u0142ada si\u0119 oddzia\u0142ywania pionowe przez elementy po\u015brednie \\cite[6.3.6]{pn-en_1991-2:2007}. W modelu SW/0 uwzgl\u0119dnia si\u0119 wsp\u00f3\u0142czynnik klasyfikacji linii kolejowej $\u03b1$ oraz mimo\u015br\u00f3d obci\u0105\u017cenia poprzez uwzgl\u0119dnienie stosunku nacisku k\u00f3\u0142 w osi z przeci\u0105\u017ceniem 1.25:1.00 \\cite[6.3.5]{pn-en_1991-2:2007}. W modelu SW/2 nale\u017cy okre\u015bli\u0107 linie lub odcinki linii, na kt\u00f3rych mo\u017ce wyst\u0119powa\u0107 ci\u0119\u017cki ruch kolejowy.\n''')\n\ndoc.civil.picture(r'assets/temp/ec-sw02.png')\n\ndoc.i(r'model SW/0', (rf'q_vk={133[kN/m]:}', rf'a={15[m]:,1}', rf'c={5.3[m]:,1}'), width='---')\n\ndoc.i(r'model SW/2', (rf'q_vk={150[kN/m]:}', rf'a={25[m]:,1}', rf'c={7.0[m]:,1}'), width='---')\n\ndoc.s(3, 'Oddzia\u0142ywanie taboru kolejowego bez \u0142adunku') #?#\n\ndoc.x(r'''\nModel obci\u0105\u017cenia poci\u0105giem bez \u0142adunku LMNW \\cite[6.3.4]{pn-en_1991-2:2007} jest stosowany do sprawdzenia potencjalnej si\u0142y odrywaj\u0105cej na \u0142o\u017cyskach. Sk\u0142ada si\u0119 z pionowego obci\u0105\u017cenia r\u00f3wnomiernie roz\u0142o\u017conego o warto\u015bci charakterystycznej r\u00f3wnej 10~kN/m.\n''')\n\ndoc.s(3, r'Si\u0142y hamowania i przyspieszania') #?#\n\ndoc.x(r'''\nSi\u0142y przyspieszania i hamowania przyjmuje si\u0119 jako dzia\u0142aj\u0105ce na wierzchu szyn w kierunku pod\u0142u\u017cnym toru, jako r\u00f3wnomiernie roz\u0142o\u017cone na d\u0142ugo\u015bciach linii wp\u0142ywu $L_a_b$ \\cite[6.5.3(1)]{pn-en_1991-2:2007}. Si\u0142 od hamowania i przyspieszania nie mno\u017cy si\u0119 przez wsp\u00f3\u0142czynnik dynamiczny, uwzgl\u0119dnia si\u0119 wsp\u00f3\u0142czynnik klasyfikacji $\u03b1$. Si\u0142y te przyk\u0142ada si\u0119 do konstrukcji wy\u0142\u0105cznie razem z obci\u0105\u017ceniem pionowym.\n''')\n\nL_a_b = L_T\n\nQ_lak = min(33[kN/m]*L_a_b, 1000[kN]) ; Q_lak\ndoc.i(r'si\u0142a przyspieszania dla modeli LM71, SW/0 i SW/2', rf'Q_lak={33[kN/m]:} L_a_b<={1000[kN]}')\n\nQ_lbk = min(20[kN/m]*L_a_b, 6000[kN]) ; Q_lbk\ndoc.i(r'si\u0142a hamowania dla modeli LM71 i SW/0', rf'Q_lbk={20[kN/m]:} L_a_b<={6000[kN]}')\n\nQ_l2k = 35[kN/m]*L_a_b ; Q_l2k\ndoc.i(r'si\u0142a hamowania dla modelu SW/2', rf'Q_lbk={35[kN/m]:} L_a_b')\n\ntrd.varsto('q_lk', (-33[kN/m] if Q_lak>Q_lbk else 20[kN/m])&N/m)\n\ndoc.s(3, r'Si\u0142y od\u015brodkowe i poprzeczne') #?#\n\ndoc.x(r'''\nJe\u017celi tor na mo\u015bcie jest zakrzywiony na ca\u0142ej lub na cz\u0119\u015bci d\u0142ugo\u015bci mostu, to uwzgl\u0119dnia si\u0119 si\u0142\u0119 od\u015brodkow\u0105 oraz przechy\u0142k\u0119 toru \\cite[6.5.1(4)P]{pn-en_1991-2:2007}. Kierunek oddzia\u0142ywania si\u0142y od\u015brodkowej wskazuje na zewn\u0119trzn\u0105 cz\u0119\u015b\u0107 \u0142uku, natomiast jako miejsce oddzia\u0142ywania si\u0142y od\u015brodkowej przyjmuje si\u0119 po\u0142o\u017cenie teoretycznego \u015brodka ci\u0119\u017cko\u015bci pojazdu. Si\u0142\u0119 od\u015brodkow\u0105 zawsze \u0142\u0105czy si\u0119 z pionowym obci\u0105\u017ceniem ruchomym oraz nie mno\u017cy si\u0119 jej przez wsp\u00f3\u0142czynnik dynamiczny.\n''')\n\ndoc.i(r'po\u0142o\u017cenie \u015brodka ci\u0119\u017cko\u015bci', rf'h_g={1.8[m]:,2}')\n\nR = False\ndoc.i(r'promie\u0144 poziomy osi \u015brodkowej toru', rf'$R={R}$' if R else 'nie dotyczy', 't')\n\ndoc.i('efektywna wysoko\u015b\u0107 pojazdu', rf'h={4[m]:,2}')\n\ndoc.x(r'''\nUderzenie boczne przyjmuje si\u0119 jako si\u0142\u0119 skupion\u0105 dzia\u0142aj\u0105c\u0105 poziomo na wierzchu szyn \\cite[6.5.2(1)]{pn-en_1991-2:2007}, prostopadle do osi toru. Nie mno\u017cy si\u0119 jej przez wsp\u00f3\u0142czynnik dynamiczny, natomiast uwzgl\u0119dnia si\u0119 wsp\u00f3\u0142czynnik klasyfikacji obci\u0105\u017ce\u0144 dla $\u03b1>=1.00$.\n''')\n\ndoc.i('si\u0142a uderzenia bocznego', rf'Q_sk=max(\u03b1,1.00)*{100[kN]}')\n\ndoc.s(3, 'Efekty dynamiczne', label='dynEC', page=True) #?#\n\ndyn = bcdr.cabid.DynSchema(\n    common = Store(\n        h_z = False,\n        t_mt = '3',\n    ),\n    groups = {\n        1: Store(\n            name = 'D\u017awigary kratowe',\n            spec = '5.1',\n            L_e  = L_T.v,\n            n_0  = True, # TODO\n            grps = [11, 21, 22, 31, 32, 33, 34, 35, 36, 37, 38, 51, 52, 53, 54, 81, 82, 83],\n            more = ['st\u0119\u017cenia g\u00f3rne', 'st\u0119\u017cenia dolne', 'st\u0119\u017cenia hamowne', '\u0142o\u017cyska'],\n        ),\n        2: Store(\n            name = 'Poprzecznice skrajne',\n            spec = '3.4',\n            L_e  = 3.6,\n            fun  = 'ecr',\n            t_mt = '3',\n            grps = [62],\n        ),\n        3: Store(\n            name = 'Poprzecznice po\u015brednie',\n            spec = '3.3',\n            L_e  = 5.02 *2,\n            fun  = 'ecr',\n            grps = [61],\n        ),\n        4: Store(\n            name = 'Pod\u0142u\u017cnice kolejowe',\n            spec = '3.1b',\n            L_e  = 8.24 *3,\n            fun  = 'ecr',\n            grps = [71, 72, 73, 74, 75, 76],\n            more = ['st\u0119\u017cenia pod\u0142u\u017cnic'],\n        ),\n    },\n    lanes = {\n        ('t',1): Store(fun='ecr', idis='a', v_max=160[km/hr].v),\n        ('t',2): Store(fun='erl', idis='a', v_max=160[km/hr].v),\n        ('t',3): Store(fun='erl', idis='a', v_max=80[km/hr].v),\n        ('t',4): Store(fun='erl', idis='a', v_max=20[km/hr].v),\n    },\n    models = {\n        31000: Store(name='a146', idts='ab'),\n        32000: Store(name='a133', idts='ab'),\n        33000: Store(name='a121', idts='ab'),\n        34000: Store(name='a110', idts='ab'),\n        35000: Store(name='a100', idts='abc'),\n        36000: Store(name='a091', idts='ab'),\n        37000: Store(name='a083', idts='ab'),\n        38000: Store(name='a075', idts='ab'),\n        39000: Store(name='sw2', idts='d'),\n        41000: Store(name='a10', idts='ab'),\n        42000: Store(name='a12', idts='ab'),\n        43000: Store(name='a14', idts='ab'),\n        44000: Store(name='a', idts='ab'),\n        45000: Store(name='b1', idts='ab'),\n        46000: Store(name='b2', idts='ab'),\n        47000: Store(name='c2', idts='ab'),\n        48000: Store(name='c3', idts='ab'),\n        49000: Store(name='c4', idts='ab'),\n        50000: Store(name='d2', idts='ab'),\n        51000: Store(name='d3', idts='ab'),\n        52000: Store(name='d4', idts='ab'),\n        53000: Store(name='d5', idts='ab'),\n        54000: Store(name='e4', idts='ab'),\n        55000: Store(name='e5', idts='ab'),\n        56000: Store(name='e6', idts='ab'),\n        57000: Store(name='nw', idts='c'),\n    },\n)\n\ndyn.cadinp(trd)\n\ndoc.s(4, 'Funkcja wsp\u00f3\u0142czynnika dynamicznego') #?#\n\ndoc.civil.railb_dyn_ec_fun(t_mt=dyn.common.t_mt, h_z=dyn.common.h_z)\n\n#$$$$# Grupy dynamiczne\n\ndoc.civil.railb_dyn_plot('t',1, dyn)\n\ndoc.s(2, r'Oddzia\u0142ywanie rzeczywistego taboru kolejowego') #?#\n\ndoc.x(r'''\nZastosowanie maj\u0105 zasady, wsp\u00f3\u0142czynniki bezpiecze\u0144stwa i jednoczesno\u015bci obci\u0105\u017ce\u0144 jak dla pojazd\u00f3w wg PN-EN~1991-2 \\refs{rail-ec} oraz modele pojazd\u00f3w referencyjnych \\cite{pn-en_15528:2015}.\n''')\n\nact = bcdr.actme.action(\u03b3_QR=1.20, \u03c8_0=0.80, \u03c8_1=0.80, \u03c8_2=0.00)\ndoc.civil.auto(act, caption='Wsp\u00f3\u0142czynniki kombinacyjne dla gr11:15')\n\ndoc.s(3, 'Grupy obci\u0105\u017ce\u0144 taboru kolejowego') #?#\n\ndoc.x(r'''\nOddzia\u0142ywania rzeczywiste traktuje si\u0119 jak oddzia\u0142ywania pionowe typu Model Obci\u0105\u017cenia 71 w tabeli grup obci\u0105\u017ce\u0144 \\refs{railb-groups}.\n''')\n\ndoc.s(3, r'Oddzia\u0142ywanie pionowe wg~PN-EN~15528') #?#\n\ndoc.x(r'''\nPrzy wyznaczaniu ekstremalnych warto\u015bci si\u0142 wewn\u0119trznych dopuszcza si\u0119 pomini\u0119cie dowolnych cz\u0119\u015bci modelu obci\u0105\u017cenia, kt\u00f3re wywieraj\u0105 korzystny wp\u0142yw na analizowane oddzia\u0142ywanie. Model mo\u017ce obejmowa\u0107 dowoln\u0105 liczb\u0119 wagon\u00f3w.\n\nW modelach obci\u0105\u017cenia uwzgl\u0119dnia si\u0119 mimo\u015br\u00f3d obci\u0105\u017cenia. Stosunek nacisku k\u00f3\u0142 oblicza si\u0119 z przeci\u0105\u017ceniem 1.25:1.00 \\cite[6.3.5]{pn-en_1991-2:2007}. Rozk\u0142ada si\u0119 oddzia\u0142ywania pionowe przez elementy po\u015brednie \\cite[6.3.6]{pn-en_1991-2:2007}.\n''')\n\ndoc.page(True)\n\ndoc.civil.table(r'railb-e15')\n\ndoc.civil.picture(r'assets/temp/e15-schema.png')\n\ndoc.s(3, r'Si\u0142y hamowania i przyspieszania', page=True) #?#\n\ndoc.x(r'''\nSi\u0142y hamowania i przyspieszenia dzia\u0142aj\u0105 poziomo wzd\u0142u\u017c osi toru, na styku ko\u0142a z szyn\u0105, generuj\u0105c jednocze\u015bnie dodatkowe obci\u0105\u017cenia pionowe przekazywane na d\u017awigary. Charakterystyczn\u0105 si\u0142\u0119 hamowania dla jednego toru przyjmuje si\u0119 jako 0.10 obci\u0105\u017cenia pionowego od taboru kolejowego, dzia\u0142aj\u0105c\u0105 na d\u0142ugo\u015bci linii wp\u0142ywu oddzia\u0142ywania. Charakterystyczn\u0105 si\u0142\u0119 przyspieszenia dla jednego toru przyjmuje si\u0119 jako 0.20 obci\u0105\u017cenia pionowego lokomotyw.\n''')\n\ndoc.i(r'si\u0142a przyspieszania', r'q_lak=20\\%~q_lok_vk')\n\ndoc.i(r'si\u0142a hamowania', r'q_lbk=10\\%~q_vk')\n\ndoc.s(3, r'Si\u0142y od\u015brodkowe i poprzeczne') #?#\n\ndoc.x(r'''\nJe\u017celi tor na mo\u015bcie jest zakrzywiony na ca\u0142ej lub na cz\u0119\u015bci d\u0142ugo\u015bci mostu, to uwzgl\u0119dnia si\u0119 si\u0142\u0119 od\u015brodkow\u0105 oraz przechy\u0142k\u0119 toru \\cite[6.5.1(4)P]{pn-en_1991-2:2007}. Kierunek oddzia\u0142ywania si\u0142y od\u015brodkowej wskazuje na zewn\u0119trzn\u0105 cz\u0119\u015b\u0107 \u0142uku, natomiast jako miejsce oddzia\u0142ywania si\u0142y od\u015brodkowej przyj\u0119to teoretyczny \u015brodek ci\u0119\u017cko\u015bci pojazdu. Si\u0142\u0119 od\u015brodkow\u0105 zawsze \u0142\u0105czy si\u0119 z pionowym obci\u0105\u017ceniem ruchomym oraz nie mno\u017cy si\u0119 jej przez wsp\u00f3\u0142czynnik dynamiczny.\n''')\n\ndoc.i(r'po\u0142o\u017cenie \u015brodka ci\u0119\u017cko\u015bci', rf'h_g={1.8[m]:,2}')\n\ndoc.i(r'promie\u0144 poziomy osi \u015brodkowej toru', rf'$R={R}$' if R else 'nie dotyczy', 't')\n\ndoc.i('efektywna wysoko\u015b\u0107 pojazdu przy oddzia\u0142ywaniach wiatru', rf'h={4[m]:,2}')\n\ndoc.x(r'''\nUderzenie boczne przyjmuje si\u0119 jako trzy si\u0142y skupione, w proporcji 25\\%-50\\%-25\\% co 0.60~m, dzia\u0142aj\u0105ce poziomo na wierzchu szyn \\cite[6.5.2(1)]{pn-en_1991-2:2007}, prostopadle do osi toru.\n\nDla pr\u0119dko\u015bci poni\u017cej 20\\,km/hr zak\u0142ada si\u0119, \u017ce uderzenie boczne nie b\u0119dzie wyst\u0119powa\u0142o. Ma to na celu tymczasowe dopuszczenie obiektu do u\u017cytkowania -- natomiast stan ten powinien obejmowa\u0107 co najwy\u017cej sytuacj\u0119 przej\u015bciow\u0105.\n''')\n\ndoc.i('si\u0142a uderzenia bocznego', 'Q_sk=0.1 Q_v1k')\n\ndoc.s(3, 'Efekty dynamiczne', label='dynRL', page=True) #?#\n\ndoc.s(4, 'Funkcja wsp. dynamicznego dla d\u017awigar\u00f3w g\u0142\u00f3wnych') #?#\n\ndoc.civil.railb_dyn_rl_fun(t_mt=dyn.common.t_mt)\n\ndoc.s(4, 'Funkcja wsp. dynamicznego dla element\u00f3w pozosta\u0142ych') #?#\n\ndoc.x(r'''\nZastosowanie ma metoda ewaluacji efekt\u00f3w oddzia\u0142ywa\u0144 w wyniku zachowania dynamicznego konstrukcji zgodnie z rozdzia\u0142em \\refS{dynEC}. Stosuje si\u0119 redukcj\u0119 wsp\u00f3\u0142czynnika dynamicznego w zale\u017cno\u015bci od pr\u0119dko\u015bci, zgodnie z literatur\u0105 techniczn\u0105 \\cite[wz\u00f3r 18]{pn-s-10030:1985}.\n''')\n\n#$$$$# Grupy dynamiczne\n\ndoc.civil.railb_dyn_plot('t',2, dyn, ppath='assets/plot/dyn-erl-{idg}.png')\n\ndoc.s(2, r'Oddzia\u0142ywanie zm\u0119czeniowego taboru kolejowego') #?#\n\ndoc.x(r'''\nOcen\u0119 uszkodzenia zm\u0119czeniowego przeprowadza si\u0119 dla wszystkich element\u00f3w konstrukcyjnych poddanych zmianom napr\u0119\u017cenia. Zastosowanie maj\u0105 oddzia\u0142ywania od charakterystycznego Modelu Obci\u0105\u017cenia 71, \u0142\u0105cznie ze wsp\u00f3\u0142czynnikiem dynamicznym, oraz z pomini\u0119ciem wsp\u00f3\u0142czynnika klasyfikacji, uderzenia bocznego oraz oddzia\u0142ywania pod\u0142u\u017cnego ruchu \\cite[6.9]{pn-en_1991-2:2007}.\n''')\n\n\u03b3_Ff = 1.00[u]\ndoc.i('wsp\u00f3\u0142czynnik bezpiecze\u0144stwa obci\u0105\u017cenia zm\u0119czeniowego', f'\u03b3_Ff={\u03b3_Ff:,2}')\n\nvmix = 'EC Mix'\ndoc.i(r'kompozycja ruchu', rf'{vmix}', 't')\n\nq_w = 15e6[ton/yr]\ndoc.i(r'nat\u0119\u017cenie ruchu', rf'q_w={q_w::mln*ton/yr}')\n\ndoc.s(2, r'Oddzia\u0142ywania na chodnikach inspekcyjnych', page=False) #?#\n\ndoc.x(r'''\nChodniki inspekcyjne s\u0105 przeznaczone do u\u017cytku wy\u0142\u0105cznie przez upowa\u017cnione osoby. Obci\u0105\u017cenia zwi\u0105zane z ruchem pieszym, rowerowym i og\u00f3lnym utrzymaniem przyjmuje si\u0119 jako obci\u0105\u017cenie r\u00f3wnomiernie roz\u0142o\u017cone \\cite[6.3.7(2)]{pn-en_1991-2:2007}.\n''')\n\nact = bcdr.actme.action('EC/2', 'railb', 'D')\ndoc.civil.auto(act)\n\np_k = 5[kN/m**2] ; trd.varsto('p_fk' , p_k &Pa)\ndoc.i(r'obci\u0105\u017cenie pionowe na chodnikach insp.', f'p_k={p_k:,2:kN}')\n\ndoc.s(1, r'Kombinacje oddzia\u0142ywa\u0144') #?#\n\ndoc.s(2, r'Zarz\u0105dzanie niezawodno\u015bci\u0105') #?#\n\ndoc.civil.eqs_ec_rel()\n\ndoc.s(2, r'Stan graniczny no\u015bno\u015bci') #?#\n\ndoc.civil.eqs_ec_uls()\n\ndoc.s(2, r'Stan graniczny u\u017cytkowalno\u015bci') #?#\n\ndoc.civil.eqs_ec_sls()\n\n#$*# bacadra:trade\n\nif True:\n    trd.push()"
+          ]
+        ]
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_27",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "history_85dce8fe",
+        "msg_type": "history_request"
+      },
+      "content": {
+        "execution_state": "busy"
+      }
+    },
+    {
+      "channel": "iopub",
+      "header": {
+        "msg_id": "efc1c3af-39240b153d594720153a9102_85160_29",
+        "msg_type": "status"
+      },
+      "parent_header": {
+        "session": "72ce7634-6406949cba46729f17706e3c",
+        "msg_id": "history_85dce8fe",
+        "msg_type": "history_request"
+      },
+      "content": {
+        "execution_state": "idle"
+      }
+    }
+  ]
+}
