@@ -460,8 +460,11 @@ describe("shell request lifetimes", () => {
       // The report is written only by a real status frame — when the lost
       // frame IS the trailing idle of the last request, the report sticks at
       // busy, and a repair gated on it reading idle would wait forever on
-      // the very frame it exists to replace.
+      // the very frame it exists to replace. The kernel's last word here was
+      // this request's own busy, so the report is repaired along with the
+      // caller: the kernel demonstrably finished.
       kernel._reportedExecutionState = "busy";
+      kernel._reportedStatusParent = "execute_1";
       armedEntry(kernel, "execute_1", {
         replySeen: true,
         halfSettledAt: Date.now() - 20000,
@@ -472,6 +475,27 @@ describe("shell request lifetimes", () => {
 
       expect(kernel.seen).toEqual([["status", "iopub"]]);
       expect(kernel.states).toEqual(["idle"]);
+      expect(kernel._reportedExecutionState).toBe("idle");
+      expect(kernel.executionCallbacks.execute_1).toBeUndefined();
+    });
+
+    it("leaves the bar and the report alone when another cell owns the busy", () => {
+      // The caller still gets its idle — the batch resolves, the watch hold
+      // releases — but the kernel really is running someone else's cell, and
+      // forcing the bar to idle would also swallow that cell's completion.
+      kernel._reportedExecutionState = "busy";
+      kernel._reportedStatusParent = "execute_other";
+      armedEntry(kernel, "execute_1", {
+        replySeen: true,
+        halfSettledAt: Date.now() - 20000,
+        lastProgressAt: Date.now() - 20000,
+      });
+
+      window.advanceClock(10000);
+
+      expect(kernel.seen).toEqual([["status", "iopub"]]);
+      expect(kernel.states).toEqual([]);
+      expect(kernel._reportedExecutionState).toBe("busy");
       expect(kernel.executionCallbacks.execute_1).toBeUndefined();
     });
 
@@ -577,6 +601,32 @@ describe("shell request lifetimes", () => {
       expect(kernel.executionCallbacks.comm_1).toBeUndefined();
       expect(kernel.seen).toEqual([]);
       expect(kernel.states).toEqual([]);
+    });
+
+    it("is reclaimed after its busy even though that busy gates the patient rule", async () => {
+      // The busy proves the kernel attended and sets the report to busy in
+      // the same stroke — and only the lost idle would ever set it back. An
+      // entry judged by the patient rule sat behind a gate its own lost
+      // frame held shut, and while it did, the rule was off for everything.
+      await kernel._sendShellMessage(
+        kernel._createMessage("comm_msg", "comm_1"),
+        "comm_1",
+        (message, channel) => kernel.seen.push([message.header.msg_type, channel]),
+        true,
+        { expectsReply: false },
+      );
+      kernel.onIOMessage(statusMessage("comm_1", "busy"));
+      expect(kernel._reportedExecutionState).toBe("busy");
+
+      const entry = kernel.executionCallbacks.comm_1;
+      entry.halfSettledAt = Date.now() - 20000;
+      entry.lastProgressAt = Date.now() - 20000;
+      window.advanceClock(10000);
+
+      expect(kernel.executionCallbacks.comm_1).toBeUndefined();
+      expect(kernel.states).toEqual([]);
+      // Its own busy was the kernel's last word, so the report is repaired.
+      expect(kernel._reportedExecutionState).toBe("idle");
     });
   });
 
@@ -724,6 +774,7 @@ describe("shutting a kernel down", () => {
 
   beforeEach(() => {
     kernel = bareKernel();
+    kernel.kernelSpec = { display_name: "Python 3" };
     kernel.ioSocket = fakeSocket();
     kernel.stdinSocket = fakeSocket();
     kernel.kernelProcess = exitingProcess();

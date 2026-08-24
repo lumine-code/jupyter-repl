@@ -103,6 +103,23 @@ describe("introspection over a websocket", () => {
     expect(seen[0][0].content.status).toBe("error");
   });
 
+  it("settles an execution against a culled session instead of throwing", async () => {
+    // The bare dereference used to throw inside createResultAsync's Promise
+    // executor: an unhandled rejection, and a bubble spinning forever.
+    const kernel = bareKernel(null);
+    const seen = [];
+
+    expect(() =>
+      kernel.execute("1 + 1", (message, channel) => seen.push([message.header.msg_type, channel])),
+    ).not.toThrow();
+
+    expect(seen).toEqual([
+      ["error", "iopub"],
+      ["execute_reply", "shell"],
+      ["status", "iopub"],
+    ]);
+  });
+
   it("leaves a request pending when the connection merely drops", async () => {
     // The known gap: JupyterLab neither answers nor rejects here, so the
     // plugin API's timeout is the only thing that ends the wait.

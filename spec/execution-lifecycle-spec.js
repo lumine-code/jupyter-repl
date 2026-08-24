@@ -304,6 +304,29 @@ describe("settling in-flight watches", () => {
     expect(refetches).toBe(1);
   });
 
+  it("settles the entries behind a consumer that throws mid-abort", () => {
+    // Everything in the loop is already out of the map; a throw that aborted
+    // it left the entries behind it unreachable by any future settle.
+    const settled = [];
+    kernel._inFlight.set("boom", {
+      settled: false,
+      idleSeen: false,
+      onResults: () => {
+        throw new Error("consumer blew up");
+      },
+    });
+    kernel._inFlight.set("after", {
+      settled: false,
+      idleSeen: false,
+      onResults: (result) => settled.push(result),
+    });
+
+    expect(() => kernel.abortInFlight("Kernel restarted")).not.toThrow();
+
+    expect(settled.some((r) => r.output_type === "status")).toBe(true);
+    expect(kernel._inFlight.size).toBe(0);
+  });
+
   it("ignores watch messages that straggle in after an abort", () => {
     kernel.abortInFlight("Kernel restarted");
     const settledCount = results.length;

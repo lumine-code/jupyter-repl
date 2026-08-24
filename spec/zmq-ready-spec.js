@@ -246,6 +246,44 @@ describe("kernel launch readiness", () => {
     }
   });
 
+  it("leaves a sibling's starting marker alone when a restart's probes exhaust", () => {
+    // Only a first launch ever holds a marker of its own; during a restart
+    // the display name can only belong to a same-spec kernel still starting.
+    spyOn(lumine.notifications, "addError");
+    const store = require("../lib/store");
+    store.startingKernels.set("Python 3", true);
+    kernel = bareKernel();
+    kernel.kernelSpec = { display_name: "Python 3" };
+    kernel.lifecycle = "restarting";
+    kernel._everReady = true;
+    kernel._kill = () => {};
+
+    try {
+      kernel.monitor(() => {}, true);
+      for (let tick = 0; tick < 125; tick++) {
+        window.advanceClock(500);
+      }
+
+      expect(kernel._readyProbe).toBe(null);
+      expect(store.startingKernels.has("Python 3")).toBe(true);
+    } finally {
+      store.startingKernels.delete("Python 3");
+    }
+  });
+
+  it("does not stack readiness listeners across abandoned rounds", () => {
+    // A failed restart never reaches finish(); re-entering monitor must drop
+    // the previous round's listeners rather than pile a fresh pair on top.
+    kernel = bareKernel();
+    kernel.monitor(() => {}, true);
+    expect(kernel.ioSocket.listenerCount("message")).toBe(1);
+
+    kernel.monitor(() => {}, true);
+
+    expect(kernel.ioSocket.listenerCount("message")).toBe(1);
+    expect(kernel.shellSocket.listenerCount("message")).toBe(1);
+  });
+
   it("leaves no probe behind once the kernel is ready", () => {
     // Nothing else would reclaim them: the watchdog settles what a caller is
     // waiting for, and no one waits on a probe.
@@ -356,8 +394,13 @@ describe("kernel process exit", () => {
     instance.connectionFile = null;
     instance.lost = [];
     instance.cleared = [];
+    instance.states = [];
     instance.setLifecycle = (value) => {
       instance.lifecycle = value;
+    };
+    instance.setExecutionState = (value) => instance.states.push(value);
+    instance._cancelReadiness = () => {
+      instance.readinessCanceled = true;
     };
     instance.emitDidLoseKernel = (reason) => instance.lost.push(reason);
     instance._clearState = (reason) => instance.cleared.push(reason);
@@ -399,8 +442,46 @@ describe("kernel process exit", () => {
     expect(instance._readyProbe).toBe(null);
     expect(instance._ackWatchdog).toBe(null);
     expect(instance.lifecycle).toBe("dead");
+    // The bar was set to "restarting" by the restart itself, and with no
+    // destroy coming, nothing else would ever move it again.
+    expect(instance.states).toEqual(["dead"]);
+    // The round's readiness listeners go with it — one rides `message` per
+    // socket, and a failed restart used to leave them until destroy.
+    expect(instance.readinessCanceled).toBe(true);
     expect(instance.lost).toEqual(["Kernel process died during restart"]);
     expect(instance.cleared).toEqual(["Kernel process died during restart"]);
+    expect(lumine.notifications.addError).toHaveBeenCalled();
+  });
+
+  it("consumes the expected-exit flag with the exit it describes", () => {
+    // Latched forever, the flag from an exhaustion-killed kernel survived
+    // into the restarted process, and every later death — a genuine crash
+    // included — was settled as a quiet shutdown.
+    spyOn(lumine.notifications, "addError");
+    const { instance, childProcess } = exitingKernel("ready");
+    kernel = instance;
+    instance._expectingExit = true;
+
+    childProcess.exit(0);
+    expect(instance._expectingExit).toBe(false);
+
+    // The next process's death is judged on its own.
+    const listeners = {};
+    const replacement = {
+      stdout: { on() {} },
+      stderr: { on() {} },
+      on(event, listener) {
+        listeners[event] = listener;
+      },
+      exit: (code) => listeners.exit?.(code, null),
+    };
+    instance.kernelProcess = replacement;
+    instance._destroyed = false;
+    instance.lifecycle = "ready";
+    instance.monitorNotifications(replacement);
+    replacement.exit(1);
+
+    expect(instance.lost).toEqual(["Kernel shut down", "Kernel process exited"]);
     expect(lumine.notifications.addError).toHaveBeenCalled();
   });
 

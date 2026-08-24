@@ -212,6 +212,9 @@ describe("a shell send that fails outright", () => {
 
   beforeEach(() => {
     kernel = bareKernel();
+    // The settle only returns the bar to idle when the kernel actually is —
+    // a failed send says nothing about what the kernel is doing.
+    kernel._reportedExecutionState = "idle";
     kernel.shellSocket = {
       async send() {
         throw new Error("socket closed");
