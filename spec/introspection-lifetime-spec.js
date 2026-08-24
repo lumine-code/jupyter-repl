@@ -167,6 +167,28 @@ describe("introspection outliving its kernel", () => {
       expect(Object.keys(kernel.executionCallbacks)).toEqual(["complete_2"]);
     });
 
+    it("delivers only the missing idle to a request already answered", () => {
+      // A half-settled entry swept up here already gave its caller the real
+      // answer; a synthesized error reply after a real ok one is two
+      // contradictory answers to one request.
+      const seen = armedEntry(kernel, "execute_1", "execute_request", { replySeen: true });
+
+      kernel._clearState("Kernel restarted");
+
+      expect(seen).toEqual([["status", "iopub"]]);
+    });
+
+    it("delivers no second idle to a request whose idle already arrived", () => {
+      const seen = armedEntry(kernel, "execute_1", "execute_request", { idleSeen: true });
+
+      kernel._clearState("Kernel restarted");
+
+      expect(seen).toEqual([
+        ["error", "iopub"],
+        ["execute_reply", "shell"],
+      ]);
+    });
+
     it("settles each entry exactly once", () => {
       const seen = armedEntry(kernel, "complete_1", "complete_request");
 

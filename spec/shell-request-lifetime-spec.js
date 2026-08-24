@@ -281,6 +281,26 @@ describe("shell request lifetimes", () => {
       expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
     });
 
+    it("keeps a suppressed cell off the status bar when its idle follows its reply", async () => {
+      // The suppression floor lists only non-cell types, so for an
+      // execute-shaped request — a watch refetch — only the entry's own flag
+      // protects the bar, and only unified retirement keeps that entry alive
+      // until the idle. This is the case the floor cannot catch.
+      await kernel._sendShellMessage(
+        kernel._createMessage("execute_request", "watch_1"),
+        "watch_1",
+        () => {},
+        true,
+      );
+
+      kernel.onIOMessage(statusMessage("watch_1", "busy", "execute_request"));
+      kernel.onShellMessage(replyMessage("watch_1"));
+      kernel.onIOMessage(statusMessage("watch_1", "idle", "execute_request"));
+
+      expect(kernel.states).toEqual([]);
+      expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
+    });
+
     it("keeps the status bar still when its idle follows its reply", async () => {
       // The ordering ipykernel actually produces: it publishes idle only once
       // the handler that sent the reply has returned.
@@ -339,6 +359,7 @@ describe("shell request lifetimes", () => {
       armedEntry(kernel, "execute_1", {
         replySeen: true,
         halfSettledAt: Date.now() - 20000,
+        lastProgressAt: Date.now() - 20000,
       });
 
       window.advanceClock(10000);
@@ -352,6 +373,7 @@ describe("shell request lifetimes", () => {
       armedEntry(kernel, "execute_1", {
         replySeen: true,
         halfSettledAt: Date.now() - 20000,
+        lastProgressAt: Date.now() - 20000,
       });
 
       window.advanceClock(10000);
@@ -366,6 +388,7 @@ describe("shell request lifetimes", () => {
         suppressStatus: true,
         replySeen: true,
         halfSettledAt: Date.now() - 20000,
+        lastProgressAt: Date.now() - 20000,
       });
 
       window.advanceClock(10000);
@@ -380,6 +403,7 @@ describe("shell request lifetimes", () => {
       armedEntry(kernel, "execute_1", {
         idleSeen: true,
         halfSettledAt: Date.now() - 20000,
+        lastProgressAt: Date.now() - 20000,
       });
 
       window.advanceClock(10000);
@@ -396,6 +420,7 @@ describe("shell request lifetimes", () => {
         requestType: "complete_request",
         idleSeen: true,
         halfSettledAt: Date.now() - 20000,
+        lastProgressAt: Date.now() - 20000,
       });
 
       window.advanceClock(10000);
@@ -416,16 +441,55 @@ describe("shell request lifetimes", () => {
       expect(kernel.executionCallbacks.execute_1).toBeUndefined();
     });
 
-    it("waits while the kernel is busy", () => {
+    it("waits for an unacknowledged request while the kernel is busy", () => {
+      // The patient rule stays gated on the kernel reporting idle: a request
+      // queued behind anyone's running cell hears nothing for as long as
+      // that cell takes, and that is not a lost request.
       kernel._reportedExecutionState = "busy";
       armedEntry(kernel, "execute_1", {
-        replySeen: true,
-        halfSettledAt: Date.now() - 20000,
+        lastProgressAt: Date.now() - 40000,
       });
+      kernel._reportedIdleSince = Date.now() - 40000;
 
       window.advanceClock(30000);
 
       expect(kernel.executionCallbacks.execute_1).toBeDefined();
+    });
+
+    it("repairs a lost idle even while the kernel still reads busy", () => {
+      // The report is written only by a real status frame — when the lost
+      // frame IS the trailing idle of the last request, the report sticks at
+      // busy, and a repair gated on it reading idle would wait forever on
+      // the very frame it exists to replace.
+      kernel._reportedExecutionState = "busy";
+      armedEntry(kernel, "execute_1", {
+        replySeen: true,
+        halfSettledAt: Date.now() - 20000,
+        lastProgressAt: Date.now() - 20000,
+      });
+
+      window.advanceClock(10000);
+
+      expect(kernel.seen).toEqual([["status", "iopub"]]);
+      expect(kernel.states).toEqual(["idle"]);
+      expect(kernel.executionCallbacks.execute_1).toBeUndefined();
+    });
+
+    it("postpones the repair while output for the request is still arriving", () => {
+      // A background thread can stream long after the reply; traffic for the
+      // request is proof its idle is merely late, not lost. Quiet for a
+      // whole grace is what tells a lost frame from a busy stream.
+      armedEntry(kernel, "execute_1", {
+        replySeen: true,
+        halfSettledAt: Date.now() - 60000,
+        lastProgressAt: Date.now(),
+      });
+
+      window.advanceClock(10000);
+      expect(kernel.executionCallbacks.execute_1).toBeDefined();
+
+      window.advanceClock(10000);
+      expect(kernel.executionCallbacks.execute_1).toBeUndefined();
     });
 
     it("is not starved by another client's traffic", () => {
@@ -435,6 +499,7 @@ describe("shell request lifetimes", () => {
       armedEntry(kernel, "execute_1", {
         replySeen: true,
         halfSettledAt: Date.now() - 20000,
+        lastProgressAt: Date.now() - 20000,
       });
       kernel._reportedIdleSince = Date.now();
 
@@ -454,13 +519,18 @@ describe("shell request lifetimes", () => {
     });
 
     it("is settled when the kernel produced output and then went quiet", () => {
-      // Progress then silence: the old flag said "acknowledged" once and the
-      // watchdog skipped the entry forever after.
-      kernel._reportedIdleSince = Date.now() - 40000;
-      armedEntry(kernel, "execute_1", {
-        lastProgressAt: Date.now() - 40000,
-        armedAt: Date.now() - 40000,
+      // Progress then silence. Driven through the real handler, because the
+      // bug this pins was a one-way flag the handler latched on the first
+      // message — a fixture that never sets the flag cannot catch its return.
+      armedEntry(kernel, "execute_1");
+      kernel.onIOMessage({
+        header: { msg_id: "stream_1", msg_type: "stream" },
+        parent_header: { session: "our-session", msg_id: "execute_1", msg_type: "execute_request" },
+        content: { name: "stdout", text: "working..." },
       });
+      kernel.executionCallbacks.execute_1.lastProgressAt = Date.now() - 40000;
+      kernel._reportedIdleSince = Date.now() - 40000;
+      kernel.seen.length = 0;
 
       window.advanceClock(10000);
 
@@ -470,6 +540,67 @@ describe("shell request lifetimes", () => {
         ["status", "iopub"],
       ]);
       expect(kernel.executionCallbacks.execute_1).toBeUndefined();
+    });
+  });
+
+  describe("an unacknowledged comm", () => {
+    beforeEach(() => {
+      kernel._ackWatchdog = null;
+      kernel._startAckWatchdog();
+    });
+
+    afterEach(() => {
+      kernel._stopAckWatchdog();
+    });
+
+    it("gets the full patient timeout, not the short repair grace", async () => {
+      // A comm is born with its reply excused, and classing "excused" as
+      // "arrived" put it under the ten-second repair rule — timed from a null
+      // stamp, so reclaimed on the watchdog's first tick. An entry deleted
+      // that early trips the send staleness check, and a comm queued behind
+      // a stalled chain was silently never sent.
+      await kernel._sendShellMessage(
+        kernel._createMessage("comm_msg", "comm_1"),
+        "comm_1",
+        (message, channel) => kernel.seen.push([message.header.msg_type, channel]),
+        true,
+        { expectsReply: false },
+      );
+
+      window.advanceClock(10000);
+      expect(kernel.executionCallbacks.comm_1).toBeDefined();
+
+      kernel.executionCallbacks.comm_1.lastProgressAt = Date.now() - 40000;
+      kernel._reportedIdleSince = Date.now() - 40000;
+      window.advanceClock(10000);
+
+      expect(kernel.executionCallbacks.comm_1).toBeUndefined();
+      expect(kernel.seen).toEqual([]);
+      expect(kernel.states).toEqual([]);
+    });
+  });
+
+  describe("a callback that throws on iopub", () => {
+    it("does not derail the status bookkeeping", () => {
+      // The throw is a plugin's, through the middleware chain. Left to
+      // propagate it skipped idleSeen, retirement and the watchdog's view of
+      // the kernel's state — freezing the report at busy with every repair
+      // gated on it reading idle again.
+      kernel._reportedExecutionState = "busy";
+      armedEntry(kernel, "execute_1", {
+        replySeen: true,
+        callback: () => {
+          throw new Error("plugin blew up");
+        },
+      });
+
+      expect(() =>
+        kernel.onIOMessage(statusMessage("execute_1", "idle", "execute_request")),
+      ).not.toThrow();
+
+      expect(kernel.executionCallbacks.execute_1).toBeUndefined();
+      expect(kernel._reportedExecutionState).toBe("idle");
+      expect(kernel.states).toEqual(["idle"]);
     });
   });
 
