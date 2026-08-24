@@ -777,6 +777,63 @@ describe("shutting a kernel down", () => {
     expect(settled).toBe(true);
   });
 
+  it("joins a second call to the first instead of racing it", async () => {
+    // Unlatched, the repeat failed instantly on the already-released sockets
+    // and its caller's destroy SIGKILLed the kernel in the middle of the
+    // very atexit the first request started.
+    const socket = kernel.shellSocket;
+    const first = kernel.shutdown();
+    const second = kernel.shutdown();
+    expect(second).toBe(first);
+
+    await flush();
+    kernel.kernelProcess.exit();
+    await first;
+
+    expect(socket.sent.length).toBe(1);
+  });
+
+  it("marks the exit it is about to cause as expected", async () => {
+    const shutdown = kernel.shutdown();
+    expect(kernel._expectingExit).toBe(true);
+
+    await flush();
+    kernel.kernelProcess.exit();
+    await shutdown;
+  });
+
+  it("refuses a restart once a shutdown is in flight", async () => {
+    const shutdown = kernel.shutdown();
+    kernel._socketRestart(() => {});
+
+    // The refusal is the assertion: an accepted restart would have thrown on
+    // the released sockets, or worse, spawned a process nothing can reach.
+    expect(kernel.lifecycle).toBe("ready");
+
+    await flush();
+    kernel.kernelProcess.exit();
+    await shutdown;
+  });
+
+  it("settles a request sent while the kernel is shutting down", async () => {
+    // The socket is already gone; a raw TypeError in the caller's bubble is
+    // not an answer.
+    kernel.shellSocket = null;
+
+    await kernel._sendShellMessage(
+      kernel._createMessage("execute_request", "execute_late"),
+      "execute_late",
+      (message, channel) => kernel.seen.push([message.header.msg_type, channel]),
+    );
+
+    expect(kernel.seen).toEqual([
+      ["error", "iopub"],
+      ["execute_reply", "shell"],
+      ["status", "iopub"],
+    ]);
+    expect(kernel.executionCallbacks.execute_late).toBeUndefined();
+  });
+
   it("does not wait on a process that is already gone", async () => {
     const socket = kernel.shellSocket;
     kernel.kernelProcess.exitCode = 0;

@@ -187,6 +187,58 @@ describe("introspection at the kernel facade", () => {
     });
   });
 
+  describe("shutting down through the facade", () => {
+    // The seam every UI path crosses: shutdown must finish before destroy
+    // kills the process, however many times it is asked, and a transport
+    // that never answers must not hold the teardown hostage.
+    it("waits for the transport's shutdown before destroying", async () => {
+      let finish;
+      transport.shutdown = () => new Promise((resolve) => (finish = resolve));
+      spyOn(transport, "destroy").and.callThrough();
+
+      const done = kernel.shutdownAndDestroy();
+      await Promise.resolve();
+      expect(transport.destroy).not.toHaveBeenCalled();
+
+      finish();
+      await done;
+      expect(transport.destroy).toHaveBeenCalled();
+    });
+
+    it("asks the transport once however many times it is called", async () => {
+      let calls = 0;
+      let finish;
+      transport.shutdown = () => {
+        calls++;
+        return new Promise((resolve) => (finish = resolve));
+      };
+
+      const first = kernel.shutdownAndDestroy();
+      const second = kernel.shutdownAndDestroy();
+      expect(second).toBe(first);
+
+      finish();
+      await first;
+      expect(calls).toBe(1);
+    });
+
+    it("tears down anyway when the shutdown never settles", async () => {
+      // A WS session shutdown is an HTTP DELETE with no timeout of its own;
+      // against an unreachable gateway the kernel stayed listed and
+      // file-mapped until the network stack gave up.
+      transport.shutdown = () => new Promise(() => {});
+      spyOn(transport, "destroy").and.callThrough();
+
+      const done = kernel.shutdownAndDestroy();
+      await Promise.resolve();
+      expect(transport.destroy).not.toHaveBeenCalled();
+
+      window.advanceClock(Kernel.SHUTDOWN_DESTROY_TIMEOUT_MS);
+      await done;
+      expect(transport.destroy).toHaveBeenCalled();
+    });
+  });
+
   describe("a middleware that answers twice", () => {
     it("reaches the caller once", () => {
       // The transports answer once; a plugin's middleware is under no such

@@ -213,6 +213,39 @@ describe("kernel launch readiness", () => {
     expect(Object.keys(kernel.executionCallbacks).length).toBe(1);
   });
 
+  it("gives up on a kernel that never answers and routes it into the exit path", () => {
+    // A minute of unanswered probes used to stop in silence: the kernel hung
+    // in "loading" forever, its display name stuck in startingKernels, and
+    // every later attempt to start that spec was refused without a word.
+    spyOn(lumine.notifications, "addError");
+    const store = require("../lib/store");
+    store.startingKernels.set("Python 3", true);
+    kernel = bareKernel();
+    kernel.kernelSpec = { display_name: "Python 3" };
+    kernel.lifecycle = "loading";
+    kernel.killed = false;
+    kernel._kill = () => {
+      kernel.killed = true;
+    };
+
+    try {
+      kernel.monitor(() => {});
+      // Tick by tick: one advanceClock call fires a fake interval once,
+      // however far it moves.
+      for (let tick = 0; tick < 125; tick++) {
+        window.advanceClock(500);
+      }
+
+      expect(kernel._readyProbe).toBe(null);
+      expect(kernel.killed).toBe(true);
+      expect(kernel._expectingExit).toBe(true);
+      expect(store.startingKernels.has("Python 3")).toBe(false);
+      expect(lumine.notifications.addError).toHaveBeenCalled();
+    } finally {
+      store.startingKernels.delete("Python 3");
+    }
+  });
+
   it("leaves no probe behind once the kernel is ready", () => {
     // Nothing else would reclaim them: the watchdog settles what a caller is
     // waiting for, and no one waits on a probe.
@@ -307,18 +340,27 @@ describe("kernel process exit", () => {
     const instance = Object.create(ZMQKernel.prototype);
     instance._destroyed = false;
     instance.lifecycle = lifecycle;
+    // A kernel that is "ready" or "restarting" has been ready before; only
+    // "loading" means its own first startup is still in flight.
+    instance._everReady = lifecycle !== "loading";
+    instance._expectingExit = false;
     // Both real call sites set this to the child they then monitor: the
     // constructor for the first process, `_socketRestart` for each one after.
     instance.kernelProcess = childProcess;
     instance.kernelSpec = { display_name: "Python 3" };
     instance.executionCallbacks = {};
+    instance._readyProbeIds = new Set();
     instance.shellSocket = null;
     instance.ioSocket = null;
     instance.stdinSocket = null;
     instance.connectionFile = null;
-    instance.setLifecycle = () => {};
-    instance.emitDidLoseKernel = () => {};
-    instance._clearState = () => {};
+    instance.lost = [];
+    instance.cleared = [];
+    instance.setLifecycle = (value) => {
+      instance.lifecycle = value;
+    };
+    instance.emitDidLoseKernel = (reason) => instance.lost.push(reason);
+    instance._clearState = (reason) => instance.cleared.push(reason);
     // Stand in for real timers so the spec asserts on the clearing, not on
     // whatever the frozen clock would or would not deliver.
     instance._readyProbe = setInterval(() => {}, 1000);
@@ -343,16 +385,76 @@ describe("kernel process exit", () => {
     expect(instance._ackWatchdog).toBe(null);
   });
 
-  it("leaves the timers alone while restarting", () => {
-    // A restart kills the old process and arms the new kernel's probe before
-    // this event arrives, so stopping here would stop the new one.
+  it("declares the restart failed when the new process dies", () => {
+    // Only the new process can reach this handler while restarting — the
+    // identity guard filters the one the restart killed. Left unhandled, the
+    // probe exhausted in silence and the restart reentry guard swallowed
+    // every retry: the kernel wedged in "restarting" for the window's life.
+    spyOn(lumine.notifications, "addError");
     const { instance, childProcess } = exitingKernel("restarting");
     kernel = instance;
 
-    childProcess.exit(0);
+    childProcess.exit(1);
 
-    expect(instance._readyProbe).not.toBe(null);
-    expect(instance._ackWatchdog).not.toBe(null);
+    expect(instance._readyProbe).toBe(null);
+    expect(instance._ackWatchdog).toBe(null);
+    expect(instance.lifecycle).toBe("dead");
+    expect(instance.lost).toEqual(["Kernel process died during restart"]);
+    expect(instance.cleared).toEqual(["Kernel process died during restart"]);
+    expect(lumine.notifications.addError).toHaveBeenCalled();
+  });
+
+  it("keeps quiet about the exit a shutdown asked for", () => {
+    // Whatever the exit code says, an exit the user requested is not a
+    // crash, and announcing it as one taught people to ignore the real ones.
+    spyOn(lumine.notifications, "addError");
+    const { instance, childProcess } = exitingKernel("ready");
+    kernel = instance;
+    instance._expectingExit = true;
+
+    childProcess.exit(1);
+
+    expect(instance.lifecycle).toBe("dead");
+    expect(instance.lost).toEqual(["Kernel shut down"]);
+    expect(instance.cleared).toEqual(["Kernel shut down"]);
+    expect(lumine.notifications.addError).not.toHaveBeenCalled();
+  });
+
+  it("settles a running kernel's crash even while a same-name kernel starts", () => {
+    // `startingKernels` is keyed by display name, and two kernels of one
+    // spec is the normal multi-file state. Keyed on the name, a running
+    // kernel dying during its sibling's startup window was classed as a
+    // failed start: no lose event — its cells spun forever — and the
+    // sibling's starting marker deleted from under it.
+    const store = require("../lib/store");
+    store.startingKernels.set("Python 3", true);
+    const { instance, childProcess } = exitingKernel("ready");
+    kernel = instance;
+
+    try {
+      childProcess.exit(1);
+
+      expect(instance.lost).toEqual(["Kernel process exited"]);
+      expect(store.startingKernels.has("Python 3")).toBe(true);
+    } finally {
+      store.startingKernels.delete("Python 3");
+    }
+  });
+
+  it("cleans up its own failed start", () => {
+    const store = require("../lib/store");
+    store.startingKernels.set("Python 3", true);
+    const { instance, childProcess } = exitingKernel("loading");
+    kernel = instance;
+
+    try {
+      childProcess.exit(1);
+
+      expect(store.startingKernels.has("Python 3")).toBe(false);
+      expect(instance.lost).toEqual([]);
+    } finally {
+      store.startingKernels.delete("Python 3");
+    }
   });
 
   it("ignores the exit of a process it has already replaced", () => {
