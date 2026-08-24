@@ -149,7 +149,7 @@ describe("comm routing on the ZMQ transport", () => {
         expectsReply: true,
         replySeen: false,
         idleSeen: false,
-        acked: false,
+        lastProgressAt: Date.now(),
         armedAt: Date.now(),
       };
 

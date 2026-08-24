@@ -87,6 +87,22 @@ describe("introspection over a websocket", () => {
     expect(seen).toEqual([reply]);
   });
 
+  it("answers in the documented shape when the session's kernel is gone", async () => {
+    // A server-culled session nulls session.kernel; the bare access used to
+    // throw a raw TypeError instead of settling the request.
+    const kernel = bareKernel(null);
+    const seen = [];
+
+    expect(() =>
+      kernel.complete("np.a", (message, channel) => seen.push([message, channel])),
+    ).not.toThrow();
+    await flushMicrotasks();
+
+    expect(seen.length).toBe(1);
+    expect(seen[0][1]).toBe("shell");
+    expect(seen[0][0].content.status).toBe("error");
+  });
+
   it("leaves a request pending when the connection merely drops", async () => {
     // The known gap: JupyterLab neither answers nor rejects here, so the
     // plugin API's timeout is the only thing that ends the wait.

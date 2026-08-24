@@ -11,9 +11,12 @@ const ZMQKernel = require("../lib/zmq-kernel");
 // assumes the pair was published at all.
 //
 // The fixture is a capture from ipykernel (script/record_shell_fixture.py
-// regenerates it): one round trip per non-cell request type, in protocol
-// order, reply drained before the status pair — the ordering ipykernel
-// actually produces, and the one that used to strand the suppression.
+// regenerates it): one round trip per non-cell request type. The recorder
+// drains shell before iopub, so the fixture's reply-before-pair ordering is
+// a drain artifact — on the wire ipykernel sends busy, then the reply, then
+// idle — and the assertions below are order-agnostic on purpose. The replay
+// still exercises reply-before-idle, the ordering that used to strand the
+// suppression.
 
 const fixture = JSON.parse(
   fs.readFileSync(path.join(__dirname, "fixtures", "shell-introspection-traffic.json"), "utf8"),

@@ -90,13 +90,18 @@ def main():
             wanted.add(msg_id)
             requests.append({"msg_id": msg_id, "msg_type": msg_type})
             client.shell_channel.send(msg)
-            # One at a time, drained to quiet: the fixture stays in protocol
-            # order, and a slow reply cannot interleave with the next request.
+            # One at a time, drained to quiet, so a slow reply cannot
+            # interleave with the next request. Shell is drained before iopub,
+            # which is why the fixture shows each reply before its status pair
+            # — a drain artifact, not the wire order.
             drain(client.get_shell_msg, wanted, recorded, "shell")
             drain(client.get_iopub_msg, wanted, recorded, "iopub")
 
+        import ipykernel
+        import jupyter_client
+
         fixture = {
-            "recordedWith": f"jupyter_client, kernel {manager.kernel_name}",
+            "recordedWith": f"ipykernel {ipykernel.__version__}, jupyter_client {jupyter_client.__version__}",
             "session": client.session.session,
             "requests": requests,
             "messages": recorded,

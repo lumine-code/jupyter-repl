@@ -16,7 +16,7 @@ An assistant has its own file tools, its own search and its own shell, so nothin
 
 Output comes back as text. A traceback arrives with its terminal colours stripped, and a plot is reported as `image/png` rather than pasted in as several thousand tokens of base64 — the assistant is told a picture was drawn, and can ask about it in code.
 
-Long output is truncated and says so. A run that has not finished within thirty seconds comes back as `timeout`, which does **not** stop the cell: your code carries on, and the assistant can call `JupyterInterrupt` if you want it stopped.
+Long output is truncated and says so. A run that has not finished within thirty seconds comes back as `timeout`, which does **not** stop the cell: your code carries on, and the assistant can call `JupyterInterrupt` if you want it stopped. `JupyterInspect` answers within ten seconds or reports `timeout` too, and a kernel that went away mid-question is reported as an `error` rather than as "nothing found".
 
 ## What that means for your session
 

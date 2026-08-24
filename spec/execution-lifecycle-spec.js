@@ -274,6 +274,22 @@ describe("settling in-flight watches", () => {
     expect(kernel._inFlight.size).toBe(0);
   });
 
+  it("a watch aborted between its reply and its idle still releases the hold", () => {
+    // The reply marks the entry settled, and abortInFlight used to skip
+    // settled entries outright — but the depth release rides exclusively on
+    // an idle result, and the straggler guard drops whatever the transport
+    // synthesizes later. Aborted in that window, the watch pinned
+    // _watchExecutionDepth forever and every watch pane stopped refetching
+    // for the life of the kernel.
+    deliverWatchReply();
+    expect(kernel._watchExecutionDepth).toBe(1);
+
+    kernel.abortInFlight("Kernel restarted");
+
+    expect(kernel._watchExecutionDepth).toBe(0);
+    expect(kernel._inFlight.size).toBe(0);
+  });
+
   it("an aborted watch releases the refetch hold", () => {
     let refetches = 0;
     kernel.onDidBecomeIdle(() => refetches++);

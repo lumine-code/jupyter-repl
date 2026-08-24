@@ -270,7 +270,7 @@ describe("kernel launch readiness", () => {
     kernel.shellSocket.emit("message");
     kernel.ioSocket.emit("message");
 
-    expect(kernel._ackWatchdog).not.toBe(null);
+    expect(kernel._ackWatchdog).toBeTruthy();
   });
 
   it("arms it again after a restart", () => {
@@ -287,7 +287,7 @@ describe("kernel launch readiness", () => {
     kernel.shellSocket.emit("message", echo);
     kernel.ioSocket.emit("message", echo);
 
-    expect(kernel._ackWatchdog).not.toBe(null);
+    expect(kernel._ackWatchdog).toBeTruthy();
   });
 
   it("does not accumulate listeners across restarts", () => {

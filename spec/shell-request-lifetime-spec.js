@@ -604,6 +604,18 @@ describe("shell request lifetimes", () => {
     });
   });
 
+  describe("a request declared to expect no idle", () => {
+    it("is retired by its reply alone", () => {
+      // No caller passes expectsIdle: false today; this pins the contract so
+      // the option keeps meaning something if one ever does.
+      armedEntry(kernel, "odd_1", { expectsIdle: false, requestType: "kernel_info_request" });
+
+      kernel.onShellMessage(replyMessage("odd_1", "kernel_info_request"));
+
+      expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
+    });
+  });
+
   describe("the grace period", () => {
     it("is at least one watchdog poll", () => {
       // Below the poll interval it is unenforceable, and the mechanism it
