@@ -77,13 +77,13 @@ describe("code block detection for multiline strings", () => {
   });
 
   it("works under the TextMate python grammar, which has no string folds", async () => {
-    lumine.config.set("language.useTreeSitterParsers", false);
+    lumine.config.set("editor.useTreeSitterParsers", false);
     await lumine.packages.activatePackage("language-python");
     const e = await open("doc.x('''\n11\n''')\n");
     lumine.grammars.assignLanguageMode(e.getBuffer(), "source.python");
     expect(e.getBuffer().getLanguageMode().constructor.name).toBe("TextMateLanguageMode");
     const block = findCodeBlockAtRow(e, 0);
     expect(block.code).toBe("doc.x('''\n11\n''')");
-    lumine.config.set("language.useTreeSitterParsers", true);
+    lumine.config.set("editor.useTreeSitterParsers", true);
   });
 });
