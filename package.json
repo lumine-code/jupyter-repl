@@ -289,7 +289,7 @@
     "@jupyter-widgets/base-manager": "^1.0.13",
     "@jupyter-widgets/controls": "^5.0.13",
     "@jupyterlab/services": "^7.6.3",
-    "@lumine-code/etch": "github:lumine-code/etch#df06b3fca2ec49b1d6b76cb8af3e9f5015a2612c",
+    "@lumine-code/etch": "github:lumine-code/etch#c420908b271dab03ccc97ecf41e2534fc4277b32",
     "@mathjax/src": "^4.1.3",
     "@nteract/any-vega": "^1.0.1",
     "anser": "^2.3.5",
