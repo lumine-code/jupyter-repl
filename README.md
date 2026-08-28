@@ -59,7 +59,7 @@ Commands available in `lumine-workspace`:
 
 The last six act on the result the command was dispatched from — its own context menu or its chrome — and otherwise on the result at the cursor's line.
 
-Commands available in `.jupyter-repl.kernel-picker`, all listed with their keybindings in the item-actions list (F12):
+Commands available in `.jupyter-repl.kernel-picker`:
 
 - `jupyter-repl:insert-kernel-comment`: insert or update the kernel magic comment on the first line,
 - `jupyter-repl:refresh-kernel-list`: rescan kernel specs and reload the list.
