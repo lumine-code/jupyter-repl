@@ -296,14 +296,14 @@
     "cross-spawn": "^7.0.6",
     "lodash": "^4.18.1",
     "natural-compare-lite": "^1.4.0",
-    "plotly.js-dist": "^3.7.0",
+    "plotly.js-dist": "^4.0.0",
     "uuid": "^14.0.2",
     "ws": "^8.21.3",
     "xmlhttprequest": "^1.8.0",
     "zeromq": "^6.6.0"
   },
   "overrides": {
-    "uuid": "^14.0.1"
+    "uuid": "$uuid"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
