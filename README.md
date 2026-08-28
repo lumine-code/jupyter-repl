@@ -61,6 +61,7 @@ The last six act on the result the command was dispatched from — its own conte
 
 Commands available in `.jupyter-repl.kernel-picker`:
 
+- `jupyter-repl:select-kernel`: choose the selected kernel for the request that opened the picker,
 - `jupyter-repl:insert-kernel-comment`: insert or update the kernel magic comment on the first line,
 - `jupyter-repl:refresh-kernel-list`: rescan kernel specs and reload the list.
 

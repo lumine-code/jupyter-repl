@@ -27,9 +27,18 @@ describe("jupyter-repl kernel picker item actions", () => {
     await lumine.packages.deactivatePackage("jupyter-repl");
   });
 
-  it("derives its actions from the command registrations and the keymap", () => {
+  it("derives its actions from the command registrations and the keymap", async () => {
+    await picker.selectList.update({ items: picker.kernelSpecs });
+    await picker.selectList.selectIndex(0);
     const actions = picker.selectList.itemActions();
     const byCommand = new Map(actions.map((action) => [action.command, action]));
+
+    const selectKernel = byCommand.get("jupyter-repl:select-kernel");
+    expect(selectKernel.name).toBe("Select Kernel");
+    expect(selectKernel.description).toBe(
+      "Choose the selected kernel for the request that opened this picker.",
+    );
+    expect(selectKernel.keystrokes).toEqual(["enter"]);
 
     const insertComment = byCommand.get("jupyter-repl:insert-kernel-comment");
     expect(insertComment.name).toBe("Insert Kernel Comment");
@@ -41,6 +50,7 @@ describe("jupyter-repl kernel picker item actions", () => {
     const updateKernels = byCommand.get("jupyter-repl:refresh-kernel-list");
     expect(updateKernels.description).toBe("Rescan the kernel specs on disk and reload the list.");
     expect(updateKernels.keystrokes).toEqual(["f5"]);
+    expect(updateKernels.scope).toBe("list");
 
     // Every action explains itself with more than a restated title.
     for (const action of actions) {
@@ -52,6 +62,29 @@ describe("jupyter-repl kernel picker item actions", () => {
     expect(byCommand.has("select-list:actions")).toBe(false);
     expect(byCommand.has("jupyter-repl:run")).toBe(false);
     expect(byCommand.has("jupyter-repl:debug-toggle")).toBe(false);
+  });
+
+  it("keeps refresh available when no kernel is selected", async () => {
+    await picker.selectList.update({ items: [] });
+
+    expect(picker.selectList.itemActions().map((action) => action.command)).toEqual([
+      "jupyter-repl:refresh-kernel-list",
+    ]);
+  });
+
+  it("selects the highlighted kernel exactly once through its semantic action", async () => {
+    picker.onConfirmed = jasmine.createSpy("onConfirmed");
+    picker.selectList.show();
+    await picker.selectList.selectIndex(1);
+
+    await picker.selectList.showItemActions();
+    const index = picker.selectList.itemActionsList.items.findIndex(
+      (item) => item.command === "jupyter-repl:select-kernel",
+    );
+    picker.selectList.itemActionsList.selectIndex(index);
+    picker.selectList.itemActionsList.confirmSelection();
+
+    expect(picker.onConfirmed).toHaveBeenCalledOnceWith(picker.kernelSpecs[1]);
   });
 
   it("shows the actions as a flow step and runs one against the kernel list", async () => {
