@@ -552,7 +552,7 @@ describe("measuring after attachment", () => {
       // One update flushes every bubble that grew this frame, so it is queued
       // on the editor's document scheduler — after they have all invalidated,
       // still before the frame paints.
-      await lumine.views.getNextUpdatePromise();
+      await lumine.views.forDocument(editor.element.ownerDocument).getNextUpdatePromise();
       if (syncUpdates) {
         expect(syncUpdates).toHaveBeenCalled();
         expect(syncUpdates.calls.count()).toBe(1);
@@ -601,7 +601,7 @@ describe("measuring after attachment", () => {
         etch.updateSync(view.component);
         view.component.afterRender();
       }
-      await lumine.views.getNextUpdatePromise();
+      await lumine.views.forDocument(editor.element.ownerDocument).getNextUpdatePromise();
 
       // Every bubble still reports its own decoration as dirty...
       expect(invalidations.calls.count()).toBe(views.length);
@@ -613,6 +613,42 @@ describe("measuring after attachment", () => {
       for (const view of views) {
         view.destroy();
       }
+      editor.destroy();
+    } finally {
+      global.ResizeObserver = previousResizeObserver;
+    }
+  });
+
+  it("starts a new batch after the document scheduler discards a queued one", async () => {
+    const ResultView = require("../lib/components/result-view");
+    const MarkerStore = require("../lib/store/markers");
+    const previousResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    try {
+      const editor = await lumine.workspace.open();
+      const view = new ResultView(new MarkerStore(), editor, 0, true);
+      jasmine.attachToDOM(view.element);
+      const syncUpdates = editor.component
+        ? spyOn(editor.component, "updateSync").and.stub()
+        : null;
+      const scheduler = lumine.views.forDocument(editor.element.ownerDocument);
+
+      view.outputStore.appendOutput(stream("first\n"));
+      etch.updateSync(view.component);
+      view.component.afterRender();
+      scheduler.clear();
+
+      view.outputStore.appendOutput(stream("second\n"));
+      etch.updateSync(view.component);
+      view.component.afterRender();
+      await scheduler.getNextUpdatePromise();
+
+      if (syncUpdates) expect(syncUpdates.calls.count()).toBe(1);
+      view.destroy();
       editor.destroy();
     } finally {
       global.ResizeObserver = previousResizeObserver;

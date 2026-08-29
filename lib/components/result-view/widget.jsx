@@ -1,6 +1,7 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch"); // JSX factory
 const { managerForModelId } = require("../../widget-registry");
+const { documentFor } = require("../../realm-runtime");
 
 // An ipywidget view is a long-lived DOM node bound to a kernel-side object, and
 // this package re-renders every output on every store update — a buffer edit
@@ -15,19 +16,26 @@ const { managerForModelId } = require("../../widget-registry");
 // import ceremony as in latex.jsx, because by the time a widget-view output
 // reaches a renderer a manager exists, and building one already loaded this —
 // the require is a cache hit. Without a manager the renderer declines instead.
-let luminoRuntime = null;
-function lumino() {
-  if (luminoRuntime === null) {
+const luminoRuntimes = new WeakMap();
+function lumino(value) {
+  if (value?.__lumineWidgetRuntime) {
+    const { MessageLoop } = require("@lumino/messaging");
+    return { Widget: value.__lumineWidgetRuntime.Widget, MessageLoop };
+  }
+  const domDocument = documentFor(value);
+  if (!luminoRuntimes.has(domDocument)) {
+    let runtime;
     try {
       const { lumino: luminoWidgets } = require("../../vendor/jupyter-widgets");
       const { MessageLoop } = require("@lumino/messaging");
-      luminoRuntime = { Widget: luminoWidgets.Widget, MessageLoop };
+      runtime = { Widget: luminoWidgets.Widget, MessageLoop };
     } catch (error) {
       console.error("[jupyter-repl] Lumino runtime unavailable:", error);
-      luminoRuntime = false; // Fall back to a plain appendChild.
+      runtime = false; // Fall back to a plain appendChild.
     }
+    luminoRuntimes.set(domDocument, runtime);
   }
-  return luminoRuntime || null;
+  return luminoRuntimes.get(domDocument) || null;
 }
 
 /**
@@ -42,7 +50,7 @@ function attachWidget(view, host) {
     return;
   }
   const panel = view.luminoWidget || view.pWidget;
-  const runtime = panel && lumino();
+  const runtime = panel && lumino(view);
   if (!runtime) {
     host.appendChild(view.el);
     return;
@@ -65,7 +73,7 @@ function detachWidget(view) {
   }
   try {
     const panel = view.luminoWidget || view.pWidget;
-    const runtime = panel && view.el?.isConnected ? lumino() : null;
+    const runtime = panel && view.el?.isConnected ? lumino(view) : null;
     if (runtime) {
       runtime.MessageLoop.sendMessage(panel, runtime.Widget.Msg.BeforeDetach);
       view.el.remove();
@@ -89,7 +97,7 @@ class WidgetView {
     // it built — unlike a superseded LaTeX render, which only throws away a
     // string, this one holds a live object bound to a model.
     this.renderToken = 0;
-    etch.initialize(this);
+    etch.initialize(this, { document: props.document });
     this.mountWidget();
   }
 
@@ -146,7 +154,9 @@ class WidgetView {
       if (this.destroyed || token !== this.renderToken) {
         return;
       }
-      view = await manager.create_view(model);
+      view = await manager.create_view(model, {
+        document: this.element.ownerDocument,
+      });
     } catch (error) {
       if (this.destroyed || token !== this.renderToken) {
         return;

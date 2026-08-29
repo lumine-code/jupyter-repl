@@ -30,6 +30,7 @@ const esbuild = require("esbuild");
 
 const PACKAGE_ROOT = path.join(__dirname, "..");
 const OUTFILE = path.join(PACKAGE_ROOT, "lib", "vendor", "jupyter-widgets.js");
+const REALM_OUTFILE = path.join(PACKAGE_ROOT, "lib", "vendor", "jupyter-widgets-realm.js");
 
 // The entry names only what has to be bundled. Anything reachable from here
 // that is already requireable is listed below instead.
@@ -81,7 +82,7 @@ async function main() {
     .map((name) => `//   ${name}@${versionOf(name)}`)
     .join("\n");
 
-  await esbuild.build({
+  const common = {
     stdin: {
       contents: ENTRY,
       resolveDir: PACKAGE_ROOT,
@@ -89,11 +90,8 @@ async function main() {
       loader: "js",
     },
     bundle: true,
-    format: "cjs",
     // The renderer is a browser context; this must not resolve node builtins.
     platform: "browser",
-    external: EXTERNAL,
-    outfile: OUTFILE,
     banner: {
       js:
         "// GENERATED FILE — do not edit. Rebuild with `npm run build:widgets`.\n" +
@@ -101,10 +99,28 @@ async function main() {
         "// Built from:\n" +
         versions,
     },
+  };
+  await esbuild.build({
+    ...common,
+    format: "cjs",
+    external: EXTERNAL,
+    outfile: OUTFILE,
+  });
+  // A detached surface deliberately has no Node integration. Its copy is a
+  // self-contained browser global loaded through lumine.dom.loadScript().
+  await esbuild.build({
+    ...common,
+    format: "iife",
+    globalName: "LumineJupyterWidgets",
+    outfile: REALM_OUTFILE,
   });
 
   const { size } = require("fs").statSync(OUTFILE);
-  console.log(`built lib/vendor/jupyter-widgets.js (${(size / 1024).toFixed(0)} KB)`);
+  const { size: realmSize } = require("fs").statSync(REALM_OUTFILE);
+  console.log(
+    `built lib/vendor/jupyter-widgets.js (${(size / 1024).toFixed(0)} KB) and ` +
+      `jupyter-widgets-realm.js (${(realmSize / 1024).toFixed(0)} KB)`,
+  );
 }
 
 main().catch((error) => {

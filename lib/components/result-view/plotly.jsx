@@ -12,12 +12,20 @@
  */
 const etch = require("@lumine-code/etch");
 const cloneDeep = require("lodash/cloneDeep");
+const { loadBundleFor } = require("../../realm-runtime");
 
 class PlotlyTransform {
   constructor(props) {
     this.props = props;
-    etch.initialize(this);
-    this.plot();
+    this.destroyed = false;
+    etch.initialize(this, { document: props.document });
+    this.runtimePromise = loadBundleFor(this.refs.plot, "plotly.js-dist", {
+      global: "Plotly",
+    }).then((Plotly) => {
+      if (this.destroyed) return;
+      this.Plotly = Plotly;
+      return this.drawPlot();
+    });
   }
 
   getFigure() {
@@ -40,15 +48,12 @@ class PlotlyTransform {
     };
   }
 
-  plot() {
+  drawPlot() {
     const plotDiv = this.refs.plot;
     if (!plotDiv) {
       return;
     }
     const figure = this.getFigure();
-    // plotly.js-dist for better 3D/WebGL support
-    this.Plotly = require("plotly.js-dist");
-
     // Transparent backgrounds, for 3D plot compatibility
     const layout = {
       ...figure.layout,
@@ -101,7 +106,7 @@ class PlotlyTransform {
     return etch.update(this).then(() => {
       const plotDiv = this.refs.plot;
       if (!plotDiv || !this.Plotly) {
-        return;
+        return this.runtimePromise;
       }
       const figure = this.getFigure();
       plotDiv.data = figure.data;
@@ -111,6 +116,7 @@ class PlotlyTransform {
   }
 
   destroy() {
+    this.destroyed = true;
     // Plotly attaches its own listeners and WebGL contexts to the node.
     if (this.Plotly && this.refs.plot) {
       this.Plotly.purge(this.refs.plot);

@@ -5,6 +5,7 @@
  * Copyright (c) 2016 - present, nteract contributors All rights reserved.
  */
 const etch = require("@lumine-code/etch");
+const { loadBundleFor } = require("../../realm-runtime");
 
 /** All the information. All of it. On Vega (Lite) media types, at least. */
 const MEDIA_TYPES = {
@@ -87,11 +88,25 @@ async function embed(anchor, mediaType, spec, options = {}) {
     version: version.kind === "vega-lite" && version.version === "5" ? "4" : version.version,
   };
   // Required here rather than at module scope: the package ships 15M of
-  // prebuilt vega bundles, and this module now loads at activation (the
-  // jupyter.output service is built eagerly). Nothing should parse that
-  // until a vega output actually renders.
-  const { embed: embedVega } = require("@nteract/any-vega");
-  const embedThisVega = await embedVega(embedVersion);
+  // prebuilt vega bundles. Resolve the exact UMD bundle through the mounted
+  // element's Window so its DOM constructors, listeners and animation frames
+  // belong to that surface rather than to the primary editor window.
+  const bundleName =
+    embedVersion.kind === "vega-lite"
+      ? { 1: "vg2vl1", 2: "vg4vl2", 3: "vg5vl3", 4: "vg5vl4" }[embedVersion.version]
+      : { 2: "vg2vl1", 3: "vg3vl1", 4: "vg4vl2", 5: "vg5vl4" }[embedVersion.version];
+  const embedVega = await loadBundleFor(anchor, `@nteract/any-vega/${bundleName}`, {
+    global: "embed",
+  });
+  const embedThisVega =
+    bundleName === "vg2vl1"
+      ? (target, value, embedOptions) =>
+          new Promise((resolve, reject) =>
+            embedVega(target, { ...embedOptions, spec: value }, (error, result) =>
+              error ? reject(error) : resolve(result),
+            ),
+          )
+      : embedVega;
   return embedThisVega(anchor, spec, { ...options, ...defaults });
 }
 
@@ -112,7 +127,7 @@ class VegaEmbed {
     this.props = props;
     this.embedError = null;
     this.embedResult = null;
-    etch.initialize(this);
+    etch.initialize(this, { document: props.document });
     this.callEmbedder();
   }
 
