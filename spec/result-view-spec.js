@@ -55,6 +55,40 @@ function release() {
   window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
 }
 
+describe("result image save", () => {
+  let editor;
+
+  beforeEach(async () => {
+    jasmine.attachToDOM(lumine.workspace.getElement());
+    editor = await lumine.workspace.open();
+  });
+
+  afterEach(async () => {
+    const pane = lumine.workspace.paneForItem(editor);
+    if (pane) await pane.destroyItem(editor, true);
+  });
+
+  it("owns the destination dialog with the result's editor", async () => {
+    const output = document.createElement("div");
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    output.appendChild(canvas);
+    const choosePath = spyOn(lumine.workspace, "showSaveDialogForPaneItem").and.returnValue(
+      Promise.resolve({ canceled: true }),
+    );
+
+    await actions.saveImage(output, editor);
+
+    expect(choosePath.calls.mostRecent().args[0]).toBe(editor);
+    expect(choosePath.calls.mostRecent().args[1]).toEqual(
+      jasmine.objectContaining({
+        defaultPath: "image.png",
+        filters: [{ name: "PNG Image", extensions: ["png"] }],
+      }),
+    );
+  });
+});
+
 describe("the result bubble", () => {
   let component;
 
