@@ -67,6 +67,21 @@ describe("real JupyterKernel wrapper teardown", () => {
     // getConnectionFile() throws for one reached over a websocket.
     expect(new JupyterKernel({ id: "kernel-3" }).id).toBe("kernel-3");
   });
+
+  it("returns a disposable destruction subscription", () => {
+    const emitter = new Emitter();
+    const wrapper = new JupyterKernel({ emitter });
+    const destroyed = jasmine.createSpy("destroyed");
+    const subscription = wrapper.onDidDestroy(destroyed);
+    const composite = new CompositeDisposable();
+
+    expect(() => composite.add(subscription)).not.toThrow();
+    emitter.emit("did-destroy");
+    expect(destroyed).toHaveBeenCalled();
+
+    composite.dispose();
+    emitter.dispose();
+  });
 });
 
 // Everything from iopub reaches the callback already in notebook format, and

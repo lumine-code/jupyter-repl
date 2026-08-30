@@ -113,7 +113,7 @@ type JupyterKernel = {
   onDidChangeExecutionState(callback: (state: string) => void): Disposable;
   onDidChangeStatus(callback: () => void): Disposable;
   onDidBecomeIdle(callback: () => void): Disposable;
-  onDidDestroy(callback: () => void): void;
+  onDidDestroy(callback: () => void): Disposable;
 
   // control
   interrupt(): void;
