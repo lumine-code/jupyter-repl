@@ -5,8 +5,6 @@ const OutputStore = require("../lib/store/output");
 const ResultViewComponent = require("../lib/components/result-view/result-view");
 const { createResultAsync } = require("../lib/result");
 
-const inputRoute = () => ({ surface: lumine.workspace.getActiveWindowSurface() });
-
 // A result bubble owns its execution lifecycle outright: queued -> running ->
 // ok | error, driven only by the messages of its own execution. It never
 // consults the kernel's execution state — which is what lets that state mean
@@ -127,7 +125,7 @@ describe("cross-socket message order", () => {
     const transport = new FakeTransport();
     const kernel = new Kernel(transport);
     const store = new OutputStore();
-    kernel.execute("1", (result) => store.appendOutput(result), inputRoute());
+    kernel.execute("1", (result) => store.appendOutput(result));
 
     transport.deliverReply("ok", 1);
     transport.deliverInput(1);
@@ -148,7 +146,7 @@ describe("settling in-flight executions", () => {
     transport = new FakeTransport();
     kernel = new Kernel(transport);
     results = [];
-    kernel.execute("1 + 1", (result) => results.push(result), inputRoute());
+    kernel.execute("1 + 1", (result) => results.push(result));
   });
 
   afterEach(() => {
@@ -205,7 +203,7 @@ describe("settling in-flight executions", () => {
     // Minimal editor stand-in: inline=false takes the no-bubble path, so only
     // the kernel wiring is exercised.
     const resolution = createResultAsync(
-      { editor: {}, kernel, markers: null, route: inputRoute() },
+      { editor: {}, kernel, markers: null },
       { code: "sleep(9999)", row: 0, cellType: "codecell", inline: false },
     );
 
@@ -415,9 +413,9 @@ describe("per-execution durations", () => {
     let now = 1000;
     spyOn(Date, "now").and.callFake(() => now);
 
-    const first = kernel.execute("a", () => {}, inputRoute());
+    const first = kernel.execute("a", () => {});
     const firstTransportCallback = transport.onResults;
-    const second = kernel.execute("b", () => {}, inputRoute());
+    const second = kernel.execute("b", () => {});
     const secondTransportCallback = transport.onResults;
 
     // First cell starts at t=2000, second at t=5000, first replies at t=6000:

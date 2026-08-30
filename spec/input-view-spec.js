@@ -17,27 +17,26 @@ class InputTransport extends KernelTransport {
     this.replies.push(value);
   }
 
-  requestInput() {
+  requestInput({ prompt = "Value", password = false } = {}) {
     this.onResults(
       {
         header: { msg_id: "stdin", msg_type: "input_request" },
         parent_header: { msg_id: "execute", msg_type: "execute_request" },
-        content: { prompt: "Value", password: false },
+        content: { prompt, password },
       },
       "stdin",
     );
   }
 }
 
-describe("InputView window surfaces", () => {
-  let detachedPane, editor, editorElement, view, workspaceElement;
+describe("InputView primary modal", () => {
+  let detachedPane, editor, view, workspaceElement;
 
   beforeEach(async () => {
     lumine.initializeDetachedPaneSurfaces({ force: true });
     workspaceElement = lumine.workspace.getElement();
     jasmine.attachToDOM(workspaceElement);
     editor = await lumine.workspace.open();
-    editorElement = editor.getElement();
     detachedPane = await lumine.workspace.detachPaneItem(editor, { show: false });
   });
 
@@ -48,112 +47,70 @@ describe("InputView window surfaces", () => {
     lumine.initializeDetachedPaneSurfaces();
   });
 
-  it("mounts, focuses, and restores focus in its owner's Document", () => {
-    const surface = lumine.workspace.getWindowSurface(editor);
+  it("mounts, focuses, and restores focus in the primary document", () => {
     const confirmed = jasmine.createSpy("confirmed");
-    editorElement.focus();
-    view = new InputView(
-      { prompt: "Value", defaultText: "answer", route: { owner: editor } },
-      confirmed,
-    );
+    const priorFocus = document.createElement("button");
+    workspaceElement.append(priorFocus);
+    priorFocus.focus();
+    view = new InputView({ prompt: "Value", defaultText: "answer" }, confirmed).attach();
 
-    view.attach();
-
-    expect(view.element.ownerDocument).toBe(surface.document);
-    expect(view.miniEditor.element.ownerDocument).toBe(surface.document);
-    expect(view.panel.surface).toBe(surface);
-    expect(view.miniEditor.element.contains(surface.document.activeElement)).toBe(true);
+    expect(view.element.ownerDocument).toBe(document);
+    expect(view.miniEditor.element.ownerDocument).toBe(document);
+    expect(view.panel.getContainer()).toBe(lumine.workspace.panelContainers.modal);
+    expect(view.miniEditor.element.contains(document.activeElement)).toBe(true);
 
     lumine.commands.dispatch(view.element, "core:confirm");
 
     expect(confirmed).toHaveBeenCalledWith("answer");
-    expect(surface.document.activeElement).toBe(editorElement);
+    expect(document.activeElement).toBe(priorFocus);
+    priorFocus.remove();
   });
 
-  it("carries the execution owner through a kernel stdin request", () => {
-    const surface = lumine.workspace.getWindowSurface(editor);
+  it("presents kernel stdin in the primary window for a detached execution", () => {
+    const detachedDocument = lumine.workspace.getWindowSurface(editor).document;
     const transport = new InputTransport();
     const kernel = new Kernel(transport);
-    editorElement.focus();
-    kernel.execute("input()", () => {}, { owner: editor });
+    editor.getElement().focus();
+    kernel.execute("input()", () => {});
 
     transport.requestInput();
 
-    const input = surface.document.querySelector(".input-view");
+    const input = document.querySelector(".input-view");
     expect(input).not.toBeNull();
+    expect(detachedDocument.querySelector(".input-view")).toBeNull();
     const miniEditor = input.querySelector("lumine-text-editor").getModel();
-    miniEditor.setText("from child");
+    miniEditor.setText("from primary");
     lumine.commands.dispatch(input, "core:confirm");
 
-    expect(transport.reply).toBe("from child");
-    expect(surface.document.activeElement).toBe(editorElement);
+    expect(transport.replies).toEqual(["from primary"]);
     transport.destroy();
   });
 
-  it("keeps one panel, its text, and its focus while the owner attaches and detaches", async () => {
-    view = new InputView({ prompt: "Value", route: { owner: editor } }, () => {});
-    view.attach();
-    const panel = view.panel;
-    view.miniEditor.setText("preserved");
+  it("masks passwords only while the input contains text", () => {
+    const confirmed = jasmine.createSpy("confirmed");
+    view = new InputView(
+      { prompt: "Password", defaultText: "secret", password: true },
+      confirmed,
+    ).attach();
 
-    await lumine.workspace.attachDetachedPane(detachedPane);
-    detachedPane = null;
+    expect(view.miniEditor.element.style.webkitTextSecurity).toBe("disc");
+    view.miniEditor.setText("");
+    expect(view.miniEditor.element.style.webkitTextSecurity).toBe("none");
+    view.miniEditor.setText("new secret");
+    expect(view.miniEditor.element.style.webkitTextSecurity).toBe("disc");
 
-    expect(view.panel).toBe(panel);
-    expect(view.miniEditor.getText()).toBe("preserved");
-    expect(view.element.ownerDocument).toBe(document);
-    expect(panel.getContainer()).toBe(lumine.workspace.panelContainers.modal);
-    expect(view.element.contains(document.activeElement)).toBe(true);
+    view.confirm();
 
-    detachedPane = await lumine.workspace.detachPaneItem(editor, { show: false });
-    const detachedSurface = lumine.workspace.getWindowSurface(editor);
-
-    expect(view.panel).toBe(panel);
-    expect(view.miniEditor.getText()).toBe("preserved");
-    expect(view.element.ownerDocument).toBe(detachedSurface.document);
-    expect(panel.getContainer()).toBe(detachedSurface.modalPanelContainer);
-    expect(view.element.contains(detachedSurface.document.activeElement)).toBe(true);
-  });
-
-  it("rehomes the same visible panel back when an attach transaction rolls back", async () => {
-    const originalSurface = lumine.workspace.getWindowSurface(editor);
-    view = new InputView({ prompt: "Value", route: { owner: editor } }, () => {});
-    view.attach();
-    const panel = view.panel;
-    view.miniEditor.setText("survives rollback");
-    const blocker = lumine.workspace.addWindowSurfaceTransitionObserver(({ item }) => {
-      if (item !== editor) return;
-      return {
-        commit() {
-          throw new Error("test attach failure");
-        },
-      };
-    });
-
-    try {
-      await expectAsync(lumine.workspace.attachDetachedPane(detachedPane)).toBeRejectedWithError(
-        "test attach failure",
-      );
-      detachedPane = lumine.workspace.paneForItem(editor);
-
-      expect(lumine.workspace.getWindowSurface(editor)).toBe(originalSurface);
-      expect(view.panel).toBe(panel);
-      expect(view.miniEditor.getText()).toBe("survives rollback");
-      expect(panel.getContainer()).toBe(originalSurface.modalPanelContainer);
-      expect(view.element.ownerDocument).toBe(originalSurface.document);
-      expect(panel.isVisible()).toBe(true);
-    } finally {
-      blocker.dispose();
-    }
+    expect(confirmed).toHaveBeenCalledWith("new secret");
   });
 
   it("settles once with an empty reply when its panel is destroyed externally", () => {
     const transport = new InputTransport();
     const kernel = new Kernel(transport);
-    kernel.execute("input()", () => {}, { owner: editor });
+    kernel.execute("input()", () => {});
     transport.requestInput();
 
-    const input = lumine.workspace.getWindowSurface(editor).document.querySelector(".input-view");
+    const input = document.querySelector(".input-view");
     lumine.workspace.panelForItem(input).destroy();
 
     expect(transport.replies).toEqual([""]);
@@ -163,11 +120,7 @@ describe("InputView window surfaces", () => {
 
   it("routes direct destruction through the same idempotent cancellation path", () => {
     const cancelled = jasmine.createSpy("cancelled");
-    view = new InputView(
-      { prompt: "Value", route: { owner: editor } },
-      jasmine.createSpy("confirmed"),
-      cancelled,
-    ).attach();
+    view = new InputView({ prompt: "Value" }, jasmine.createSpy("confirmed"), cancelled).attach();
 
     view.destroy();
     view.destroy();
@@ -180,67 +133,46 @@ describe("InputView window surfaces", () => {
   it("settles once with an empty reply when another modal displaces it", () => {
     const transport = new InputTransport();
     const kernel = new Kernel(transport);
-    kernel.execute("input()", () => {}, { owner: editor });
+    kernel.execute("input()", () => {});
     transport.requestInput();
 
-    const replacement = lumine.workspace.addModalPanel({
-      item: lumine.workspace.getWindowSurface(editor).document.createElement("div"),
-      owner: editor,
-    });
+    const replacement = lumine.workspace.addModalPanel({ item: document.createElement("div") });
 
     expect(transport.replies).toEqual([""]);
     replacement.destroy();
     transport.destroy();
   });
 
-  it("settles once with an empty reply when the owner is destroyed", async () => {
+  it("can present delayed stdin after the detached item has closed", async () => {
     const transport = new InputTransport();
     const kernel = new Kernel(transport);
-    kernel.execute("input()", () => {}, { owner: editor });
-    transport.requestInput();
+    kernel.execute("input()", () => {});
 
     await detachedPane.destroyItem(editor, true);
-
-    expect(transport.replies).toEqual([""]);
     editor = null;
     detachedPane = null;
+    transport.requestInput();
+
+    const input = document.querySelector(".input-view");
+    expect(input).not.toBeNull();
+    const miniEditor = input.querySelector("lumine-text-editor").getModel();
+    miniEditor.setText("still running");
+    lumine.commands.dispatch(input, "core:confirm");
+
+    expect(transport.replies).toEqual(["still running"]);
     transport.destroy();
   });
 
-  it("answers empty when the execution route disappears before stdin arrives", async () => {
-    spyOn(console, "error");
-    const transport = new InputTransport();
-    const kernel = new Kernel(transport);
-    kernel.execute("input()", () => {}, { owner: editor });
-
-    await detachedPane.destroyItem(editor, true);
-    transport.requestInput();
-
-    expect(transport.replies).toEqual([""]);
-    expect(console.error).toHaveBeenCalled();
-    editor = null;
-    detachedPane = null;
-    transport.destroy();
-  });
-
-  it("settles a fixed-surface input when that surface's modal container is destroyed", () => {
-    const surface = lumine.workspace.getWindowSurface(editor);
+  it("allows cancellable prompts to settle exactly once", () => {
+    const confirmed = jasmine.createSpy("confirmed");
     const cancelled = jasmine.createSpy("cancelled");
-    view = new InputView({ prompt: "Value", route: { surface } }, () => {}, cancelled);
-    view.attach();
+    view = new InputView({ prompt: "Name", allowCancel: true }, confirmed, cancelled).attach();
 
-    surface.modalPanelContainer.destroy();
+    lumine.commands.dispatch(view.element, "core:cancel");
+    view.cancel();
 
+    expect(confirmed).not.toHaveBeenCalled();
     expect(cancelled).toHaveBeenCalledTimes(1);
     expect(view.destroyed).toBe(true);
-  });
-
-  it("rejects malformed, unregistered, and ownerless routes synchronously", () => {
-    expect(() => new InputView({ route: {} }, () => {})).toThrowError(TypeError);
-    expect(() => new InputView({ route: { owner: editor, surface: {} } }, () => {})).toThrowError(
-      TypeError,
-    );
-    expect(() => new InputView({ route: { owner: {} } }, () => {})).toThrowError(TypeError);
-    expect(() => new InputView({ route: { surface: {} } }, () => {})).toThrowError(TypeError);
   });
 });

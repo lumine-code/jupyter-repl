@@ -127,7 +127,7 @@ type JupyterKernel = {
 
 `execute`'s `outputs` are **notebook-format outputs** — `stream`, `execute_result`, `display_data`, `error` — in the order they arrived, ready for `jupyter.output`'s `getOutputPlainText` or its renderers. A failed execution also reports `error` separately, lifted from the `error` output.
 
-Plugin executions have no pane-item owner in this service contract, so `execute` and `executeWithCallback` synchronously capture the workspace's active native-window surface before sending anything to the kernel. A later stdin prompt stays in that captured window even if focus changes; the call throws before execution when no registered live surface is active.
+Kernel stdin requests are presented by the primary workspace modal, regardless of which pane item started the execution. Confirmed text is sent through the middleware chain; dismissing the modal or failing to present it sends an empty reply, so the kernel cannot remain blocked on an abandoned prompt.
 
 **`execute` settles only when the kernel replies.** Code that never finishes — a `while True:`, a blocked socket — leaves the promise pending for the life of the window unless you pass `timeoutMs`, which resolves with `status: "timeout"` and whatever outputs arrived. The kernel goes on running either way: stopping it is `interrupt()`, and that is a decision for the caller, since a long execution may be doing exactly what the user asked for.
 
