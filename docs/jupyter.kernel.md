@@ -127,8 +127,6 @@ type JupyterKernel = {
 
 `execute`'s `outputs` are **notebook-format outputs** — `stream`, `execute_result`, `display_data`, `error` — in the order they arrived, ready for `jupyter.output`'s `getOutputPlainText` or its renderers. A failed execution also reports `error` separately, lifted from the `error` output.
 
-Kernel stdin requests are presented by the primary workspace modal, regardless of which pane item started the execution. Confirmed text is sent through the middleware chain; dismissing the modal or failing to present it sends an empty reply, so the kernel cannot remain blocked on an abandoned prompt.
-
 **`execute` settles only when the kernel replies.** Code that never finishes — a `while True:`, a blocked socket — leaves the promise pending for the life of the window unless you pass `timeoutMs`, which resolves with `status: "timeout"` and whatever outputs arrived. The kernel goes on running either way: stopping it is `interrupt()`, and that is a decision for the caller, since a long execution may be doing exactly what the user asked for.
 
 **`complete` and `inspect` time out by default**, unlike `execute`, and the asymmetry is deliberate: a long execution may be doing exactly what the user asked, but a kernel answers an introspection request in milliseconds or not at all. They give up after 10 seconds and resolve with `status: "timeout"` — an empty `matches` for `complete`, `found: false` for `inspect` — so a caller that never checks `status` reads a timeout as "nothing found" rather than throwing. Pass `timeoutMs: 0` to wait indefinitely. `inspect` also carries `status: "error"` with `ename`/`evalue` when the kernel went away mid-request, which is the only thing distinguishing that from a kernel that looked and knew nothing.

@@ -80,8 +80,6 @@ module.exports = {
 
 `runBlocks` resolves `true` once the run is handed to the kernel pipeline and `false` when the context is too incomplete to run — no editor, no blocks, no grammar. The refusal is silent by design: the absence is on screen, and the consumer owns whatever notification its surface warrants. When no kernel is attached yet, starting one may prompt the user with the kernel picker; the promise resolves without waiting for that, so a dismissed picker is not an error.
 
-Any later kernel stdin request is presented by the primary workspace modal.
-
 One block renders through the single-result path; several go through the batch path, which keeps its guard against overlapping batches — a second `runBlocks` while a batch is in flight resolves `false`.
 
 `moveDown` is deliberately a separate member rather than an option: the built-in commands capture their blocks first and move the cursor before the kernel answers, and a consumer that wants the same feel calls it in the same order.

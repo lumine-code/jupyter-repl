@@ -110,12 +110,11 @@ describe("batch inline feedback", () => {
     // repeat is the same request already being served, and queueing it again
     // would duplicate every cell at the kernel.
     const blocks = [{ code: "first()", row: 0, cellType: "codecell" }];
-    const executionContext = { editor, kernel: fakeKernel, markers };
-    const batchPromise = result.createResultBatch(executionContext, blocks);
+    const batchPromise = result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks);
 
     const repeats = await Promise.all([
-      result.createResultBatch(executionContext, blocks),
-      result.createResultBatch(executionContext, blocks),
+      result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks),
+      result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks),
     ]);
 
     expect(repeats).toEqual([true, true]);
@@ -124,7 +123,7 @@ describe("batch inline feedback", () => {
     await batchPromise;
 
     // The next deliberate run, after the batch finished, goes through.
-    const again = result.createResultBatch(executionContext, blocks);
+    const again = result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks);
     expect(fakeKernel.executions.length).toBe(2);
     fakeKernel.executions[1].callback({ data: "ok", stream: "status" });
     fakeKernel.executions[1].callback({ output_type: "status", execution_state: "idle" });

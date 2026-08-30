@@ -55,40 +55,6 @@ function release() {
   window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
 }
 
-describe("result image save", () => {
-  let editor;
-
-  beforeEach(async () => {
-    jasmine.attachToDOM(lumine.workspace.getElement());
-    editor = await lumine.workspace.open();
-  });
-
-  afterEach(async () => {
-    const pane = lumine.workspace.paneForItem(editor);
-    if (pane) await pane.destroyItem(editor, true);
-  });
-
-  it("owns the destination dialog with the result's editor", async () => {
-    const output = document.createElement("div");
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 1;
-    output.appendChild(canvas);
-    const choosePath = spyOn(lumine.workspace, "showSaveDialogForPaneItem").and.returnValue(
-      Promise.resolve({ canceled: true }),
-    );
-
-    await actions.saveImage(output, editor);
-
-    expect(choosePath.calls.mostRecent().args[0]).toBe(editor);
-    expect(choosePath.calls.mostRecent().args[1]).toEqual(
-      jasmine.objectContaining({
-        defaultPath: "image.png",
-        filters: [{ name: "PNG Image", extensions: ["png"] }],
-      }),
-    );
-  });
-});
-
 describe("the result bubble", () => {
   let component;
 
@@ -586,7 +552,7 @@ describe("measuring after attachment", () => {
       // One update flushes every bubble that grew this frame, so it is queued
       // on the editor's document scheduler — after they have all invalidated,
       // still before the frame paints.
-      await lumine.views.forDocument(editor.element.ownerDocument).getNextUpdatePromise();
+      await lumine.views.getNextUpdatePromise();
       if (syncUpdates) {
         expect(syncUpdates).toHaveBeenCalled();
         expect(syncUpdates.calls.count()).toBe(1);
@@ -635,7 +601,7 @@ describe("measuring after attachment", () => {
         etch.updateSync(view.component);
         view.component.afterRender();
       }
-      await lumine.views.forDocument(editor.element.ownerDocument).getNextUpdatePromise();
+      await lumine.views.getNextUpdatePromise();
 
       // Every bubble still reports its own decoration as dirty...
       expect(invalidations.calls.count()).toBe(views.length);
@@ -647,42 +613,6 @@ describe("measuring after attachment", () => {
       for (const view of views) {
         view.destroy();
       }
-      editor.destroy();
-    } finally {
-      global.ResizeObserver = previousResizeObserver;
-    }
-  });
-
-  it("starts a new batch after the document scheduler discards a queued one", async () => {
-    const ResultView = require("../lib/components/result-view");
-    const MarkerStore = require("../lib/store/markers");
-    const previousResizeObserver = global.ResizeObserver;
-    global.ResizeObserver = class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    };
-    try {
-      const editor = await lumine.workspace.open();
-      const view = new ResultView(new MarkerStore(), editor, 0, true);
-      jasmine.attachToDOM(view.element);
-      const syncUpdates = editor.component
-        ? spyOn(editor.component, "updateSync").and.stub()
-        : null;
-      const scheduler = lumine.views.forDocument(editor.element.ownerDocument);
-
-      view.outputStore.appendOutput(stream("first\n"));
-      etch.updateSync(view.component);
-      view.component.afterRender();
-      scheduler.clear();
-
-      view.outputStore.appendOutput(stream("second\n"));
-      etch.updateSync(view.component);
-      view.component.afterRender();
-      await scheduler.getNextUpdatePromise();
-
-      if (syncUpdates) expect(syncUpdates.calls.count()).toBe(1);
-      view.destroy();
       editor.destroy();
     } finally {
       global.ResizeObserver = previousResizeObserver;

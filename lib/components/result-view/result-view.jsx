@@ -27,7 +27,7 @@ const MIN_RESIZE_HEIGHT = 32;
 class ResultViewComponent {
   constructor(props) {
     this.props = props;
-    this.expanded = props.surfaceState?.expanded || false;
+    this.expanded = false;
     this.hasImage = false;
     this.showExpandButton = false;
     // Width and height the display's scrollbars take, which is how far in from
@@ -37,15 +37,15 @@ class ResultViewComponent {
     // Size the grip was dragged to, or null for the natural one. Deliberately
     // not carried anywhere: a re-run builds a new bubble, and a size dragged for
     // one result says nothing about what the next one will hold.
-    this.resizedWidth = props.surfaceState?.resizedWidth ?? null;
-    this.resizedHeight = props.surfaceState?.resizedHeight ?? null;
+    this.resizedWidth = null;
+    this.resizedHeight = null;
     this.resizeOrigin = null;
     // Output count the rendered tree was last searched for an image at.
     this.probedOutputCount = -1;
     this.wheelHandler = null;
     this.wheelElement = null;
 
-    etch.initialize(this, { document: props.document });
+    etch.initialize(this);
 
     this.storeSubscription = this.props.store.onDidUpdate(() => etch.update(this));
     this.afterRender();
@@ -53,18 +53,6 @@ class ResultViewComponent {
 
   get store() {
     return this.props.store;
-  }
-
-  getWindow() {
-    return this.element.ownerDocument.defaultView;
-  }
-
-  captureSurfaceState() {
-    return {
-      expanded: this.expanded,
-      resizedWidth: this.resizedWidth,
-      resizedHeight: this.resizedHeight,
-    };
   }
 
   // The bubble sits on a code line, so it is positioned against the metrics the
@@ -102,7 +90,7 @@ class ResultViewComponent {
   // A click that ends a text selection is the user selecting, not asking for a
   // copy of everything.
   checkForSelection = (event) => {
-    const selection = this.element.ownerDocument.getSelection();
+    const selection = document.getSelection();
     if (selection && selection.toString()) {
       return;
     }
@@ -179,9 +167,8 @@ class ResultViewComponent {
       height: display.offsetHeight,
       maxWidth: editorWidth > 0 ? editorWidth - 2 * charWidth : Infinity,
     };
-    const domWindow = this.getWindow();
-    domWindow.addEventListener("mousemove", this.moveResize);
-    domWindow.addEventListener("mouseup", this.endResize);
+    window.addEventListener("mousemove", this.moveResize);
+    window.addEventListener("mouseup", this.endResize);
     // The owner relaxes its re-measure budget for the duration: a drag is a
     // hand, and a hand cannot oscillate.
     this.props.onUserResize?.(true);
@@ -211,9 +198,8 @@ class ResultViewComponent {
       return;
     }
     this.resizeOrigin = null;
-    const domWindow = this.getWindow();
-    domWindow.removeEventListener("mousemove", this.moveResize);
-    domWindow.removeEventListener("mouseup", this.endResize);
+    window.removeEventListener("mousemove", this.moveResize);
+    window.removeEventListener("mouseup", this.endResize);
     this.props.onUserResize?.(false);
   };
 

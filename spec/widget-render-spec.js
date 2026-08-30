@@ -23,7 +23,6 @@ function fakeManager({ failWith = null, defer = false } = {}) {
 
   return {
     views,
-    viewOptions: [],
     release: () => release?.(),
     async get_model(modelId) {
       await gate;
@@ -32,9 +31,8 @@ function fakeManager({ failWith = null, defer = false } = {}) {
       }
       return { model_id: modelId };
     },
-    async create_view(model, options = {}) {
-      this.viewOptions.push(options);
-      const el = (options.document || document).createElement("div");
+    async create_view(model) {
+      const el = document.createElement("div");
       el.className = "fake-widget";
       el.textContent = model.model_id;
       const view = { el, model, removed: 0, remove: () => view.removed++ };
@@ -53,13 +51,10 @@ async function settle() {
 
 describe("rendering a widget view", () => {
   let component;
-  let frame;
 
   afterEach(() => {
     component?.destroy();
     component = null;
-    frame?.remove();
-    frame = null;
     registry.releaseModelsOf(undefined);
   });
 
@@ -78,20 +73,6 @@ describe("rendering a widget view", () => {
     const host = component.element.querySelector(".output-widget-host");
     expect(host).not.toBeNull();
     expect(host.querySelector(".fake-widget")).toBe(manager.views[0].el);
-  });
-
-  it("asks the manager to build the widget in its own document realm", async () => {
-    const manager = fakeManager();
-    frame = document.createElement("iframe");
-    document.body.appendChild(frame);
-    const domDocument = frame.contentDocument;
-    component = new WidgetView({ modelId: "m1", manager, document: domDocument });
-    await settle();
-    etch.updateSync(component);
-
-    expect(component.element.ownerDocument).toBe(domDocument);
-    expect(manager.viewOptions[0].document).toBe(domDocument);
-    expect(manager.views[0].el.ownerDocument).toBe(domDocument);
   });
 
   it("keeps its root element across every state", async () => {
