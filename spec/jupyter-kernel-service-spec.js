@@ -78,7 +78,7 @@ describe("real JupyterKernel wrapper teardown", () => {
 describe("JupyterKernel#execute", () => {
   const JupyterKernel = require("../lib/plugin-api/jupyter-kernel");
 
-  let internal, wrapper, emit;
+  let internal, wrapper, emit, inputRoute;
 
   const STREAM = { output_type: "stream", name: "stdout", text: "hello\n" };
   const RESULT = { output_type: "execute_result", data: { "text/plain": "42" } };
@@ -91,8 +91,9 @@ describe("JupyterKernel#execute", () => {
 
   beforeEach(() => {
     internal = {
-      execute(code, onResults) {
+      execute(code, onResults, route) {
         emit = onResults;
+        inputRoute = route;
       },
     };
     wrapper = new JupyterKernel(internal);
@@ -108,6 +109,23 @@ describe("JupyterKernel#execute", () => {
     expect(status).toBe("ok");
     expect(outputs).toEqual([STREAM]);
     expect(executionCount).toBe(1);
+  });
+
+  it("captures the active native surface before an ownerless plugin execution", async () => {
+    const surface = lumine.workspace.getActiveWindowSurface();
+    const answer = wrapper.execute("1");
+
+    expect(inputRoute).toEqual({ surface });
+    emit({ data: "ok", stream: "status" });
+    await answer;
+  });
+
+  it("rejects synchronously when ownerless plugin work has no active surface", () => {
+    spyOn(lumine.workspace, "getActiveWindowSurface").and.returnValue(null);
+    spyOn(internal, "execute").and.callThrough();
+
+    expect(() => wrapper.execute("1")).toThrowError(TypeError);
+    expect(internal.execute).not.toHaveBeenCalled();
   });
 
   it("keeps a rich result alongside a stream", async () => {

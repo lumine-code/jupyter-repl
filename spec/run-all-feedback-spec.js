@@ -1,6 +1,8 @@
 const { Range } = require("lumine");
 const { run, runAllInline } = require("../lib/main");
 const result = require("../lib/result");
+
+const inputRoute = () => ({ surface: lumine.workspace.getActiveWindowSurface() });
 const store = require("../lib/store");
 
 describe("batch inline feedback", () => {
@@ -69,11 +71,14 @@ describe("batch inline feedback", () => {
   });
 
   it("reserves all positions, preserves fast results, and X-marks skipped blocks", async () => {
-    const batchPromise = result.createResultBatch({ editor, kernel: fakeKernel, markers }, [
-      { code: "first()", row: 0, cellType: "codecell" },
-      { code: "second()", row: 1, cellType: "codecell" },
-      { code: "third()", row: 2, cellType: "codecell" },
-    ]);
+    const batchPromise = result.createResultBatch(
+      { editor, kernel: fakeKernel, markers, route: inputRoute() },
+      [
+        { code: "first()", row: 0, cellType: "codecell" },
+        { code: "second()", row: 1, cellType: "codecell" },
+        { code: "third()", row: 2, cellType: "codecell" },
+      ],
+    );
 
     // Let the resolved first execution advance the queue to the second block.
     await Promise.resolve();
@@ -110,11 +115,12 @@ describe("batch inline feedback", () => {
     // repeat is the same request already being served, and queueing it again
     // would duplicate every cell at the kernel.
     const blocks = [{ code: "first()", row: 0, cellType: "codecell" }];
-    const batchPromise = result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks);
+    const executionContext = { editor, kernel: fakeKernel, markers, route: inputRoute() };
+    const batchPromise = result.createResultBatch(executionContext, blocks);
 
     const repeats = await Promise.all([
-      result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks),
-      result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks),
+      result.createResultBatch(executionContext, blocks),
+      result.createResultBatch(executionContext, blocks),
     ]);
 
     expect(repeats).toEqual([true, true]);
@@ -123,7 +129,7 @@ describe("batch inline feedback", () => {
     await batchPromise;
 
     // The next deliberate run, after the batch finished, goes through.
-    const again = result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks);
+    const again = result.createResultBatch(executionContext, blocks);
     expect(fakeKernel.executions.length).toBe(2);
     fakeKernel.executions[1].callback({ data: "ok", stream: "status" });
     fakeKernel.executions[1].callback({ output_type: "status", execution_state: "idle" });
