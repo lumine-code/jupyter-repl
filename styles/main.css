@@ -412,7 +412,7 @@
   }
 
   .multiline-container .result-actions .icon {
-    cursor: pointer;
+    cursor: default;
   }
 
   .multiline-container .result-actions .icon::before {
@@ -553,7 +553,7 @@
 
       .input-range {
         width: 100%;
-        cursor: pointer;
+        cursor: default;
 
         &::-webkit-slider-thumb {
           -webkit-appearance: none;
