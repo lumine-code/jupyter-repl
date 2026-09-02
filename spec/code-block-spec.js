@@ -1,4 +1,4 @@
-const { findCodeBlockAtRow } = require("../lib/code-manager");
+const { findCodeBlockAtRow, getCommentStartString } = require("../lib/code-manager");
 
 // Multiline triple-quoted strings hide their brackets from the line-based
 // bracket checks (`doc.x('''` ends with the string opener, `''')` starts with
@@ -74,5 +74,21 @@ describe("code block detection for multiline strings", () => {
     await open('doc.x("""\n11\n""")\n');
     const block = findCodeBlockAtRow(editor, 0);
     expect(block.code).toBe('doc.x("""\n11\n""")');
+  });
+});
+
+describe("comment delimiter lookup", () => {
+  it("uses the first non-whitespace position and a block opener fallback", () => {
+    const getCommentDelimitersForBufferPosition = jasmine
+      .createSpy("getCommentDelimitersForBufferPosition")
+      .and.returnValue({ block: ["<!-- ", " -->"] });
+    const editor = {
+      getCursorBufferPosition: () => ({ row: 3, column: 14 }),
+      lineTextForBufferRow: () => "\t  value",
+      getCommentDelimitersForBufferPosition,
+    };
+
+    expect(getCommentStartString(editor)).toBe("<!--");
+    expect(getCommentDelimitersForBufferPosition).toHaveBeenCalledWith([3, 3]);
   });
 });
