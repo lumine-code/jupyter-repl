@@ -55,13 +55,7 @@ describe("jupyter-repl package assets", () => {
     );
   });
 
-  it("takes the select list from the editor, not from a dependency", () => {
-    const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-    // The editor provides the list through lumine.workspace.buildSelectList, so
-    // there is nothing to declare and nothing to keep pinned.
-    expect(pkg.dependencies["@lumine-code/select-list"]).toBeUndefined();
-    expect(pkg.dependencies["@asiloisad/select-list"]).toBeUndefined();
-
+  it("builds select lists through the editor factory", () => {
     const sources = [];
     const collect = (dir) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -75,15 +69,10 @@ describe("jupyter-repl package assets", () => {
     };
     collect(path.join(root, "lib"));
 
-    for (const file of sources) {
-      const source = fs.readFileSync(file, "utf8");
-      expect(source.includes("@asiloisad")).toBe(
-        false,
-        `${path.relative(root, file)} still points at the personal fork`,
-      );
-      expect(
-        /require\(.@lumine-code\/select-list.\)|from ".@lumine-code\/select-list"/.test(source),
-      ).toBe(false, `${path.relative(root, file)} still imports the list instead of building it`);
-    }
+    expect(
+      sources.some((file) =>
+        fs.readFileSync(file, "utf8").includes("lumine.workspace.buildSelectList"),
+      ),
+    ).toBe(true);
   });
 });

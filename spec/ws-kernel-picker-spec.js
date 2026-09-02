@@ -51,8 +51,8 @@ describe("ws-kernel-picker modal flow", () => {
 
     expect(picker.credentialDialog.isVisible()).toBeTruthy();
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "Authentication", "Token"]);
-    picker.credentialDialog.refs.queryEditor.setText("secret");
-    expect(picker.credentialDialog.refs.queryEditor.element.style.webkitTextSecurity).toBe("disc");
+    picker.credentialDialog.getQueryEditor().setText("secret");
+    expect(picker.credentialDialog.getQueryEditor().element.style.webkitTextSecurity).toBe("disc");
 
     await picker.onCredential("secret");
 
