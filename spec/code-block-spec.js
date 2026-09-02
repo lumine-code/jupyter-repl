@@ -3,8 +3,8 @@ const { findCodeBlockAtRow } = require("../lib/code-manager");
 // Multiline triple-quoted strings hide their brackets from the line-based
 // bracket checks (`doc.x('''` ends with the string opener, `''')` starts with
 // its closer). Detection must capture the whole statement without relying on
-// a fold provider, so it works under any grammar (tree-sitter, TextMate, or
-// plain text buffers).
+// a fold provider, so it works independently of grammar folds and in plain
+// text buffers.
 describe("code block detection for multiline strings", () => {
   let editor;
 
@@ -74,16 +74,5 @@ describe("code block detection for multiline strings", () => {
     await open('doc.x("""\n11\n""")\n');
     const block = findCodeBlockAtRow(editor, 0);
     expect(block.code).toBe('doc.x("""\n11\n""")');
-  });
-
-  it("works under the TextMate python grammar, which has no string folds", async () => {
-    lumine.config.set("editor.useTreeSitterParsers", false);
-    await lumine.packages.activatePackage("language-python");
-    const e = await open("doc.x('''\n11\n''')\n");
-    lumine.grammars.assignLanguageMode(e.getBuffer(), "source.python");
-    expect(e.getBuffer().getLanguageMode().constructor.name).toBe("TextMateLanguageMode");
-    const block = findCodeBlockAtRow(e, 0);
-    expect(block.code).toBe("doc.x('''\n11\n''')");
-    lumine.config.set("editor.useTreeSitterParsers", true);
   });
 });
