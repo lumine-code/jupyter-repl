@@ -1,4 +1,5 @@
 const { findCodeBlockAtRow, getCommentStartString } = require("../lib/code-manager");
+const store = require("../lib/store");
 
 // Multiline triple-quoted strings hide their brackets from the line-based
 // bracket checks (`doc.x('''` ends with the string opener, `''')` starts with
@@ -74,6 +75,39 @@ describe("code block detection for multiline strings", () => {
     await open('doc.x("""\n11\n""")\n');
     const block = findCodeBlockAtRow(editor, 0);
     expect(block.code).toBe('doc.x("""\n11\n""")');
+  });
+
+  it("uses the public syntax-node accessor for a Python block", async () => {
+    await lumine.packages.activatePackage("language-python");
+    editor = await lumine.workspace.open("syntax-node-block.py");
+    editor.setText("def f():\n    value = 1\noutside = 2\n");
+    await editor.getBuffer().getLanguageMode().atTransactionEnd();
+    spyOnProperty(store.constructor.prototype, "kernel", "get").and.returnValue({
+      language: "python",
+    });
+    const getSyntaxNode = spyOn(editor, "getSyntaxNodeAtBufferPosition").and.callThrough();
+
+    const block = findCodeBlockAtRow(editor, 0);
+
+    expect(getSyntaxNode).toHaveBeenCalled();
+    expect(block.code.trimEnd()).toBe("def f():\n    value = 1");
+    expect(block.row).toBe(1);
+  });
+
+  it("keeps the regex fallback when the syntax-node accessor returns null", async () => {
+    await lumine.packages.activatePackage("language-python");
+    editor = await lumine.workspace.open("syntax-node-fallback.py");
+    editor.setText("def f():\n    value = 1\noutside = 2\n");
+    await editor.getBuffer().getLanguageMode().atTransactionEnd();
+    spyOnProperty(store.constructor.prototype, "kernel", "get").and.returnValue({
+      language: "python",
+    });
+    spyOn(editor, "getSyntaxNodeAtBufferPosition").and.returnValue(null);
+
+    const block = findCodeBlockAtRow(editor, 0);
+
+    expect(block.code.trimEnd()).toBe("def f():\n    value = 1");
+    expect(block.row).toBe(1);
   });
 });
 
