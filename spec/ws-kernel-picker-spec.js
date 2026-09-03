@@ -54,7 +54,7 @@ describe("ws-kernel-picker modal flow", () => {
     picker.credentialDialog.getQueryEditor().setText("secret");
     expect(picker.credentialDialog.getQueryEditor().element.style.webkitTextSecurity).toBe("disc");
 
-    await picker.onCredential("secret");
+    await lumine.commands.dispatch(picker.credentialDialog.getElement(), "core:confirm");
 
     expect(picker._gatewayOptions.token).toBe("secret");
     expect(picker.sessionList.isVisible()).toBeTruthy();
@@ -80,14 +80,14 @@ describe("ws-kernel-picker modal flow", () => {
     await picker.onGateway(GATEWAYS[0]);
     await picker.onAuthMethod("token");
 
-    await picker.onCredential("");
+    await lumine.commands.dispatch(picker.credentialDialog.getElement(), "core:confirm");
 
     expect(picker.credentialDialog.isVisible()).toBeTruthy();
-    expect(picker.credentialDialog.props.status).toEqual({
+    expect(picker.credentialDialog.getStatus()).toEqual({
       type: "error",
       message: "Enter a token.",
     });
-    expect(picker.credentialDialog.element.textContent).toContain("Enter a token.");
+    expect(picker.credentialDialog.getElement().textContent).toContain("Enter a token.");
     expect(picker.sessionList.isVisible()).toBeFalsy();
   });
 
@@ -96,7 +96,8 @@ describe("ws-kernel-picker modal flow", () => {
     await picker.toggle(() => true);
     await picker.onGateway(GATEWAYS[0]);
     await picker.onAuthMethod("token");
-    await picker.onCredential("wrong");
+    picker.credentialDialog.getQueryEditor().setText("wrong");
+    await lumine.commands.dispatch(picker.credentialDialog.getElement(), "core:confirm");
 
     expect(picker.sessionList.isVisible()).toBeFalsy();
     expect(picker.credentialDialog.isVisible()).toBeTruthy();
