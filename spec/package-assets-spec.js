@@ -55,7 +55,7 @@ describe("jupyter-repl package assets", () => {
     );
   });
 
-  it("builds select lists through the editor factory", () => {
+  it("adds select lists through the editor workspace factory", () => {
     const sources = [];
     const collect = (dir) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -71,7 +71,7 @@ describe("jupyter-repl package assets", () => {
 
     expect(
       sources.some((file) =>
-        fs.readFileSync(file, "utf8").includes("lumine.workspace.buildSelectList"),
+        fs.readFileSync(file, "utf8").includes("lumine.workspace.addSelectList"),
       ),
     ).toBe(true);
   });

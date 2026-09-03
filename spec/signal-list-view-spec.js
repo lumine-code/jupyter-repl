@@ -15,7 +15,7 @@ describe("SignalListView", () => {
   });
 
   it("loads a stable snapshot and runs its explicit primary action", async () => {
-    await view.selectList.show();
+    await view.selectListHost.show();
 
     expect(view.selectList.getItems().map((item) => item.command)).toEqual([
       "interrupt-kernel",
@@ -32,6 +32,6 @@ describe("SignalListView", () => {
     const [item, receivedStore] = handler.calls.mostRecent().args;
     expect(item.command).toBe("restart-kernel");
     expect(receivedStore).toBe(store);
-    expect(view.selectList.isVisible()).toBe(false);
+    expect(view.selectListHost.isVisible()).toBe(false);
   });
 });

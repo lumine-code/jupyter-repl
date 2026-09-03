@@ -21,7 +21,7 @@ describe("KernelManager kernel selection", () => {
     await Promise.resolve();
 
     expect(manager.kernelPicker).toBeDefined();
-    manager.kernelPicker.selectList.cancelSelection();
+    manager.kernelPicker.selectListHost.cancel();
 
     await expectAsync(pending).toBeResolvedTo(null);
     expect(manager.kernelPicker.onConfirmed).toBeNull();

@@ -36,7 +36,7 @@ describe("ws-kernel-picker modal flow", () => {
 
   it("opens the gateway list", async () => {
     await picker.toggle(() => true);
-    expect(picker.gatewayList.isVisible()).toBeTruthy();
+    expect(picker.gatewayListHost.isVisible()).toBeTruthy();
     expect(picker.gatewayList.getItems().map((item) => item.name)).toEqual(["local", "tokened"]);
   });
 
@@ -44,7 +44,7 @@ describe("ws-kernel-picker modal flow", () => {
     await picker.toggle(() => true);
     await confirmItem(picker.gatewayList, "local");
 
-    expect(picker.authList.isVisible()).toBeTruthy();
+    expect(picker.authListHost.isVisible()).toBeTruthy();
     expect(picker.authList.getInfoMessage()).toBe("Authenticate with local");
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "Authentication"]);
   });
@@ -54,7 +54,7 @@ describe("ws-kernel-picker modal flow", () => {
     await confirmItem(picker.gatewayList, "local");
     await confirmItem(picker.authList, "token");
 
-    expect(picker.credentialDialog.isVisible()).toBeTruthy();
+    expect(picker.credentialDialogHost.isVisible()).toBeTruthy();
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "Authentication", "Token"]);
     picker.credentialDialog.getQueryEditor().setText("secret");
     expect(picker.credentialDialog.getQueryEditor().element.style.webkitTextSecurity).toBe("disc");
@@ -62,7 +62,7 @@ describe("ws-kernel-picker modal flow", () => {
     await lumine.commands.dispatch(picker.credentialDialog.getElement(), "core:confirm");
 
     expect(picker._gatewayOptions.token).toBe("secret");
-    expect(picker.sessionList.isVisible()).toBeTruthy();
+    expect(picker.sessionListHost.isVisible()).toBeTruthy();
     expect(lumine.workspace.getModalTrail()).toEqual([
       "Gateways",
       "Authentication",
@@ -76,7 +76,7 @@ describe("ws-kernel-picker modal flow", () => {
     await picker.toggle(() => true);
     await confirmItem(picker.gatewayList, "tokened");
 
-    expect(picker.sessionList.isVisible()).toBeTruthy();
+    expect(picker.sessionListHost.isVisible()).toBeTruthy();
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "tokened"]);
   });
 
@@ -87,13 +87,13 @@ describe("ws-kernel-picker modal flow", () => {
 
     await lumine.commands.dispatch(picker.credentialDialog.getElement(), "core:confirm");
 
-    expect(picker.credentialDialog.isVisible()).toBeTruthy();
+    expect(picker.credentialDialogHost.isVisible()).toBeTruthy();
     expect(picker.credentialDialog.getStatus()).toEqual({
       type: "error",
       message: "Enter a token.",
     });
     expect(picker.credentialDialog.getElement().textContent).toContain("Enter a token.");
-    expect(picker.sessionList.isVisible()).toBeFalsy();
+    expect(picker.sessionListHost.isVisible()).toBeFalsy();
   });
 
   it("backs up one step to retry after an authentication failure", async () => {
@@ -104,8 +104,8 @@ describe("ws-kernel-picker modal flow", () => {
     picker.credentialDialog.getQueryEditor().setText("wrong");
     await lumine.commands.dispatch(picker.credentialDialog.getElement(), "core:confirm");
 
-    expect(picker.sessionList.isVisible()).toBeFalsy();
-    expect(picker.credentialDialog.isVisible()).toBeTruthy();
+    expect(picker.sessionListHost.isVisible()).toBeFalsy();
+    expect(picker.credentialDialogHost.isVisible()).toBeTruthy();
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "Authentication", "Token"]);
   });
 
@@ -116,13 +116,13 @@ describe("ws-kernel-picker modal flow", () => {
     const newSession = picker.sessionList.getItems()[0];
     await confirmItem(picker.sessionList, "new-session");
 
-    expect(picker.specList.isVisible()).toBeTruthy();
+    expect(picker.specListHost.isVisible()).toBeTruthy();
     expect(picker.specList.getInfoMessage()).toBe("Select a kernel spec");
     expect(picker.specList.getItems().map((item) => item.name)).toEqual(["Python 3"]);
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "tokened", "New session"]);
 
     expect(lumine.workspace.popModal()).toBe(true);
-    expect(picker.sessionList.isVisible()).toBeTruthy();
+    expect(picker.sessionListHost.isVisible()).toBeTruthy();
     expect(picker.sessionList.getItems()[0]).toBe(newSession);
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "tokened"]);
   });
@@ -131,7 +131,7 @@ describe("ws-kernel-picker modal flow", () => {
     await picker.toggle(() => false);
     await confirmItem(picker.gatewayList, "tokened");
 
-    expect(picker.sessionList.isVisible()).toBeFalsy();
+    expect(picker.sessionListHost.isVisible()).toBeFalsy();
     expect(lumine.workspace.getModalTrail()).toEqual([]);
   });
 });

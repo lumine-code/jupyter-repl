@@ -28,7 +28,7 @@ describe("jupyter-repl kernel picker item actions", () => {
   });
 
   it("describes its explicit actions through command presentation", async () => {
-    await picker.selectList.show();
+    await picker.selectListHost.show();
     await picker.selectList.selectIndex(0);
     const actions = picker.selectList.getAvailableActions();
     const byCommand = new Map(actions.map((action) => [action.command, action]));
@@ -74,28 +74,28 @@ describe("jupyter-repl kernel picker item actions", () => {
 
   it("selects the highlighted kernel exactly once through its semantic action", async () => {
     picker.onConfirmed = jasmine.createSpy("onConfirmed");
-    await picker.selectList.show();
+    await picker.selectListHost.show();
     await picker.selectList.selectIndex(1);
 
     await picker.selectList.runAction("jupyter-repl:select-kernel", { source: "spec" });
 
     expect(picker.onConfirmed).toHaveBeenCalledOnceWith(picker.kernelSpecs[1]);
-    expect(picker.selectList.isVisible()).toBe(false);
+    expect(picker.selectListHost.isVisible()).toBe(false);
   });
 
   it("runs a staying dialog action against the kernel list", async () => {
-    await picker.selectList.show();
+    await picker.selectListHost.show();
     const spy = spyOn(picker, "updateKernels");
     await picker.selectList.runAction("jupyter-repl:refresh-kernel-list", { source: "spec" });
 
     expect(spy).toHaveBeenCalled();
-    expect(picker.selectList.isVisible()).toBeTruthy();
+    expect(picker.selectListHost.isVisible()).toBeTruthy();
   });
 
   it("runs an action against the kernel the user highlighted", async () => {
     await lumine.packages.activatePackage("language-python");
     const editor = await lumine.workspace.open("kernel-comment.py");
-    await picker.selectList.show();
+    await picker.selectListHost.show();
     // The second kernel, so an action that silently fell back to the top of
     // the list would name the wrong one.
     await picker.selectList.selectIndex(1);
