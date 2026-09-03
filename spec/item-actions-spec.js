@@ -27,10 +27,10 @@ describe("jupyter-repl kernel picker item actions", () => {
     await lumine.packages.deactivatePackage("jupyter-repl");
   });
 
-  it("derives its actions from the command registrations and the keymap", async () => {
-    await picker.selectList.update({ items: picker.kernelSpecs });
+  it("describes its explicit actions through command presentation", async () => {
+    await picker.selectList.show();
     await picker.selectList.selectIndex(0);
-    const actions = picker.selectList.itemActions();
+    const actions = picker.selectList.getAvailableActions();
     const byCommand = new Map(actions.map((action) => [action.command, action]));
 
     const selectKernel = byCommand.get("jupyter-repl:select-kernel");
@@ -50,7 +50,7 @@ describe("jupyter-repl kernel picker item actions", () => {
     const updateKernels = byCommand.get("jupyter-repl:refresh-kernel-list");
     expect(updateKernels.description).toBe("Rescan the kernel specs on disk and reload the list.");
     expect(updateKernels.keystrokes).toEqual(["f5"]);
-    expect(updateKernels.scope).toBe("list");
+    expect(updateKernels.context).toBe("dialog");
 
     // Every action explains itself with more than a restated title.
     for (const action of actions) {
@@ -65,67 +65,42 @@ describe("jupyter-repl kernel picker item actions", () => {
   });
 
   it("keeps refresh available when no kernel is selected", async () => {
-    await picker.selectList.update({ items: [] });
+    await picker.selectList.setItems([]);
 
-    expect(picker.selectList.itemActions().map((action) => action.command)).toEqual([
+    expect(picker.selectList.getAvailableActions().map((action) => action.command)).toEqual([
       "jupyter-repl:refresh-kernel-list",
     ]);
   });
 
   it("selects the highlighted kernel exactly once through its semantic action", async () => {
     picker.onConfirmed = jasmine.createSpy("onConfirmed");
-    picker.selectList.show();
+    await picker.selectList.show();
     await picker.selectList.selectIndex(1);
 
-    await picker.selectList.showItemActions();
-    const index = picker.selectList.itemActionsList.items.findIndex(
-      (item) => item.command === "jupyter-repl:select-kernel",
-    );
-    picker.selectList.itemActionsList.selectIndex(index);
-    picker.selectList.itemActionsList.confirmSelection();
+    await picker.selectList.runAction("jupyter-repl:select-kernel", { source: "spec" });
 
     expect(picker.onConfirmed).toHaveBeenCalledOnceWith(picker.kernelSpecs[1]);
+    expect(picker.selectList.isVisible()).toBe(false);
   });
 
-  it("shows the actions as a flow step and runs one against the kernel list", async () => {
-    picker.selectList.show();
-
-    await picker.selectList.showItemActions();
-
-    expect(picker.selectList.itemActionsList.isVisible()).toBeTruthy();
-    expect(lumine.workspace.getModalTrail()).toEqual(["Kernels", "Actions"]);
-    // The actions list wears the picker's classes, so the package keymap
-    // resolves action keystrokes inside it too.
-    expect(picker.selectList.itemActionsList.element.classList.contains("kernel-picker")).toBe(
-      true,
-    );
-
+  it("runs a staying dialog action against the kernel list", async () => {
+    await picker.selectList.show();
     const spy = spyOn(picker, "updateKernels");
-    const index = picker.selectList.itemActionsList.items.findIndex(
-      (item) => item.command === "jupyter-repl:refresh-kernel-list",
-    );
-    picker.selectList.itemActionsList.selectIndex(index);
-    picker.selectList.itemActionsList.confirmSelection();
+    await picker.selectList.runAction("jupyter-repl:refresh-kernel-list", { source: "spec" });
 
     expect(spy).toHaveBeenCalled();
     expect(picker.selectList.isVisible()).toBeTruthy();
-    expect(picker.selectList.itemActionsList.isVisible()).toBeFalsy();
   });
 
   it("runs an action against the kernel the user highlighted", async () => {
     await lumine.packages.activatePackage("language-python");
     const editor = await lumine.workspace.open("kernel-comment.py");
-    picker.selectList.show();
+    await picker.selectList.show();
     // The second kernel, so an action that silently fell back to the top of
     // the list would name the wrong one.
     await picker.selectList.selectIndex(1);
 
-    await picker.selectList.showItemActions();
-    const index = picker.selectList.itemActionsList.items.findIndex(
-      (item) => item.command === "jupyter-repl:insert-kernel-comment",
-    );
-    picker.selectList.itemActionsList.selectIndex(index);
-    picker.selectList.itemActionsList.confirmSelection();
+    await picker.selectList.runAction("jupyter-repl:insert-kernel-comment", { source: "spec" });
 
     expect(editor.lineTextForBufferRow(0)).toBe("#:: ir");
   });

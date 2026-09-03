@@ -29,25 +29,30 @@ describe("ws-kernel-picker modal flow", () => {
     picker.destroy();
   });
 
+  async function confirmItem(list, id) {
+    await list.selectItemById(id);
+    await list.confirmSelection();
+  }
+
   it("opens the gateway list", async () => {
     await picker.toggle(() => true);
     expect(picker.gatewayList.isVisible()).toBeTruthy();
-    expect(picker.gatewayList.props.items.map((item) => item.name)).toEqual(["local", "tokened"]);
+    expect(picker.gatewayList.getItems().map((item) => item.name)).toEqual(["local", "tokened"]);
   });
 
   it("asks for an authentication method when the gateway has no token", async () => {
     await picker.toggle(() => true);
-    await picker.onGateway(GATEWAYS[0]);
+    await confirmItem(picker.gatewayList, "local");
 
     expect(picker.authList.isVisible()).toBeTruthy();
-    expect(picker.authList.props.infoMessage).toBe("Authenticate with local");
+    expect(picker.authList.getInfoMessage()).toBe("Authenticate with local");
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "Authentication"]);
   });
 
   it("prompts for a masked token and reaches the gateway's sessions", async () => {
     await picker.toggle(() => true);
-    await picker.onGateway(GATEWAYS[0]);
-    await picker.onAuthMethod("token");
+    await confirmItem(picker.gatewayList, "local");
+    await confirmItem(picker.authList, "token");
 
     expect(picker.credentialDialog.isVisible()).toBeTruthy();
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "Authentication", "Token"]);
@@ -64,12 +69,12 @@ describe("ws-kernel-picker modal flow", () => {
       "Token",
       "local",
     ]);
-    expect(picker.sessionList.props.items.map((item) => item.name)).toEqual(["[new session]"]);
+    expect(picker.sessionList.getItems().map((item) => item.name)).toEqual(["[new session]"]);
   });
 
   it("skips the authentication steps for a preconfigured token", async () => {
     await picker.toggle(() => true);
-    await picker.onGateway(GATEWAYS[1]);
+    await confirmItem(picker.gatewayList, "tokened");
 
     expect(picker.sessionList.isVisible()).toBeTruthy();
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "tokened"]);
@@ -77,8 +82,8 @@ describe("ws-kernel-picker modal flow", () => {
 
   it("keeps an empty credential in the dialog with an error message", async () => {
     await picker.toggle(() => true);
-    await picker.onGateway(GATEWAYS[0]);
-    await picker.onAuthMethod("token");
+    await confirmItem(picker.gatewayList, "local");
+    await confirmItem(picker.authList, "token");
 
     await lumine.commands.dispatch(picker.credentialDialog.getElement(), "core:confirm");
 
@@ -94,8 +99,8 @@ describe("ws-kernel-picker modal flow", () => {
   it("backs up one step to retry after an authentication failure", async () => {
     picker.fetchSpecs.and.callFake(() => Promise.reject({ response: { status: 401 } }));
     await picker.toggle(() => true);
-    await picker.onGateway(GATEWAYS[0]);
-    await picker.onAuthMethod("token");
+    await confirmItem(picker.gatewayList, "local");
+    await confirmItem(picker.authList, "token");
     picker.credentialDialog.getQueryEditor().setText("wrong");
     await lumine.commands.dispatch(picker.credentialDialog.getElement(), "core:confirm");
 
@@ -106,25 +111,25 @@ describe("ws-kernel-picker modal flow", () => {
 
   it("lists kernel specs for a new session and navigates back to the sessions", async () => {
     await picker.toggle(() => true);
-    await picker.onGateway(GATEWAYS[1]);
+    await confirmItem(picker.gatewayList, "tokened");
 
-    const newSession = picker.sessionList.props.items[0];
-    await picker.showSpecList(newSession);
+    const newSession = picker.sessionList.getItems()[0];
+    await confirmItem(picker.sessionList, "new-session");
 
     expect(picker.specList.isVisible()).toBeTruthy();
-    expect(picker.specList.props.infoMessage).toBe("Select a kernel spec");
-    expect(picker.specList.props.items.map((item) => item.name)).toEqual(["Python 3"]);
+    expect(picker.specList.getInfoMessage()).toBe("Select a kernel spec");
+    expect(picker.specList.getItems().map((item) => item.name)).toEqual(["Python 3"]);
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "tokened", "New session"]);
 
     expect(lumine.workspace.popModal()).toBe(true);
     expect(picker.sessionList.isVisible()).toBeTruthy();
-    expect(picker.sessionList.props.items[0]).toBe(newSession);
+    expect(picker.sessionList.getItems()[0]).toBe(newSession);
     expect(lumine.workspace.getModalTrail()).toEqual(["Gateways", "tokened"]);
   });
 
   it("abandons the flow when no kernel spec matches the grammar", async () => {
     await picker.toggle(() => false);
-    await picker.onGateway(GATEWAYS[1]);
+    await confirmItem(picker.gatewayList, "tokened");
 
     expect(picker.sessionList.isVisible()).toBeFalsy();
     expect(lumine.workspace.getModalTrail()).toEqual([]);
