@@ -300,7 +300,7 @@
     "uuid": "^14.0.2",
     "ws": "^8.21.3",
     "xmlhttprequest": "^1.8.0",
-    "zeromq": "^6.6.0"
+    "zeromq": "^6.7.0"
   },
   "overrides": {
     "uuid": "$uuid"
