@@ -23,6 +23,9 @@
   "backgroundTips": [
     "You can run the line or the selection under the cursor in a Jupyter kernel with {{ 'jupyter-repl:run' | keystroke }}"
   ],
+  "deserializers": {
+    "jupyter-repl/OutputPane": "deserializeOutputPane"
+  },
   "main": "./lib/main",
   "files": [
     "assets",
