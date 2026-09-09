@@ -16,8 +16,10 @@ describe("the jupyter-kernel editor class", () => {
   let store;
   let directory;
   let previousEditor;
+  let editors;
 
   beforeEach(async () => {
+    editors = [];
     store = require("../lib/store");
     previousEditor = store.editor;
     directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "jupyter-repl-class-")));
@@ -28,7 +30,7 @@ describe("the jupyter-kernel editor class", () => {
   }, 30000);
 
   afterEach(async () => {
-    for (const editor of lumine.workspace.getTextEditors()) {
+    for (const editor of editors) {
       editor.destroy();
     }
     store.runningKernels = [];
@@ -37,8 +39,15 @@ describe("the jupyter-kernel editor class", () => {
       store.editor = previousEditor;
     }
     await lumine.packages.deactivatePackage("jupyter-repl");
-    fs.rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await lumine.fileWatchClient.settlePendingTeardown();
+    fs.rmSync(directory, { recursive: true, force: true });
   });
+
+  async function openEditor(filePath) {
+    const editor = await lumine.workspace.open(filePath);
+    editors.push(editor);
+    return editor;
+  }
 
   // `getFilesForKernel` narrows on `instanceof Kernel` before reading the
   // grammar off it, so a plain object would take the multi-language branch.
@@ -57,8 +66,8 @@ describe("the jupyter-kernel editor class", () => {
   }
 
   it("marks an editor whose file has a running kernel, and leaves the others alone", async () => {
-    const withKernel = await lumine.workspace.open(write("with.py"));
-    const withoutKernel = await lumine.workspace.open(write("without.py"));
+    const withKernel = await openEditor(write("with.py"));
+    const withoutKernel = await openEditor(write("without.py"));
 
     startKernelFor(withKernel.getPath());
     store._emitKernelsChanged();
@@ -72,13 +81,13 @@ describe("the jupyter-kernel editor class", () => {
     startKernelFor(filePath);
     store._emitKernelsChanged();
 
-    const editor = await lumine.workspace.open(filePath);
+    const editor = await openEditor(filePath);
 
     expect(editor.element.classList.contains("jupyter-kernel")).toBe(true);
   });
 
   it("unmarks every editor once the kernel is gone", async () => {
-    const editor = await lumine.workspace.open(write("gone.py"));
+    const editor = await openEditor(write("gone.py"));
     startKernelFor(editor.getPath());
     store._emitKernelsChanged();
     expect(editor.element.classList.contains("jupyter-kernel")).toBe(true);
