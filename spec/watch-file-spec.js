@@ -1,63 +1,34 @@
-const { watchFile } = require("lumine");
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const store = require("../lib/store");
 
-// The store's `addFileDisposer` used to build a synchronous `new File(path)`
-// (backed by the removed `pathwatcher`) and subscribe to `onDidDelete`. Lumine
-// replaced that with the async `watchFile`. These specs pin the parts of the
-// `watchFile` contract the store depends on. The handle exposes its `emitter`
-// specifically so callers can synthesize events without depending on real
-// filesystem timing, which keeps this spec deterministic on CI.
-describe("watchFile (kernel-file watcher migration)", () => {
-  let dir, file, handle;
-
+describe("kernel mapping file observation", () => {
+  let directory, filePath, handle;
   beforeEach(() => {
-    dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "jupyter-repl-watch-")));
-    file = path.join(dir, "notebook.py");
-    fs.writeFileSync(file, "print('hi')\n");
-  });
-
-  afterEach(() => {
-    if (handle) {
-      handle.dispose();
-      handle = null;
-    }
-    // Retries because Windows keeps a directory non-empty until the last handle on a child
-    // closes, and `force` swallows only ENOENT.
-    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-  });
-
-  it("is exported from the lumine module as a function", () => {
-    expect(typeof watchFile).toBe("function");
-  });
-
-  it("returns a handle with onDidDelete and dispose", () => {
-    handle = watchFile(file);
-    expect(typeof handle.onDidDelete).toBe("function");
-    expect(typeof handle.dispose).toBe("function");
-    expect(typeof handle.getStartPromise).toBe("function");
-  });
-
-  it("fires onDidDelete so the store can drop the kernel mapping", () => {
-    handle = watchFile(file);
-    let deleted = 0;
-    const sub = handle.onDidDelete(() => {
-      deleted += 1;
+    jasmine.useRealClock();
+    directory = fs.mkdtempSync(path.join(os.tmpdir(), "kernel-file-watch-"));
+    filePath = path.join(directory, "notebook.py");
+    fs.writeFileSync(filePath, "print('saved')\n");
+    const watchFile = lumine.fileWatchClient.watchFile.bind(lumine.fileWatchClient);
+    spyOn(lumine.fileWatchClient, "watchFile").and.callFake((target) => {
+      handle = watchFile(target);
+      return handle;
     });
-
-    handle.emitter.emit("did-delete");
-    expect(deleted).toBe(1);
-
-    // Disposing the subscription stops further notifications, mirroring how the
-    // store tears the watcher down inside its file disposer.
-    sub.dispose();
-    handle.emitter.emit("did-delete");
-    expect(deleted).toBe(1);
   });
-
-  it("arms without throwing and resolves its start promise", async () => {
-    handle = watchFile(file);
-    await handle.getStartPromise();
+  afterEach(async () => {
+    handle?.dispose();
+    await handle?.closed;
+    store.kernelMapping.delete(filePath);
+    fs.rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  });
+  it("drops the original filename mapping when that file is renamed away", async () => {
+    store.kernelMapping.set(filePath, {});
+    store.addFileDisposer(null, filePath);
+    await handle.ready;
+    fs.renameSync(filePath, path.join(directory, "renamed.py"));
+    await globalThis.conditionPromise(() => !store.kernelMapping.has(filePath));
+    expect(handle.path).toBe(filePath);
+    await handle.closed;
   });
 });
