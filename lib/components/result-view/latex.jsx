@@ -151,7 +151,43 @@ function splitRuns(findTeX, source) {
     at = item.end.n;
   }
   pushText(source.slice(at));
-  return runs;
+
+  // FindTeX is a page scanner, so with processEscapes enabled it reads `\\`
+  // between two delimited formulae as an escaped backslash replacement. That
+  // turns `$a$ \\[5pt] $b$` into math, the literal text `\[5pt]`, and math.
+  // In a text/latex bundle the same token is TeX's row separator. Put formulae
+  // connected only by that separator back into one conversion, where MathJax
+  // handles the optional star and line-leading dimension itself. A multiline
+  // conversion is display math so MathJax lays out the requested vertical
+  // leading in the SVG rather than emitting independent inline SVG segments.
+  const joined = [];
+  const rowBreak = /^\s*\\(\*?(?:\[[^\]\r\n]*\])?)\s*$/;
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+    if (run.kind !== "math" || run.display) {
+      joined.push(run);
+      continue;
+    }
+
+    let math = run.math;
+    let end = i;
+    while (end + 2 < runs.length) {
+      const separator = runs[end + 1];
+      const next = runs[end + 2];
+      const match = separator.kind === "text" ? rowBreak.exec(separator.text) : null;
+      if (!match || next.kind !== "math" || next.display) break;
+      math += ` \\\\${match[1]} ${next.math}`;
+      end += 2;
+    }
+
+    if (end === i) {
+      joined.push(run);
+    } else {
+      joined.push({ kind: "math", math, display: true });
+      i = end;
+    }
+  }
+  return joined;
 }
 
 // Renders are chained, not raced: convertPromise can yield mid-conversion to

@@ -57,6 +57,28 @@ describe("LaTeX MathJax rendering (async ESM load)", () => {
     expect(clean(runs[1]).display).toBe(false);
   });
 
+  it("renders Item's inline equations and row leading as one multiline formula", async () => {
+    // bacadra.txgen.Item._repr_latex_ joins a list in modes i/i# with this
+    // exact separator. FindTeX otherwise treats the two backslashes as an
+    // escape and leaves the visible text `\[5pt]` between two SVGs.
+    const source =
+      "$\\displaystyle {I}_{y}=36410\\,\\mathrm{cm}^{4}$\n" +
+      "\\\\[5pt]\n" +
+      "$\\displaystyle {I}_{z}=9687\\,\\mathrm{cm}^{4}$";
+    const run = clean(soleMath(await renderLatexRuns(source)));
+    expect(run.display).toBe(true);
+    expect(run.svg).toContain('data-lineleading="5pt"');
+    expect(run.svg).toContain('data-mjx-lineno="1"');
+  });
+
+  it("keeps TeX row-break variants between inline formulae inside MathJax", async () => {
+    for (const separator of ["\\\\", "\\\\[-2pt]", "\\\\*[1em]"]) {
+      const run = clean(soleMath(await renderLatexRuns(`$a$\n${separator}\n$b$`)));
+      expect(run.display).toBe(true);
+      expect(run.svg).toContain('data-mjx-lineno="1"');
+    }
+  });
+
   it("folds an escaped dollar back into the text", async () => {
     const runs = await renderLatexRuns("Costs \\$5 for $x$ items");
     expect(runs.map((run) => run.kind)).toEqual(["text", "math", "text"]);
