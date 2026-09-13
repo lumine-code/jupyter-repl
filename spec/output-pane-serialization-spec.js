@@ -36,6 +36,8 @@ describe("restoring the Output Area pane", () => {
     item.component.setScrollList();
 
     expect(item.serialize()).toEqual({ deserializer: DESERIALIZER });
+    expect(item.getDefaultLocation()).toBe("right");
+    expect(item.getAllowedLocations()).toEqual(["right", "left"]);
   });
 
   it("round-trips through the manifest-registered proxy before activation", () => {
