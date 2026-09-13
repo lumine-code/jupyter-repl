@@ -73,21 +73,22 @@ describe("kernel launch readiness", () => {
     expect(probe.startsWith("ready_probe_")).toBe(true);
   });
 
-  it("completes on traffic alone, without any monitor event", () => {
+  it("completes when this round's kernel_info probe produces shell and iopub traffic", () => {
     kernel = bareKernel();
     let started = 0;
     kernel.monitor(() => started++);
 
-    kernel.shellSocket.emit("message");
+    const echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
     expect(started).toBe(0);
 
-    kernel.ioSocket.emit("message");
+    kernel.ioSocket.emit("message", echo);
     expect(started).toBe(1);
     expect(kernel.states).toEqual(["idle"]);
     expect(kernel._readyProbe).toBe(null);
   });
 
-  it("still completes on the monitor's connect events", () => {
+  it("does not complete on monitor connect events before kernel_info_reply", () => {
     kernel = bareKernel();
     let started = 0;
     kernel.monitor(() => started++);
@@ -95,7 +96,7 @@ describe("kernel launch readiness", () => {
     kernel.shellSocket.emit("connect");
     kernel.ioSocket.emit("connect");
 
-    expect(started).toBe(1);
+    expect(started).toBe(0);
   });
 
   it("completes once, however many signals arrive", () => {
@@ -104,8 +105,9 @@ describe("kernel launch readiness", () => {
     kernel.monitor(() => started++);
 
     kernel.shellSocket.emit("connect");
-    kernel.shellSocket.emit("message");
-    kernel.ioSocket.emit("message");
+    const echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", echo);
     kernel.ioSocket.emit("connect");
     kernel.shellSocket.emit("message");
 
@@ -166,15 +168,21 @@ describe("kernel launch readiness", () => {
     expect(restarted).toBe(0);
   });
 
-  it("still takes the fast paths on first launch", () => {
-    // First launch has no dead process to drain, so any traffic — and the
-    // Observer's connect events — remain honest evidence there.
+  it("requires the current probe even on first launch", () => {
     kernel = bareKernel();
     let started = 0;
     kernel.monitor(() => started++);
 
     kernel.shellSocket.emit("connect");
-    kernel.ioSocket.emit("message");
+    kernel.ioSocket.emit("message", {
+      parent_header: { msg_id: "unrelated", msg_type: "status" },
+    });
+
+    expect(started).toBe(0);
+
+    const echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", echo);
 
     expect(started).toBe(1);
   });
@@ -186,8 +194,9 @@ describe("kernel launch readiness", () => {
     kernel.monitor(() => {});
     expect(kernel.ioSocket.listenerCount("message")).toBe(1);
 
-    kernel.shellSocket.emit("message");
-    kernel.ioSocket.emit("message");
+    const echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", echo);
 
     expect(kernel.ioSocket.listenerCount("message")).toBe(0);
     expect(kernel.ioSocket.listenerCount("connect")).toBe(0);
@@ -291,8 +300,9 @@ describe("kernel launch readiness", () => {
     kernel.monitor(() => {});
     expect(Object.keys(kernel.executionCallbacks).length).toBe(1);
 
-    kernel.shellSocket.emit("message");
-    kernel.ioSocket.emit("message");
+    const echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", echo);
 
     expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
   });
@@ -305,8 +315,9 @@ describe("kernel launch readiness", () => {
     kernel.monitor(() => {});
     expect(kernel._ackWatchdog).toBeFalsy();
 
-    kernel.shellSocket.emit("message");
-    kernel.ioSocket.emit("message");
+    const echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", echo);
 
     expect(kernel._ackWatchdog).toBeTruthy();
   });
@@ -316,12 +327,13 @@ describe("kernel launch readiness", () => {
     // that died and was restarted used to serve cells with no watchdog at all.
     kernel = bareKernel();
     kernel.monitor(() => {});
-    kernel.shellSocket.emit("message");
-    kernel.ioSocket.emit("message");
+    let echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", echo);
     kernel._stopAckWatchdog();
 
     kernel.monitor(() => {}, true);
-    const echo = probeEcho(kernel);
+    echo = probeEcho(kernel);
     kernel.shellSocket.emit("message", echo);
     kernel.ioSocket.emit("message", echo);
 
@@ -331,13 +343,14 @@ describe("kernel launch readiness", () => {
   it("does not accumulate listeners across restarts", () => {
     kernel = bareKernel();
     kernel.monitor(() => {});
-    kernel.shellSocket.emit("message");
-    kernel.ioSocket.emit("message");
+    let echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", echo);
 
     for (let restart = 0; restart < 5; restart++) {
       kernel.monitor(() => {}, true);
       expect(kernel.ioSocket.listenerCount("message")).toBe(1);
-      const echo = probeEcho(kernel);
+      echo = probeEcho(kernel);
       kernel.shellSocket.emit("message", echo);
       kernel.ioSocket.emit("message", echo);
       expect(kernel.ioSocket.listenerCount("message")).toBe(0);
@@ -350,8 +363,9 @@ describe("kernel launch readiness", () => {
     kernel.monitor(() => started++);
 
     kernel._destroyed = true;
-    kernel.shellSocket.emit("message");
-    kernel.ioSocket.emit("message");
+    const echo = probeEcho(kernel);
+    kernel.shellSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", echo);
 
     expect(started).toBe(0);
   });

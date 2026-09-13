@@ -40,14 +40,15 @@ module.exports = {
 
 The service object must expose `getActiveAdapter()` or `handlesItem(item)` plus `getAdapterForItem(item)`. The active adapter should expose:
 
-- Required identity/context methods: `getPaneItem()`, `getPath()`, `getTitle()`. Unsaved or virtual adapters may also expose `getAdapterId()` for a stable non-path key.
+- Required identity/context methods: `getPaneItem()`, `getKernelOwner()`, `getPath()`, and `getTitle()`. `getKernelOwner()` returns the document object shared by every split; it must expose a stable `id`, `onDidChangePath(callback)`, and `onDidDestroy(callback)` so one kernel binding follows Save As and survives until the last view closes.
 - Required target methods: `getRunTargets(scope)`, `getRunTarget(id)`, `getActiveTargetId()`.
-- Each target should include `{ id, editor, grammar, source, row, type, executable }`. `executable: false`, `type: "markdown"`, and `type: "raw"` targets are skipped without starting kernel execution.
-- Optional kernel methods: `getKernelTarget(id)`, `getMetadata()`, `setKernelSpec(spec)`.
+- Each target should include `{ id, editor, grammar, source, row, type, executable }`. `id` is the document-stable target identity and must survive insertion, deletion, and reordering; array indexes are not identities. `grammar` is only the target editor's syntax/LSP grammar; it never selects or binds an execution kernel. `executable: false`, `type: "markdown"`, and `type: "raw"` targets are skipped without starting kernel execution.
+- Required kernel methods: `getKernelLanguage(kernelSpec?)`, `getKernelGrammar(kernelSpec?)`, `getMetadata()`, and `setKernelSpec(spec, languageInfo?)`. `getKernelLanguage` names the notebook's one execution language, `getKernelGrammar` supplies the closest Lumine grammar or Plain Text, and `setKernelSpec` synchronously and atomically replaces `metadata.kernelspec` and the complete `metadata.language_info` object after a kernel is ready.
+- Optional kernel target method: `getKernelTarget(id)`, used to find an editor for execution UI without making that target's grammar the kernel language.
 - Optional navigation methods: `setActiveTargetId(id)`, `getNextRunTarget(target)`, `focusTarget(target)`.
 - Optional output methods: `clearTargetOutputs(target)`, `appendTargetOutput(target, output)`, `setTargetExecutionCount(target, count)`.
 - Optional lifecycle methods: `beginTargetExecution(target, result)`, `finishTargetExecution(target, result)`, `cancelTargetExecution(target, result)`, `failTargetExecution(target, result)`, and `skipTargetExecution(target, result)`.
-- Optional path method: `onDidChangePath(callback)`, used to keep kernel mappings stable when an unsaved adapter item is saved or renamed.
+- A notebook binding is document-scoped: every code target executes in the same kernel, manual local/remote/existing pickers offer every language, and an installed grammar is not required to start a kernel.
 
 `finishTargetExecution` receives `{ kernel, success, status, lastExecutionTime }`, where `status` is one of `"ok"`, `"error"`, `"failed"`, `"cancelled"`, or `"skipped"`. Its `lastExecutionTime` is the duration of that target's own execution — not the kernel's shared field, which on a shared kernel can name another client's cell.
 
@@ -128,12 +129,13 @@ State is kernel-wide: every field follows the kernel process across all of its c
 
 #### Kernel info
 
-| Property/Method       | Description                              |
-| --------------------- | ---------------------------------------- |
-| `language`            | Kernel language (e.g., `"python"`)       |
-| `displayName`         | Kernel display name (e.g., `"Python 3"`) |
-| `kernelSpec`          | Full kernel spec object                  |
-| `getConnectionFile()` | Path to kernel connection file           |
+| Property/Method       | Description                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `language`            | Kernel language (e.g., `"python"`)                                                    |
+| `languageInfo`        | Read-only `language_info` reported by the running kernel, or `null` before it replies |
+| `displayName`         | Kernel display name (e.g., `"Python 3"`)                                              |
+| `kernelSpec`          | Full kernel spec object                                                               |
+| `getConnectionFile()` | Path to kernel connection file                                                        |
 
 #### Events & Middleware
 

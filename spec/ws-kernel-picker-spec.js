@@ -61,7 +61,7 @@ describe("ws-kernel-picker modal flow", () => {
 
     await lumine.commands.dispatch(picker.credentialDialog.getElement(), "core:confirm");
 
-    expect(picker._gatewayOptions.token).toBe("secret");
+    expect(picker._flow.gatewayOptions.token).toBe("secret");
     expect(picker.sessionListHost.isVisible()).toBeTruthy();
     expect(lumine.workspace.getModalTrail()).toEqual([
       "Gateways",
@@ -134,4 +134,223 @@ describe("ws-kernel-picker modal flow", () => {
     expect(picker.sessionListHost.isVisible()).toBeFalsy();
     expect(lumine.workspace.getModalTrail()).toEqual([]);
   });
+
+  it("offers every remote language when a notebook adapter opened the picker", async () => {
+    picker.fetchSpecs.and.returnValue(
+      Promise.resolve({
+        kernelspecs: {
+          python3: { name: "python3", display_name: "Python 3", language: "python" },
+          ir: { name: "ir", display_name: "R", language: "R" },
+        },
+      }),
+    );
+    const context = {
+      adapter: {},
+      filePath: "C:\\work\\notebook.ipynb",
+      grammar: { name: "Python", scopeName: "source.python" },
+    };
+
+    await picker.toggle(null, context);
+    await confirmItem(picker.gatewayList, "tokened");
+
+    const newSession = picker.sessionList.getItems()[0];
+    expect(newSession.kernelSpecs.map((spec) => spec.name)).toEqual(["python3", "ir"]);
+  });
+
+  it("carries the opening context and kernel_info language through a remote choice", async () => {
+    picker.destroy();
+    const chosen = jasmine.createSpy("chosen");
+    picker = new WSKernelPicker(chosen);
+    const languageInfo = { name: "R", version: "4.5" };
+    const kernelSpec = { name: "ir", display_name: "R", language: "R" };
+    const signal = { connect: () => {} };
+    const session = {
+      dispose: () => {},
+      kernel: {
+        ready: Promise.resolve(),
+        spec: Promise.resolve(kernelSpec),
+        status: "idle",
+        statusChanged: signal,
+        connectionStatusChanged: signal,
+        iopubMessage: signal,
+        requestKernelInfo: jasmine
+          .createSpy("requestKernelInfo")
+          .and.resolveTo({ content: { language_info: languageInfo } }),
+      },
+    };
+    const rGrammar = { name: "R", scopeName: "source.r" };
+    const context = {
+      adapter: { getKernelGrammar: () => rGrammar },
+      grammar: { name: "Python", scopeName: "source.python" },
+    };
+    const flow = picker._beginFlow(null, context);
+    flow.gatewayName = "test";
+    flow.committing = true;
+
+    await picker.onSessionChosen(session, {}, flow, false);
+
+    expect(session.kernel.requestKernelInfo).toHaveBeenCalled();
+    expect(chosen).toHaveBeenCalled();
+    const [transport, chosenContext] = chosen.calls.mostRecent().args;
+    expect(transport.languageInfo).toEqual(languageInfo);
+    expect(transport.language).toBe("r");
+    expect(transport.grammar).toBe(rGrammar);
+    expect(transport.ownsKernelProcess).toBe(false);
+    expect(chosenContext).toBe(context);
+  });
+
+  it("falls back to the kernelspec when a ready remote kernel never answers kernel_info", async () => {
+    picker.destroy();
+    const chosen = jasmine.createSpy("chosen");
+    picker = new WSKernelPicker(chosen);
+    const signal = { connect: () => {} };
+    const session = {
+      dispose: () => {},
+      kernel: {
+        ready: Promise.resolve(),
+        spec: Promise.resolve({
+          name: "python3",
+          display_name: "Python 3",
+          language: "python",
+        }),
+        status: "idle",
+        statusChanged: signal,
+        connectionStatusChanged: signal,
+        iopubMessage: signal,
+        requestKernelInfo: jasmine
+          .createSpy("requestKernelInfo")
+          .and.returnValue(new Promise(() => {})),
+      },
+    };
+    const context = { grammar: { name: "Python", scopeName: "source.python" } };
+    const flow = picker._beginFlow(null, context);
+    flow.gatewayName = "test";
+    flow.committing = true;
+
+    const pending = picker.onSessionChosen(session, {}, flow, false);
+    await Promise.resolve();
+    await Promise.resolve();
+    window.advanceClock(3000);
+    await pending;
+
+    const [transport] = chosen.calls.mostRecent().args;
+    expect(transport.languageInfo).toBeNull();
+    expect(transport.language).toBe("python");
+    transport.destroy();
+  });
+
+  it("disconnects instead of binding when the captured ordinary editor was destroyed", async () => {
+    picker.destroy();
+    const chosen = jasmine.createSpy("chosen");
+    picker = new WSKernelPicker(chosen);
+    const signal = { connect: () => {} };
+    const session = {
+      dispose: jasmine.createSpy("dispose"),
+      shutdown: jasmine.createSpy("shutdown"),
+      kernel: {
+        ready: Promise.resolve(),
+        spec: Promise.resolve({ name: "python3", display_name: "Python 3", language: "python" }),
+        status: "idle",
+        statusChanged: signal,
+        connectionStatusChanged: signal,
+        iopubMessage: signal,
+        requestKernelInfo: jasmine.createSpy("requestKernelInfo"),
+      },
+    };
+    const context = {
+      editor: { isDestroyed: () => true },
+      grammar: { name: "Python", scopeName: "source.python" },
+    };
+    const flow = picker._beginFlow(null, context);
+    flow.gatewayName = "test";
+    flow.committing = true;
+
+    await picker.onSessionChosen(session, {}, flow, false);
+
+    expect(chosen).not.toHaveBeenCalled();
+    expect(session.dispose).toHaveBeenCalled();
+    expect(session.shutdown).not.toHaveBeenCalled();
+  });
+
+  it("lets adapter binding refresh after the captured split editor was destroyed", async () => {
+    picker.destroy();
+    const chosen = jasmine.createSpy("chosen");
+    picker = new WSKernelPicker(chosen);
+    const signal = { connect: () => {} };
+    const session = {
+      dispose: jasmine.createSpy("dispose"),
+      kernel: {
+        ready: Promise.resolve(),
+        spec: Promise.resolve({ name: "python3", display_name: "Python 3", language: "python" }),
+        status: "idle",
+        statusChanged: signal,
+        connectionStatusChanged: signal,
+        iopubMessage: signal,
+        requestKernelInfo: jasmine.createSpy("requestKernelInfo").and.resolveTo({
+          content: { language_info: { name: "python" } },
+        }),
+      },
+    };
+    const grammar = { name: "Python", scopeName: "source.python" };
+    const context = {
+      adapter: { getKernelGrammar: () => grammar },
+      owner: { isDestroyed: () => false },
+      editor: { isDestroyed: () => true },
+      grammar,
+    };
+    const flow = picker._beginFlow(null, context);
+    flow.gatewayName = "test";
+    flow.committing = true;
+
+    await picker.onSessionChosen(session, {}, flow, false);
+
+    expect(chosen).toHaveBeenCalled();
+    expect(chosen.calls.mostRecent().args[1]).toBe(context);
+    expect(session.dispose).not.toHaveBeenCalled();
+    chosen.calls.mostRecent().args[0].destroy();
+  });
+
+  for (const [label, ownsKernelProcess] of [
+    ["disconnects a stale attached session", false],
+    ["shuts down a stale session it created", true],
+  ]) {
+    it(label, async () => {
+      picker.destroy();
+      const chosen = jasmine.createSpy("chosen");
+      picker = new WSKernelPicker(chosen);
+      const signal = { connect: () => {} };
+      const session = {
+        dispose: jasmine.createSpy("dispose"),
+        shutdown: jasmine.createSpy("shutdown").and.resolveTo(),
+        kernel: {
+          ready: Promise.resolve(),
+          spec: Promise.resolve({ name: "python3", display_name: "Python 3", language: "python" }),
+          status: "idle",
+          statusChanged: signal,
+          connectionStatusChanged: signal,
+          iopubMessage: signal,
+          requestKernelInfo: jasmine.createSpy("requestKernelInfo").and.resolveTo({
+            content: { language_info: { name: "python" } },
+          }),
+        },
+      };
+      const managers = {
+        sessionManager: { dispose: jasmine.createSpy("dispose session manager") },
+        kernelManager: { dispose: jasmine.createSpy("dispose kernel manager") },
+      };
+      const context = { grammar: { name: "Python", scopeName: "source.python" } };
+      const staleFlow = picker._beginFlow(null, context);
+      staleFlow.gatewayName = "test";
+      const pending = picker.onSessionChosen(session, managers, staleFlow, ownsKernelProcess);
+      picker._beginFlow(null, { grammar: context.grammar });
+
+      await pending;
+
+      expect(chosen).not.toHaveBeenCalled();
+      expect(session.dispose).toHaveBeenCalled();
+      expect(session.shutdown).toHaveBeenCalledTimes(ownsKernelProcess ? 1 : 0);
+      expect(managers.sessionManager.dispose).toHaveBeenCalled();
+      expect(managers.kernelManager.dispose).toHaveBeenCalled();
+    });
+  }
 });

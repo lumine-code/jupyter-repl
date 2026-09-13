@@ -74,6 +74,7 @@ type JupyterKernel = {
   readonly id: string;
   readonly displayName: string;
   readonly language: string;
+  readonly languageInfo: object | null;
   readonly grammar: Grammar;
   readonly kernelSpec: object;
   getConnectionFile(): string;
@@ -124,6 +125,8 @@ type JupyterKernel = {
 ```
 
 `id` is stable for the life of the kernel and unique within the window. Name a kernel by it rather than by `displayName`, which two Python 3 kernels share, or by `getConnectionFile()`, which throws for a kernel reached over a websocket.
+
+`languageInfo` is the last complete `language_info` object reported by `kernel_info_reply`. `language` uses its `name` when available and falls back to the kernelspec while the process has not replied yet, so consumers see the language that actually started rather than stale discovery metadata.
 
 `execute`'s `outputs` are **notebook-format outputs** — `stream`, `execute_result`, `display_data`, `error` — in the order they arrived, ready for `jupyter.output`'s `getOutputPlainText` or its renderers. A failed execution also reports `error` separately, lifted from the `error` output.
 

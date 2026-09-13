@@ -176,6 +176,54 @@ describe("store kernel tracking", () => {
     subscription.dispose();
   });
 
+  it("keeps an unsaved notebook kernel current across split views of one document", () => {
+    const owner = {};
+    const firstView = { document: owner };
+    const secondView = { document: owner };
+    const kernel = fakeKernel("Notebook kernel");
+    store.runningKernels = [kernel];
+    store.updateActivePaneItem(firstView);
+    store.setExternalKernel(kernel, {
+      filePath: "Jupyter Adapter document-1",
+      paneItem: firstView,
+      owner,
+    });
+
+    store.updateActivePaneItem(secondView);
+
+    expect(store.kernel).toBe(kernel);
+  });
+
+  it("keeps a prepared notebook binding silent until commit and restores it on rollback", () => {
+    const previous = fakeKernel("Previous");
+    const next = {
+      ...fakeKernel("Next"),
+      kernelSpec: { display_name: "Next" },
+      transport: {},
+    };
+    const filePath = "C:\\work\\notebook.ipynb";
+    store.kernelMapping.set(filePath, previous);
+    const added = jasmine.createSpy("added");
+    const changed = jasmine.createSpy("changed");
+    const subscriptions = [store.onDidAddKernel(added), store.onDidChangeKernels(changed)];
+
+    const rolledBack = store.prepareNotebookKernel(next, filePath);
+    expect(store.kernelMapping.get(filePath)).toBe(next);
+    expect(store.runningKernels).not.toContain(next);
+    expect(added).not.toHaveBeenCalled();
+    expect(changed).not.toHaveBeenCalled();
+    expect(store.rollbackNotebookKernel(rolledBack)).toBe(true);
+    expect(store.kernelMapping.get(filePath)).toBe(previous);
+
+    const committed = store.prepareNotebookKernel(next, filePath);
+    expect(store.commitNotebookKernel(committed)).toBe(true);
+    expect(store.runningKernels).toContain(next);
+    expect(added).toHaveBeenCalledOnceWith(next);
+    expect(changed).toHaveBeenCalledTimes(1);
+
+    for (const subscription of subscriptions) subscription.dispose();
+  });
+
   it("moves a kernel from its unsaved placeholder onto the saved path", () => {
     // An editor with no path is keyed by its id; saving has to carry the
     // kernel over, or it is stranded under a key nothing looks up again.

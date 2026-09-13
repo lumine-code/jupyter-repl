@@ -27,4 +27,13 @@ describe("KernelManager kernel selection", () => {
     expect(manager.kernelPicker.onConfirmed).toBeNull();
     expect(manager.kernelPicker.onCancelled).toBeNull();
   });
+
+  it("derives an adapter kernel's working directory from the notebook owner", () => {
+    const notebook = { getPath: () => "C:\\work\\notebooks\\analysis.ipynb" };
+    spyOn(lumine.config, "get").and.callFake((key) =>
+      key === "jupyter-repl.startDir" ? "dirOfFile" : undefined,
+    );
+
+    expect(manager.getKernelStartDirectory(notebook)).toBe("C:\\work\\notebooks");
+  });
 });

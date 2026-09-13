@@ -104,4 +104,20 @@ describe("jupyter-repl kernel picker item actions", () => {
 
     expect(editor.lineTextForBufferRow(0)).toBe("#:: ir");
   });
+
+  it("inserts a kernel comment into the editor that opened the picker", async () => {
+    await lumine.packages.activatePackage("language-python");
+    const openingEditor = await lumine.workspace.open("opening-kernel-comment.py");
+    const otherEditor = await lumine.workspace.open("other-kernel-comment.py");
+    await picker.toggle({ editor: openingEditor });
+    await picker.selectList.selectIndex(1);
+
+    await picker.selectList.runAction("jupyter-repl:insert-kernel-comment", { source: "spec" });
+
+    expect(openingEditor.getText()).toContain("#:: ir");
+    expect(otherEditor.getText()).not.toContain("#:: ir");
+    expect(picker._context).toBeNull();
+    openingEditor.destroy();
+    otherEditor.destroy();
+  });
 });
