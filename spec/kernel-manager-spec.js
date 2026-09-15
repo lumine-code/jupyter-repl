@@ -1,3 +1,4 @@
+const path = require("path");
 const { KernelManager } = require("../lib/kernel-manager");
 
 describe("KernelManager kernel selection", () => {
@@ -29,11 +30,12 @@ describe("KernelManager kernel selection", () => {
   });
 
   it("derives an adapter kernel's working directory from the notebook owner", () => {
-    const notebook = { getPath: () => "C:\\work\\notebooks\\analysis.ipynb" };
+    const notebookDirectory = path.join(path.parse(process.cwd()).root, "work", "notebooks");
+    const notebook = { getPath: () => path.join(notebookDirectory, "analysis.ipynb") };
     spyOn(lumine.config, "get").and.callFake((key) =>
       key === "jupyter-repl.startDir" ? "dirOfFile" : undefined,
     );
 
-    expect(manager.getKernelStartDirectory(notebook)).toBe("C:\\work\\notebooks");
+    expect(manager.getKernelStartDirectory(notebook)).toBe(notebookDirectory);
   });
 });
