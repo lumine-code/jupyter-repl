@@ -2,6 +2,10 @@
 
 The two interfaces a package writes against: the adapter that lets a document of your own be run, and the kernel object the services hand over.
 
+## Runtime activation
+
+Consuming `jupyter.kernel`, `jupyter.output`, or `jupyter.execution` normally activates jupyter-repl immediately. A package that observes every editor but needs the runtime only for one action may declare `"activateProviders": false` beside `versions`; its consumer is still connected when jupyter-repl activates later. Immediately before the action reads its service, trigger `lumine.packages.triggerActivationHook("jupyter-repl:runtime-needed")`. Hook dispatch and service publication are synchronous, so the service is available to the same command handler when jupyter-repl is installed and enabled.
+
 ## Notebook adapter API
 
 The `jupyter.adapter` service allows non-TextEditor pane items, such as notebooks from the jupyter-view package, to be executed through jupyter-repl commands. The adapter owns target enumeration, source retrieval, output persistence, and focus/navigation inside the external pane item.

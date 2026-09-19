@@ -44,6 +44,41 @@
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
+  "activationHooks": [
+    "jupyter-repl:runtime-needed"
+  ],
+  "activationCommands": {
+    "lumine-workspace": [
+      "jupyter-repl:toggle-kernel-commands",
+      "jupyter-repl:start-local-kernel",
+      "jupyter-repl:connect-to-remote-kernel",
+      "jupyter-repl:connect-to-existing-kernel",
+      "jupyter-repl:edit-gateways",
+      "jupyter-repl:update-kernels",
+      "jupyter-repl:interrupt-kernel",
+      "jupyter-repl:restart-kernel",
+      "jupyter-repl:shutdown-kernel",
+      "jupyter-repl:shutdown-all-kernels",
+      "jupyter-repl:open-terminal",
+      "jupyter-repl:spawn-terminal",
+      "jupyter-repl:copy-console-command",
+      "jupyter-repl:run",
+      "jupyter-repl:run-and-move-down",
+      "jupyter-repl:run-all-inline",
+      "jupyter-repl:run-all-above-inline",
+      "jupyter-repl:run-all-below-inline",
+      "jupyter-repl:recalculate-all-inline",
+      "jupyter-repl:recalculate-all-above-inline",
+      "jupyter-repl:clear-results",
+      "jupyter-repl:clear-and-restart",
+      "jupyter-repl:toggle-output-area",
+      "jupyter-repl:open-examples",
+      "jupyter-repl:debug-toggle"
+    ]
+  },
+  "workspaceOpeners": [
+    "lumine://jupyter-repl/output-area"
+  ],
   "consumedServices": {
     "status-bar": {
       "versions": {
@@ -83,23 +118,21 @@
       }
     },
     "jupyter.kernel": {
+      "activateOnConsume": true,
       "versions": {
         "1.0.0": "provideJupyterKernel"
       }
     },
     "jupyter.output": {
+      "activateOnConsume": true,
       "versions": {
         "1.0.0": "provideJupyterOutput"
       }
     },
     "jupyter.execution": {
+      "activateOnConsume": true,
       "versions": {
         "1.0.0": "provideJupyterExecution"
-      }
-    },
-    "mcp.tools": {
-      "versions": {
-        "1.0.0": "provideMcpTools"
       }
     }
   },

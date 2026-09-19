@@ -168,8 +168,8 @@ describe("introspection at the kernel facade", () => {
     it("reports why it failed rather than reporting nothing found", () => {
       // `{found: false}` alone is what the kernel says when it looked and knows
       // nothing about the name. A kernel that went away mid-request must not
-      // be indistinguishable from that — the MCP inspect tool relays it to an
-      // assistant as a fact about the code.
+      // be indistinguishable from that — a service caller would receive it as
+      // a fact about the code.
       const seen = [];
       kernel.inspect("np.array", 8, (results) => seen.push(results));
 

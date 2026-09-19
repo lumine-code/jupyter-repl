@@ -46,21 +46,22 @@ describe("the services this package declares", () => {
     );
   });
 
-  // `activateServices` runs inside `activateNow`, which a package waiting on an
-  // activation command never reaches, so a lazy provider has published nothing.
-  // This package used to defer — defensible while everything it provided was
-  // only useful once a kernel ran — but `jupyter.output` is what jupyter-view
-  // renders a stored notebook with, kernels or not, so it must exist at
-  // startup. What stays lazy instead is everything heavy behind the surface.
-  it("activates eagerly, because rendering must not wait for a kernel", () => {
-    expect(manifest.activationCommands).toBeUndefined();
-    expect(manifest.activationHooks).toBeUndefined();
+  it("activates when a command, runtime request, or shared service needs it", () => {
+    expect(manifest.activationCommands["lumine-workspace"]).toContain(
+      "jupyter-repl:start-local-kernel",
+    );
+    expect(manifest.activationHooks).toContain("jupyter-repl:runtime-needed");
+    expect(manifest.workspaceOpeners).toContain("lumine://jupyter-repl/output-area");
+    for (const service of ["jupyter.kernel", "jupyter.output", "jupyter.execution"]) {
+      expect(manifest.providedServices[service].activateOnConsume).toBe(true);
+    }
+    expect(manifest.providedServices["autocomplete.provider"].activateOnConsume).toBeUndefined();
+    expect(manifest.providedServices["mcp.tools"]).toBeUndefined();
   });
 });
 
-describe("what eager activation is allowed to load", () => {
-  // The bargain that makes eager activation acceptable: activating and
-  // providing the service parses only package-local code. The native kernel
+describe("what activation is allowed to load", () => {
+  // Activating and providing the service parses only package-local code. The native kernel
   // transport and the heavy renderers must stay behind lazy, function-body
   // requires until something actually uses them.
   //

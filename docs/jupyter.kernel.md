@@ -25,6 +25,8 @@ In your `package.json`:
 }
 ```
 
+This default consumption activates jupyter-repl. A package that is active for unrelated features may add `"activateProviders": false` beside `versions`, then trigger `jupyter-repl:runtime-needed` immediately before an operation that requires the kernel provider.
+
 ## Contract
 
 ```ts

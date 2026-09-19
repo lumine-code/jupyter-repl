@@ -4,7 +4,7 @@ const ZMQKernel = require("../lib/zmq-kernel");
 // execution that was harmless — the facade aborts those separately, before
 // every caller of this — but nothing tracks a completion, an inspection or a
 // comm_info query anywhere else, so each one left its caller's promise pending
-// for the life of the window. The MCP inspect tool waits on one of those.
+// for the life of the window. Service consumers wait on one of those.
 //
 // The settling has to happen against a table already taken and replaced, which
 // is why `_settlePending` exists apart from the lookup in `_settleUnanswered`:

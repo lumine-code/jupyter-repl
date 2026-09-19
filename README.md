@@ -81,7 +81,6 @@ Rendered in the editor under Settings, and readable here:
 - [`jupyter.output`](docs/jupyter.output.md): provided to let other packages render Jupyter output bundles with this package's renderers.
 - `autocomplete.provider`: provided to feed kernel-backed completions to autocomplete consumers while a kernel is active for the editor.
 - [`jupyter.execution`](docs/jupyter.execution.md): provided to run pre-computed code blocks through this package's kernels and result bubbles.
-- `mcp.tools`: provided to let an AI assistant list the running kernels, run code in one, inspect an expression, interrupt a run, and restart a kernel.
 - `jupyter.adapter`: consumed to run cells of external pane items, such as jupyter-view notebooks, through the normal run commands.
 - `jupyter.cells`: consumed to read cell boundaries and markdown-cell metadata where the run paths meet `# %%` markers.
 - `status-bar`: consumed to display the kernel of the active editor and its execution state.

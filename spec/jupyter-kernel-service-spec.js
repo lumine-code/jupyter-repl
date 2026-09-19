@@ -336,7 +336,7 @@ describe("introspection through the plugin API", () => {
   // cases are past their reach: a websocket connection that drops without
   // JupyterLab disposing its futures, and a plugin middleware that never calls
   // the callback it was handed. Left unbounded, either leaves the promise
-  // pending for the life of the window — and the MCP inspect tool awaits it.
+  // pending for the life of the window — and service consumers await it.
   function silentKernel() {
     return { complete() {}, inspect() {} };
   }

@@ -25,6 +25,8 @@ In your `package.json`:
 }
 ```
 
+When the package activates for reasons unrelated to execution, add `"activateProviders": false` beside `versions` and trigger `jupyter-repl:runtime-needed` immediately before the first operation. Ordinary consumers should omit `activateProviders` and let service demand activate the runtime.
+
 ## Contract
 
 ```ts
