@@ -19,11 +19,15 @@ function bareKernel() {
   // seeds with a fresh uuid.
   const kernel = Object.create(ZMQKernel.prototype);
   kernel._destroyed = false;
+  kernel.lifecycle = "ready";
   kernel.sessionId = OURS;
   kernel.executionCallbacks = {};
   kernel._lastOutputStore = null;
   kernel.states = [];
-  kernel.setExecutionState = (state) => kernel.states.push(state);
+  kernel.setExecutionState = (state) => {
+    kernel.executionState = state;
+    kernel.states.push(state);
+  };
   return kernel;
 }
 
@@ -240,7 +244,7 @@ describe("a shell send that fails outright", () => {
     ]);
     // The callback is retired: a straggler cannot reach a settled request.
     expect(kernel.executionCallbacks["execute_1"]).toBeUndefined();
-    expect(kernel.states).toEqual(["idle"]);
+    expect(kernel.states).toEqual(["queued", "idle"]);
   });
 });
 
@@ -275,10 +279,15 @@ describe("the acknowledgment watchdog", () => {
       requestType: "execute_request",
       replySeen: false,
       idleSeen: false,
+      acknowledged: false,
+      queued: false,
+      sentAt: Date.now() - agoMs,
+      idleSince: Date.now() - agoMs,
       // Nothing has been heard about it for the whole stretch.
       lastProgressAt: Date.now() - agoMs,
       armedAt: Date.now() - agoMs,
     };
+    kernel._activeShellRequest = "execute_lost";
     return replies;
   };
 
@@ -294,13 +303,14 @@ describe("the acknowledgment watchdog", () => {
     };
   };
 
-  it("settles a request the kernel ignored through a long idle stretch", () => {
+  it("recovers instead of settling a request whose outcome is unknown", () => {
     const replies = registerUnacked(40000);
 
     window.advanceClock(10000);
 
-    expect(replies).toEqual(["iopub", "shell", "iopub"]);
-    expect(kernel.executionCallbacks["execute_lost"]).toBeUndefined();
+    expect(replies).toEqual([]);
+    expect(kernel.executionCallbacks["execute_lost"]).toBeDefined();
+    expect(kernel.lifecycle).toBe("recovering");
   });
 
   it("waits while the kernel is busy — a queued request is not a lost one", () => {

@@ -109,6 +109,19 @@ describe("status bar tile", () => {
     expect(component.element.textContent).toContain("busy");
   });
 
+  it("renders client-side queue and recovery states without a running timer", () => {
+    const kernel = fakeKernel({ executionState: "queued" });
+    mount(fakeStore(kernel));
+
+    for (const state of ["queued", "recovering", "unresponsive"]) {
+      kernel.executionState = state;
+      kernel.emitStatus();
+      flush(component);
+      expect(component.element.textContent).toContain(state);
+      expect(component.timerId).toBe(null);
+    }
+  });
+
   it("follows the store to a new kernel and drops the old subscription", () => {
     const first = fakeKernel({ displayName: "Python 3" });
     const second = fakeKernel({ displayName: "R" });

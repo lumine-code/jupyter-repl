@@ -107,18 +107,22 @@ module.exports = {
 
 State is kernel-wide: every field follows the kernel process across all of its clients, so a cell run from a `jupyter console` attached to the same kernel moves them exactly like one run from the editor. The full surface — including `executionStartTime`, `onDidChangeStatus`, and `onDidBecomeIdle` — is specified in [jupyter.kernel.md](jupyter.kernel.md).
 
-| Property/Method                       | Description                                       |
-| ------------------------------------- | ------------------------------------------------- |
-| `executionState`                      | Current state: `'idle'`, `'busy'`, `'starting'`   |
-| `executionCount`                      | Latest execution count the kernel reported        |
-| `lastExecutionTime`                   | Duration of the kernel's last finished cell       |
-| `executionStartTime`                  | When the running cell started, `null` when idle   |
-| `onDidChangeExecutionState(callback)` | Subscribe to state changes, returns `Disposable`  |
-| `onDidChangeStatus(callback)`         | Any status field changed, returns `Disposable`    |
-| `onDidBecomeIdle(callback)`           | A cell finished (debounced), returns `Disposable` |
-| `interrupt()`                         | Interrupt running execution                       |
-| `restart([callback])`                 | Restart the kernel                                |
-| `shutdown()`                          | Shutdown the kernel, returns `Promise<void>`      |
+| Property/Method                       | Description                                              |
+| ------------------------------------- | -------------------------------------------------------- |
+| `executionState`                      | Current state, including recovery states described below |
+| `executionCount`                      | Latest execution count the kernel reported               |
+| `lastExecutionTime`                   | Duration of the kernel's last finished cell              |
+| `executionStartTime`                  | When the running cell started, `null` when idle          |
+| `onDidChangeExecutionState(callback)` | Subscribe to state changes, returns `Disposable`         |
+| `onDidChangeStatus(callback)`         | Any status field changed, returns `Disposable`           |
+| `onDidBecomeIdle(callback)`           | A cell finished (debounced), returns `Disposable`        |
+| `interrupt()`                         | Interrupt running execution                              |
+| `restart([callback])`                 | Restart the kernel and resolve when it is ready          |
+| `shutdown()`                          | Shutdown the kernel, returns `Promise<void>`             |
+
+`executionState` can be `queued` after this client accepts an execution but before the kernel acknowledges it, including while it waits in the client-side single-flight queue; `recovering` while the client probes an idle kernel that stopped answering; and `unresponsive` when that probe fails and the connection is quarantined. Consumers must treat `recovering` and `unresponsive` as unavailable for new work; only a manual restart or shutdown leaves `unresponsive`.
+
+Transport failures resolve through the existing result shapes rather than rejecting promises. `ExecutionCancelled` means a queued request was certainly never sent, `ExecutionOutcomeUnknown` means an unacknowledged execution may have run and must not be automatically retried, and `KernelUnresponsive` means a new request was rejected without being sent while the connection was recovering or quarantined. `execute()` returns these names in `error.ename` with `status: "error"`; `complete()` and `inspect()` return `status: "error"` with `ename` and `evalue`.
 
 #### Introspection
 

@@ -34,4 +34,17 @@ describe("SignalListView", () => {
     expect(receivedStore).toBe(store);
     expect(view.selectListHost.isVisible()).toBe(false);
   });
+
+  for (const executionState of ["recovering", "unresponsive"]) {
+    it(`only offers recovery commands while the kernel is ${executionState}`, async () => {
+      store.kernel.executionState = executionState;
+
+      await view.selectListHost.show();
+
+      expect(view.selectList.getItems().map((item) => item.command)).toEqual([
+        "restart-kernel",
+        "shutdown-kernel",
+      ]);
+    });
+  }
 });

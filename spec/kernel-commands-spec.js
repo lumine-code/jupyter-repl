@@ -41,4 +41,23 @@ describe("kernel commands picker command", () => {
     expect(commandStore).toBe(store);
     expect(typeof handleKernelCommand).toBe("function");
   });
+
+  it("does not attach another console to a quarantined kernel", () => {
+    const kernel = {
+      executionState: "busy",
+      transport: { lifecycle: "recovering" },
+      destroy: jasmine.createSpy("destroy"),
+    };
+    store.runningKernels = [kernel];
+    store.updateActivePaneItem({ getJupyterKernel: () => kernel });
+    const launcher = require("../lib/launch-jupyter");
+    const open = spyOn(launcher, "openJupyterConsole");
+    const warning = spyOn(lumine.notifications, "addWarning");
+
+    lumine.commands.dispatch(lumine.views.getView(lumine.workspace), "jupyter-repl:open-terminal");
+
+    expect(open).not.toHaveBeenCalled();
+    expect(warning).toHaveBeenCalled();
+    expect(warning.calls.mostRecent().args[0]).toBe("Jupyter console connection blocked");
+  });
 });

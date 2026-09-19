@@ -38,9 +38,21 @@ function fakeSocket() {
  * probe's request id. The one thing a killed process cannot produce, which is
  * why a restart's readiness listens for nothing else.
  */
-function probeEcho(kernel) {
+function probeReply(kernel) {
   const probeId = [...kernel._readyProbeIds][0];
-  return { parent_header: { msg_id: probeId, msg_type: "kernel_info_request" } };
+  return {
+    header: { msg_type: "kernel_info_reply" },
+    parent_header: { msg_id: probeId, msg_type: "kernel_info_request" },
+  };
+}
+
+function probeIdle(kernel) {
+  const probeId = [...kernel._readyProbeIds][0];
+  return {
+    header: { msg_type: "status" },
+    parent_header: { msg_id: probeId, msg_type: "kernel_info_request" },
+    content: { execution_state: "idle" },
+  };
 }
 
 function bareKernel() {
@@ -78,11 +90,10 @@ describe("kernel launch readiness", () => {
     let started = 0;
     kernel.monitor(() => started++);
 
-    const echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
     expect(started).toBe(0);
 
-    kernel.ioSocket.emit("message", echo);
+    kernel.ioSocket.emit("message", probeIdle(kernel));
     expect(started).toBe(1);
     expect(kernel.states).toEqual(["idle"]);
     expect(kernel._readyProbe).toBe(null);
@@ -105,9 +116,8 @@ describe("kernel launch readiness", () => {
     kernel.monitor(() => started++);
 
     kernel.shellSocket.emit("connect");
-    const echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
-    kernel.ioSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
     kernel.ioSocket.emit("connect");
     kernel.shellSocket.emit("message");
 
@@ -125,9 +135,8 @@ describe("kernel launch readiness", () => {
     // gone, and only the new one can produce traffic.
     expect(restarted).toBe(0);
 
-    const echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
-    kernel.ioSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
     expect(restarted).toBe(1);
   });
 
@@ -180,9 +189,8 @@ describe("kernel launch readiness", () => {
 
     expect(started).toBe(0);
 
-    const echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
-    kernel.ioSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
 
     expect(started).toBe(1);
   });
@@ -194,9 +202,8 @@ describe("kernel launch readiness", () => {
     kernel.monitor(() => {});
     expect(kernel.ioSocket.listenerCount("message")).toBe(1);
 
-    const echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
-    kernel.ioSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
 
     expect(kernel.ioSocket.listenerCount("message")).toBe(0);
     expect(kernel.ioSocket.listenerCount("connect")).toBe(0);
@@ -222,7 +229,7 @@ describe("kernel launch readiness", () => {
     expect(Object.keys(kernel.executionCallbacks).length).toBe(1);
   });
 
-  it("gives up on a kernel that never answers and routes it into the exit path", () => {
+  it("gives up on a kernel that never answers and routes it into the exit path", async () => {
     // A minute of unanswered probes used to stop in silence: the kernel hung
     // in "loading" forever, its display name stuck in startingKernels, and
     // every later attempt to start that spec was refused without a word.
@@ -244,6 +251,7 @@ describe("kernel launch readiness", () => {
       for (let tick = 0; tick < 125; tick++) {
         window.advanceClock(500);
       }
+      for (let turn = 0; turn < 5; turn++) await Promise.resolve();
 
       expect(kernel._readyProbe).toBe(null);
       expect(kernel.killed).toBe(true);
@@ -300,9 +308,8 @@ describe("kernel launch readiness", () => {
     kernel.monitor(() => {});
     expect(Object.keys(kernel.executionCallbacks).length).toBe(1);
 
-    const echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
-    kernel.ioSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
 
     expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
   });
@@ -315,9 +322,8 @@ describe("kernel launch readiness", () => {
     kernel.monitor(() => {});
     expect(kernel._ackWatchdog).toBeFalsy();
 
-    const echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
-    kernel.ioSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
 
     expect(kernel._ackWatchdog).toBeTruthy();
   });
@@ -327,15 +333,13 @@ describe("kernel launch readiness", () => {
     // that died and was restarted used to serve cells with no watchdog at all.
     kernel = bareKernel();
     kernel.monitor(() => {});
-    let echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
-    kernel.ioSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
     kernel._stopAckWatchdog();
 
     kernel.monitor(() => {}, true);
-    echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
-    kernel.ioSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
 
     expect(kernel._ackWatchdog).toBeTruthy();
   });
@@ -343,16 +347,14 @@ describe("kernel launch readiness", () => {
   it("does not accumulate listeners across restarts", () => {
     kernel = bareKernel();
     kernel.monitor(() => {});
-    let echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
-    kernel.ioSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
 
     for (let restart = 0; restart < 5; restart++) {
       kernel.monitor(() => {}, true);
       expect(kernel.ioSocket.listenerCount("message")).toBe(1);
-      echo = probeEcho(kernel);
-      kernel.shellSocket.emit("message", echo);
-      kernel.ioSocket.emit("message", echo);
+      kernel.shellSocket.emit("message", probeReply(kernel));
+      kernel.ioSocket.emit("message", probeIdle(kernel));
       expect(kernel.ioSocket.listenerCount("message")).toBe(0);
     }
   });
@@ -363,9 +365,8 @@ describe("kernel launch readiness", () => {
     kernel.monitor(() => started++);
 
     kernel._destroyed = true;
-    const echo = probeEcho(kernel);
-    kernel.shellSocket.emit("message", echo);
-    kernel.ioSocket.emit("message", echo);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
 
     expect(started).toBe(0);
   });
@@ -387,6 +388,7 @@ describe("kernel process exit", () => {
         listeners[event] = listener;
       },
       exit: (code) => listeners.exit?.(code, null),
+      error: (error) => listeners.error?.(error),
     };
 
     const instance = Object.create(ZMQKernel.prototype);
@@ -464,6 +466,21 @@ describe("kernel process exit", () => {
     expect(instance.readinessCanceled).toBe(true);
     expect(instance.lost).toEqual(["Kernel process died during restart"]);
     expect(instance.cleared).toEqual(["Kernel process died during restart"]);
+    expect(lumine.notifications.addError).toHaveBeenCalled();
+  });
+
+  it("settles a child-process error even when no exit event follows", () => {
+    spyOn(lumine.notifications, "addError");
+    const { instance, childProcess } = exitingKernel("restarting");
+    kernel = instance;
+
+    childProcess.error(new Error("spawn failed"));
+
+    expect(instance.kernelProcess).toBe(null);
+    expect(instance.lifecycle).toBe("dead");
+    expect(instance.states).toEqual(["dead"]);
+    expect(instance.lost).toEqual(["spawn failed"]);
+    expect(instance.cleared).toEqual(["spawn failed"]);
     expect(lumine.notifications.addError).toHaveBeenCalled();
   });
 

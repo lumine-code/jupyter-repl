@@ -50,10 +50,14 @@ function bareKernel() {
   kernel._reportedIdleSince = Date.now();
   kernel.states = [];
   kernel.seen = [];
-  kernel.setExecutionState = (state) => kernel.states.push(state);
+  kernel.setExecutionState = (state) => {
+    kernel.executionState = state;
+    kernel.states.push(state);
+  };
   kernel.setExecutionCount = () => {};
   kernel.setExecutionStartTime = () => {};
   kernel.setLastExecutionTime = () => {};
+  kernel._showUnresponsiveNotification = () => {};
   kernel.shellSocket = fakeSocket();
   return kernel;
 }
@@ -84,7 +88,7 @@ function replyMessage(requestId, requestType = "execute_request", content = { st
  */
 function armedEntry(kernel, requestId, overrides = {}) {
   const now = Date.now();
-  kernel.executionCallbacks[requestId] = {
+  const entry = {
     callback: (message, channel) => kernel.seen.push([message.header.msg_type, channel]),
     suppressStatus: false,
     requestType: "execute_request",
@@ -97,7 +101,10 @@ function armedEntry(kernel, requestId, overrides = {}) {
     armedAt: now,
     ...overrides,
   };
-  return kernel.executionCallbacks[requestId];
+  entry.acknowledged ??= Boolean(entry.replySeen || entry.idleSeen || entry.halfSettledAt);
+  kernel.executionCallbacks[requestId] = entry;
+  kernel._activeShellRequest = requestId;
+  return entry;
 }
 
 describe("shell request lifetimes", () => {
@@ -542,10 +549,9 @@ describe("shell request lifetimes", () => {
       expect(kernel.executionCallbacks.execute_1).toBeDefined();
     });
 
-    it("is settled when the kernel produced output and then went quiet", () => {
-      // Progress then silence. Driven through the real handler, because the
-      // bug this pins was a one-way flag the handler latched on the first
-      // message — a fixture that never sets the flag cannot catch its return.
+    it("leaves an acknowledged execution alone when it later goes quiet", () => {
+      // Output proves the kernel owns the request. The silence after it may be
+      // a legitimately long computation, so no fixed timeout can settle it.
       armedEntry(kernel, "execute_1");
       kernel.onIOMessage({
         header: { msg_id: "stream_1", msg_type: "stream" },
@@ -558,12 +564,8 @@ describe("shell request lifetimes", () => {
 
       window.advanceClock(10000);
 
-      expect(kernel.seen).toEqual([
-        ["error", "iopub"],
-        ["execute_reply", "shell"],
-        ["status", "iopub"],
-      ]);
-      expect(kernel.executionCallbacks.execute_1).toBeUndefined();
+      expect(kernel.seen).toEqual([]);
+      expect(kernel.executionCallbacks.execute_1).toBeDefined();
     });
   });
 
@@ -577,7 +579,7 @@ describe("shell request lifetimes", () => {
       kernel._stopAckWatchdog();
     });
 
-    it("gets the full patient timeout, not the short repair grace", async () => {
+    it("enters recovery instead of silently reclaiming an unacknowledged comm", async () => {
       // A comm is born with its reply excused, and classing "excused" as
       // "arrived" put it under the ten-second repair rule — timed from a null
       // stamp, so reclaimed on the watchdog's first tick. An entry deleted
@@ -598,9 +600,9 @@ describe("shell request lifetimes", () => {
       kernel._reportedIdleSince = Date.now() - 40000;
       window.advanceClock(10000);
 
-      expect(kernel.executionCallbacks.comm_1).toBeUndefined();
+      expect(kernel.executionCallbacks.comm_1).toBeDefined();
       expect(kernel.seen).toEqual([]);
-      expect(kernel.states).toEqual([]);
+      expect(kernel.states).toEqual(["recovering"]);
     });
 
     it("is reclaimed after its busy even though that busy gates the patient rule", async () => {

@@ -1,4 +1,4 @@
-const { Socket } = require("../lib/jmp");
+const { SOCKET_OPTIONS, Socket, configureSocket } = require("../lib/jmp");
 
 // zeromq's Observer binds `inproc://zmq.monitor.<its own heap address>`, and a
 // socket lingering from a shut-down kernel keeps its monitor name registered
@@ -71,6 +71,32 @@ describe("jmp socket connection monitoring", () => {
     expect(attempts).toBe(2);
     expect(socket._eventLoopStarted).toBe(true);
     expect(socket._events).toBe(events);
+  });
+
+  it("does not construct an observer when monitoring is disabled", () => {
+    let observerAccesses = 0;
+    socket._monitorEnabled = false;
+    socket._socket = fakeZmqSocket(() => {
+      observerAccesses++;
+      throw new Error("the observer getter must not be read");
+    });
+
+    expect(() => socket.connect("inproc://spec-endpoint")).not.toThrow();
+    expect(observerAccesses).toBe(0);
+    expect(socket._eventLoopStarted).toBe(false);
+    expect(socket._connectedAddresses.has("inproc://spec-endpoint")).toBe(true);
+  });
+});
+
+describe("jmp native socket options", () => {
+  it("applies the bounded send timeout that makes close safe to await", () => {
+    const native = { sendTimeout: -1, receiveTimeout: -1 };
+
+    configureSocket(native);
+
+    expect(native.sendTimeout).toBe(SOCKET_OPTIONS.sendTimeout);
+    expect(native.sendTimeout).toBeGreaterThan(0);
+    expect(native.receiveTimeout).toBe(SOCKET_OPTIONS.receiveTimeout);
   });
 });
 
@@ -178,6 +204,75 @@ describe("jmp socket teardown", () => {
 
     expect(closed).toBe(1);
   });
+
+  it("discards the native outbound queue immediately before close", () => {
+    const socket = bareSocket();
+    const events = [];
+    let linger = 1000;
+    socket._socket = {
+      connect() {},
+      get linger() {
+        return linger;
+      },
+      set linger(value) {
+        linger = value;
+        events.push(`linger:${value}`);
+      },
+      close() {
+        events.push("close");
+      },
+    };
+
+    socket.close(false, true);
+
+    expect(linger).toBe(0);
+    expect(events).toEqual(["linger:0", "close"]);
+  });
+
+  it("waits for an in-flight send before discarding the native queue", async () => {
+    const socket = bareSocket();
+    const events = [];
+    let linger = 1000;
+    let releaseSend;
+    let resolveClosed;
+    const closed = new Promise((resolve) => {
+      resolveClosed = resolve;
+    });
+    socket._socket = {
+      connect() {},
+      get linger() {
+        return linger;
+      },
+      set linger(value) {
+        linger = value;
+        events.push(`linger:${value}`);
+      },
+      close() {
+        events.push("close");
+        resolveClosed();
+      },
+      send() {
+        events.push("send");
+        return new Promise((resolve) => {
+          releaseSend = resolve;
+        });
+      },
+    };
+
+    const sending = socket.send("shutdown_request");
+    await Promise.resolve();
+    socket.close(false, true);
+
+    expect(linger).toBe(1000);
+    expect(events).toEqual(["send"]);
+
+    releaseSend();
+    await sending;
+    await closed;
+
+    expect(linger).toBe(0);
+    expect(events).toEqual(["send", "linger:0", "close"]);
+  });
 });
 
 describe("jmp observer lifecycle at close", () => {
@@ -238,6 +333,39 @@ describe("jmp observer lifecycle at close", () => {
 
     expect(observerClosed).toBe(1);
     expect(socketClosed).toBe(1);
+    releaseSend();
+    await sending.catch(() => {});
+  });
+
+  it("can discard pending output during an immediate unload close", async () => {
+    const socket = bareSocket();
+    const events = [];
+    let releaseSend;
+    socket._events = {
+      close() {
+        events.push("observer-close");
+      },
+    };
+    socket._socket = {
+      connect() {},
+      set linger(value) {
+        events.push(`linger:${value}`);
+      },
+      close() {
+        events.push("socket-close");
+      },
+      send() {
+        return new Promise((resolve) => {
+          releaseSend = resolve;
+        });
+      },
+    };
+
+    const sending = socket.send("bye");
+    await Promise.resolve();
+    socket.close(true, true);
+
+    expect(events).toEqual(["observer-close", "linger:0", "socket-close"]);
     releaseSend();
     await sending.catch(() => {});
   });
@@ -353,5 +481,27 @@ describe("jmp socket send serialization", () => {
 
     expect(rejection?.message).toBe("send failed");
     expect(sent).toEqual(["after"]);
+  });
+});
+
+describe("jmp socket receive failures", () => {
+  it("releases the receive-loop latch after reporting an error", async () => {
+    const socket = bareSocket();
+    const error = new Error("poller failed");
+    socket._socket = {
+      close() {},
+      [Symbol.asyncIterator]() {
+        return { next: () => Promise.reject(error) };
+      },
+    };
+    const seen = [];
+    socket.on("error", (value) => seen.push(value));
+
+    socket.on("message", () => {});
+    for (let turn = 0; turn < 5; turn++) await Promise.resolve();
+
+    expect(seen).toEqual([error]);
+    expect(socket.lastError).toBe(error);
+    expect(socket._receiveLoop).toBe(null);
   });
 });

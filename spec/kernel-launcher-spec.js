@@ -1,8 +1,13 @@
+const ChildProcess = require("child_process");
+const { EventEmitter } = require("events");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
 const {
+  PROCESS_TREE_EXIT_GRACE_MS,
+  PROCESS_TREE_KILL_TIMEOUT_MS,
+  killProcessTree,
   launchSpec,
   launchSpecFromConnectionInfo,
   writeConnectionFile,
@@ -11,7 +16,7 @@ const {
 // Kernel launching used to come from nteract's `spawnteract`, abandoned in
 // 2020. These specs pin the parts of its contract this package relies on: the
 // shape of the connection file, the `{connection_file}` argv substitution, and
-// the cleanup-on-exit behaviour that restarting a kernel deliberately disables.
+// the cleanup-on-exit behaviour a caller can deliberately disable.
 describe("kernel launcher", () => {
   let root;
   let savedRuntimeDir;
@@ -30,6 +35,32 @@ describe("kernel launcher", () => {
       child.on("exit", (code) => resolve(code));
       child.on("error", reject);
     });
+  }
+
+  function fakeProcess(pid = 1234) {
+    const child = new EventEmitter();
+    child.pid = pid;
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = jasmine.createSpy("kill");
+    child.exit = (code = 0, signal = null) => {
+      child.exitCode = code;
+      child.signalCode = signal;
+      child.emit("exit", code, signal);
+    };
+    return child;
+  }
+
+  function onPlatform(platform, callback) {
+    const descriptor = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { ...descriptor, value: platform });
+    try {
+      // killProcessTree captures the platform before returning its promise, so
+      // restoring it here cannot change the asynchronous half of the operation.
+      return callback();
+    } finally {
+      Object.defineProperty(process, "platform", descriptor);
+    }
   }
 
   beforeEach(() => {
@@ -126,7 +157,7 @@ describe("kernel launcher", () => {
       expect(fs.readFileSync(report, "utf8")).toBe(connectionFile);
     });
 
-    it("returns the process synchronously, as the restart path needs", () => {
+    it("returns the process synchronously once connection info exists", () => {
       const connectionFile = path.join(root, "sync.json");
       fs.writeFileSync(connectionFile, "{}");
       const config = { key: "abc" };
@@ -151,7 +182,7 @@ describe("kernel launcher", () => {
       expect(fs.existsSync(connectionFile)).toBe(false);
     });
 
-    it("keeps the connection file when cleanup is disabled, so a restart can reuse it", async () => {
+    it("keeps the connection file when cleanup is owned by the caller", async () => {
       const connectionFile = path.join(root, "kept.json");
       fs.writeFileSync(connectionFile, "{}");
 
@@ -290,6 +321,123 @@ describe("kernel launcher", () => {
 
       expect(fs.readFileSync(report, "utf8")).toBe(connectionFile);
       expect(JSON.parse(fs.readFileSync(connectionFile, "utf8")).key).toBe(config.key);
+    });
+  });
+
+  describe("killProcessTree", () => {
+    it("kills a POSIX process with SIGKILL and waits for its exit", async () => {
+      const child = fakeProcess();
+      let settled = false;
+      const termination = onPlatform("linux", () => killProcessTree(child));
+      termination.then(() => {
+        settled = true;
+      });
+
+      expect(child.kill).toHaveBeenCalledOnceWith("SIGKILL");
+      expect(settled).toBe(false);
+
+      child.exit(null, "SIGKILL");
+      await termination;
+      expect(settled).toBe(true);
+    });
+
+    it("sweeps a Windows process tree before falling back to the parent handle", async () => {
+      const child = fakeProcess(4321);
+      const sweep = fakeProcess(9876);
+      const spawnProcess = spyOn(ChildProcess, "spawn").and.returnValue(sweep);
+
+      child.kill.and.callFake(() => {
+        child.exit(null, "SIGTERM");
+        return true;
+      });
+
+      const termination = onPlatform("win32", () => killProcessTree(child));
+
+      expect(spawnProcess).toHaveBeenCalledOnceWith("taskkill", ["/PID", "4321", "/T", "/F"], {
+        windowsHide: true,
+        stdio: "ignore",
+      });
+      expect(child.kill).not.toHaveBeenCalled();
+
+      sweep.exitCode = 0;
+      sweep.emit("close", 0, null);
+      await termination;
+      expect(child.kill).toHaveBeenCalledOnceWith();
+    });
+
+    it("joins concurrent termination calls", async () => {
+      const child = fakeProcess();
+      child.kill.and.callFake(() => {
+        child.exit(null, "SIGKILL");
+        return true;
+      });
+
+      const first = onPlatform("linux", () => killProcessTree(child));
+      const second = killProcessTree(child);
+
+      expect(second).toBe(first);
+      await first;
+      expect(child.kill).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not signal a process that has already exited", async () => {
+      const child = fakeProcess();
+      child.exitCode = 0;
+      const spawnProcess = spyOn(ChildProcess, "spawn");
+
+      await onPlatform("win32", () => killProcessTree(child));
+
+      expect(spawnProcess).not.toHaveBeenCalled();
+      expect(child.kill).not.toHaveBeenCalled();
+    });
+
+    it("does not kill the parent after it exits while taskkill is running", async () => {
+      const child = fakeProcess();
+      const sweep = fakeProcess();
+      spyOn(ChildProcess, "spawn").and.returnValue(sweep);
+
+      const termination = onPlatform("win32", () => killProcessTree(child));
+      child.exit(0);
+      sweep.exitCode = 0;
+      sweep.emit("close", 0, null);
+      await termination;
+
+      expect(child.kill).not.toHaveBeenCalled();
+    });
+
+    it("refuses to report success when taskkill and the fallback leave the tree alive", async () => {
+      const child = fakeProcess();
+      const sweep = fakeProcess();
+      spyOn(ChildProcess, "spawn").and.returnValue(sweep);
+      let rejection = null;
+
+      const termination = onPlatform("win32", () => killProcessTree(child));
+      termination.catch((error) => {
+        rejection = error;
+      });
+      window.advanceClock(PROCESS_TREE_KILL_TIMEOUT_MS);
+      window.advanceClock(PROCESS_TREE_EXIT_GRACE_MS);
+      await termination.catch(() => {});
+
+      expect(sweep.kill).toHaveBeenCalledOnceWith();
+      expect(child.kill).toHaveBeenCalledOnceWith();
+      expect(rejection?.message).toContain("did not terminate");
+    });
+
+    it("falls back when taskkill cannot be started", async () => {
+      const child = fakeProcess();
+      const sweep = fakeProcess();
+      spyOn(ChildProcess, "spawn").and.returnValue(sweep);
+      child.kill.and.callFake(() => {
+        child.exit(null, "SIGTERM");
+        return true;
+      });
+
+      const termination = onPlatform("win32", () => killProcessTree(child));
+      sweep.emit("error", new Error("taskkill unavailable"));
+      await termination;
+
+      expect(child.kill).toHaveBeenCalledOnceWith();
     });
   });
 });
