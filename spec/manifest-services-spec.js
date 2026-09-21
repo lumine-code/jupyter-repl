@@ -46,16 +46,7 @@ describe("the services this package declares", () => {
     );
   });
 
-  it("activates when a command, runtime request, or shared service needs it", () => {
-    expect(manifest.activationCommands["lumine-workspace"]).toContain(
-      "jupyter-repl:start-local-kernel",
-    );
-    expect(manifest.activationHooks).toContain("jupyter-repl:runtime-needed");
-    expect(manifest.workspaceOpeners).toContain("lumine://jupyter-repl/output-area");
-    for (const service of ["jupyter.kernel", "jupyter.output", "jupyter.execution"]) {
-      expect(manifest.providedServices[service].activateOnConsume).toBe(true);
-    }
-    expect(manifest.providedServices["autocomplete.provider"].activateOnConsume).toBeUndefined();
+  it("keeps service registration declarative and activation logic in JavaScript", () => {
     expect(manifest.providedServices["mcp.tools"]).toBeUndefined();
   });
 });

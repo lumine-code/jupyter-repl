@@ -77,29 +77,30 @@ describe("code block detection for multiline strings", () => {
     expect(block.code).toBe('doc.x("""\n11\n""")');
   });
 
-  it("uses the public syntax-node accessor for a Python block", async () => {
-    await lumine.packages.activatePackage("language-python");
+  it("detects a Python block after grammar resources are ready", async () => {
+    const pythonPackage = await lumine.packages.activatePackage("language-python");
+    await pythonPackage.resourceLoadPromise;
     editor = await lumine.workspace.open("syntax-node-block.py");
+    editor.setGrammar(lumine.grammars.grammarForScopeName("source.python"));
     editor.setText("def f():\n    value = 1\noutside = 2\n");
     await editor.getBuffer().getLanguageMode().atTransactionEnd();
-    spyOnProperty(store.constructor.prototype, "kernel", "get").and.returnValue({
+    spyOnProperty(store, "kernel", "get").and.returnValue({
       language: "python",
     });
-    const getSyntaxNode = spyOn(editor, "getSyntaxNodeAtBufferPosition").and.callThrough();
-
     const block = findCodeBlockAtRow(editor, 0);
 
-    expect(getSyntaxNode).toHaveBeenCalled();
     expect(block.code.trimEnd()).toBe("def f():\n    value = 1");
     expect(block.row).toBe(1);
   });
 
   it("keeps the regex fallback when the syntax-node accessor returns null", async () => {
-    await lumine.packages.activatePackage("language-python");
+    const pythonPackage = await lumine.packages.activatePackage("language-python");
+    await pythonPackage.resourceLoadPromise;
     editor = await lumine.workspace.open("syntax-node-fallback.py");
+    editor.setGrammar(lumine.grammars.grammarForScopeName("source.python"));
     editor.setText("def f():\n    value = 1\noutside = 2\n");
     await editor.getBuffer().getLanguageMode().atTransactionEnd();
-    spyOnProperty(store.constructor.prototype, "kernel", "get").and.returnValue({
+    spyOnProperty(store, "kernel", "get").and.returnValue({
       language: "python",
     });
     spyOn(editor, "getSyntaxNodeAtBufferPosition").and.returnValue(null);

@@ -1,5 +1,14 @@
-const { LumineWidgetManager, staticManagerFor } = require("../lib/widget-manager");
-const registry = require("../lib/widget-registry");
+let { LumineWidgetManager, staticManagerFor } = require("../lib/widget-manager");
+let registry = require("../lib/widget-registry");
+let Kernel = require("../lib/kernel");
+let registryModule = require("../lib/widget-registry");
+
+beforeEach(() => {
+  ({ LumineWidgetManager, staticManagerFor } = require("../lib/widget-manager"));
+  registry = require("../lib/widget-registry");
+  Kernel = require("../lib/kernel");
+  registryModule = require("../lib/widget-registry");
+});
 
 // The manager is the only thing that loads the widget bundle, and the only
 // place that decides what a widget is allowed to be. Two of the assertions here
@@ -67,9 +76,6 @@ function build(transport) {
 // go, and until it did, every kernel that ever showed a widget kept the lot for
 // the life of the window — one set per kernel, and per restart.
 describe("a kernel that showed a widget", () => {
-  const Kernel = require("../lib/kernel");
-  const registryModule = require("../lib/widget-registry");
-
   it("releases its widget host when it is destroyed", () => {
     const transport = fakeTransport();
     transport.registerCommTarget = () => ({ dispose: () => {} });

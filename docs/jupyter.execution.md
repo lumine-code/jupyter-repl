@@ -25,7 +25,7 @@ In your `package.json`:
 }
 ```
 
-When the package activates for reasons unrelated to execution, add `"activateProviders": false` beside `versions` and trigger `jupyter-repl:runtime-needed` immediately before the first operation. Ordinary consumers should omit `activateProviders` and let service demand activate the runtime.
+Service consumption is passive and has no activation mode. The provider is available when jupyter-repl is enabled and bootstrapped; a consumer can await `lumine.packages.requestService("jupyter.execution", "^1.0.0")` to check whether a compatible provider is currently published before running its first operation.
 
 ## Contract
 

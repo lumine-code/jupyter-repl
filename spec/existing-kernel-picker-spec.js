@@ -1,11 +1,14 @@
-const ExistingKernelPicker = require("../lib/existing-kernel-picker");
-const adapterIntegration = require("../lib/adapter-integration");
-const store = require("../lib/store");
+let ExistingKernelPicker = require("../lib/existing-kernel-picker");
+let adapterIntegration = require("../lib/adapter-integration");
+let store = require("../lib/store");
 
 describe("existing kernel picker", () => {
   let picker;
 
   beforeEach(() => {
+    ExistingKernelPicker = require("../lib/existing-kernel-picker");
+    adapterIntegration = require("../lib/adapter-integration");
+    store = require("../lib/store");
     store.runningKernels = [
       {
         id: "python",

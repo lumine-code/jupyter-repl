@@ -1,8 +1,8 @@
 const path = require("path");
 const manifest = require(path.join(__dirname, "..", "package.json"));
-const main = require(path.join(__dirname, "..", manifest.main));
-const result = require("../lib/result");
-const store = require("../lib/store");
+let main = require(path.join(__dirname, "..", manifest.main));
+let result = require("../lib/result");
+let store = require("../lib/store");
 
 // The jupyter.execution service is the seam the cell layer moved across:
 // jupyter-cells computes {code, row, cellType} blocks and this side runs them.
@@ -17,6 +17,9 @@ describe("the jupyter.execution service", () => {
   let previousActivePaneItem;
 
   beforeEach(async () => {
+    main = require(path.join(__dirname, "..", manifest.main));
+    result = require("../lib/result");
+    store = require("../lib/store");
     previousEditor = store.editor;
     previousActivePaneItem = store.activePaneItem;
 
@@ -105,7 +108,13 @@ describe("the jupyter.execution service", () => {
 });
 
 describe("the optional jupyter.cells consumption", () => {
-  const codeManager = require("../lib/code-manager");
+  let codeManager;
+
+  beforeEach(() => {
+    main = require(path.join(__dirname, "..", manifest.main));
+    store = require("../lib/store");
+    codeManager = require("../lib/code-manager");
+  });
 
   it("clips a block at a cell boundary only while the service is present", async () => {
     const editor = await lumine.workspace.open();

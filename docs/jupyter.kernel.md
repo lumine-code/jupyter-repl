@@ -25,7 +25,7 @@ In your `package.json`:
 }
 ```
 
-This default consumption activates jupyter-repl. A package that is active for unrelated features may add `"activateProviders": false` beside `versions`, then trigger `jupyter-repl:runtime-needed` immediately before an operation that requires the kernel provider.
+Service consumption is passive: declaring this service never activates jupyter-repl. The provider is available when jupyter-repl is enabled and bootstrapped; a consumer can await `lumine.packages.requestService("jupyter.kernel", "^1.0.0")` to check whether a compatible provider is currently published, then use the handle supplied to its consumer method.
 
 ## Contract
 

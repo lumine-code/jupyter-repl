@@ -1,10 +1,10 @@
 const path = require("path");
 const manifest = require("../package.json");
-const main = require("../lib/main");
-const commands = require("../lib/commands");
-const result = require("../lib/result");
-const store = require("../lib/store");
-const OutputPane = require("../lib/panes/output-area");
+let main = require("../lib/main");
+let commands = require("../lib/commands");
+let result = require("../lib/result");
+let store = require("../lib/store");
+let OutputPane = require("../lib/panes/output-area");
 
 const DESERIALIZER = "jupyter-repl/OutputPane";
 
@@ -14,6 +14,14 @@ const DESERIALIZER = "jupyter-repl/OutputPane";
 describe("restoring the Output Area pane", () => {
   let loadedPackage = null;
 
+  beforeEach(() => {
+    main = require("../lib/main");
+    commands = require("../lib/commands");
+    result = require("../lib/result");
+    store = require("../lib/store");
+    OutputPane = require("../lib/panes/output-area");
+  });
+
   afterEach(async () => {
     if (loadedPackage && lumine.packages.isPackageActive(loadedPackage.name)) {
       await lumine.packages.deactivatePackage(loadedPackage.name);
@@ -21,7 +29,7 @@ describe("restoring the Output Area pane", () => {
       main.deactivate();
     }
     if (loadedPackage && lumine.packages.isPackageLoaded(loadedPackage.name)) {
-      lumine.packages.unloadPackage(loadedPackage.name);
+      await lumine.packages.unloadPackage(loadedPackage.name);
     }
     loadedPackage = null;
   });
@@ -40,7 +48,7 @@ describe("restoring the Output Area pane", () => {
     expect(item.getAllowedLocations()).toEqual(["right", "left"]);
   });
 
-  it("round-trips through the manifest-registered proxy before activation", () => {
+  it("round-trips through the manifest-registered proxy during bootstrap", () => {
     const source = new OutputPane(store);
     const state = source.serialize();
     source.destroy();
@@ -53,7 +61,9 @@ describe("restoring the Output Area pane", () => {
     expect(restored).toBeTruthy();
     expect(restored.serialize()).toEqual(state);
     expect(loadedPackage.mainInitialized).toBe(true);
-    expect(loadedPackage.mainActivated).toBe(false);
+    // Initial package bootstraps now run before workspace restoration, so the
+    // deserializer receives the same active generation that a cold opener uses.
+    expect(loadedPackage.mainActivated).toBe(true);
   });
 
   it("keeps the startup-restored item when activation and URI opening follow", async () => {

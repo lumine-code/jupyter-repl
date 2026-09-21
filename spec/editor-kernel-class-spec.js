@@ -1,7 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const Kernel = require("../lib/kernel");
+let Kernel = require("../lib/kernel");
 
 // The package puts a `jupyter-kernel` class on every editor whose file has a
 // running kernel, so styles and keymaps can be scoped to one. `observeTextEditors`
@@ -27,6 +27,7 @@ describe("the jupyter-kernel editor class", () => {
     const activation = lumine.packages.activatePackage(PACKAGE_PATH);
     lumine.commands.dispatch(lumine.views.getView(lumine.workspace), "jupyter-repl:debug-toggle");
     await activation;
+    Kernel = require("../lib/kernel");
   }, 30000);
 
   afterEach(async () => {

@@ -1,7 +1,8 @@
 const { Range } = require("lumine");
-const { run, runAllInline } = require("../lib/main");
-const result = require("../lib/result");
-const store = require("../lib/store");
+let run = require("../lib/main").run;
+let runAllInline = require("../lib/main").runAllInline;
+let result = require("../lib/result");
+let store = require("../lib/store");
 
 describe("batch inline feedback", () => {
   let editor;
@@ -19,6 +20,9 @@ describe("batch inline feedback", () => {
     );
 
   beforeEach(async () => {
+    ({ run, runAllInline } = require("../lib/main"));
+    result = require("../lib/result");
+    store = require("../lib/store");
     previousEditor = store.editor;
     previousActivePaneItem = store.activePaneItem;
     previousOutputAreaDefault = lumine.config.get("jupyter-repl.outputAreaDefault");
