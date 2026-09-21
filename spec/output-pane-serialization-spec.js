@@ -61,9 +61,10 @@ describe("restoring the Output Area pane", () => {
     expect(restored).toBeTruthy();
     expect(restored.serialize()).toEqual(state);
     expect(loadedPackage.mainInitialized).toBe(true);
-    // Initial package bootstraps now run before workspace restoration, so the
-    // deserializer receives the same active generation that a cold opener uses.
-    expect(loadedPackage.mainActivated).toBe(true);
+    // Workspace restoration happens before the initial package batch finishes.
+    // The deserializer may build the singleton from the loaded facade, but its
+    // live activate hook waits for the normal bootstrap.
+    expect(loadedPackage.mainActivated).toBe(false);
   });
 
   it("keeps the startup-restored item when activation and URI opening follow", async () => {
