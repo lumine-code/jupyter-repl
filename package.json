@@ -20,9 +20,6 @@
   "engines": {
     "lumine": "^1.0.0"
   },
-  "backgroundTips": [
-    "You can run the line or the selection under the cursor in a Jupyter kernel with {{ 'jupyter-repl:run' | keystroke }}"
-  ],
   "deserializers": {
     "jupyter-repl/OutputPane": "deserializeOutputPane"
   },
@@ -43,6 +40,33 @@
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
+  },
+  "providedServices": {
+    "autocomplete.provider": {
+      "versions": {
+        "1.0.0": "provideAutocomplete"
+      }
+    },
+    "jupyter.kernel": {
+      "versions": {
+        "1.0.0": "provideJupyterKernel"
+      }
+    },
+    "jupyter.output": {
+      "versions": {
+        "1.0.0": "provideJupyterOutput"
+      }
+    },
+    "jupyter.execution": {
+      "versions": {
+        "1.0.0": "provideJupyterExecution"
+      }
+    },
+    "background-tips.provider": {
+      "versions": {
+        "1.0.0": "provideBackgroundTips"
+      }
+    }
   },
   "consumedServices": {
     "status-bar": {
@@ -73,28 +97,6 @@
     "jupyter.cells": {
       "versions": {
         "^1.0.0": "consumeJupyterCells"
-      }
-    }
-  },
-  "providedServices": {
-    "autocomplete.provider": {
-      "versions": {
-        "1.0.0": "provideAutocomplete"
-      }
-    },
-    "jupyter.kernel": {
-      "versions": {
-        "1.0.0": "provideJupyterKernel"
-      }
-    },
-    "jupyter.output": {
-      "versions": {
-        "1.0.0": "provideJupyterOutput"
-      }
-    },
-    "jupyter.execution": {
-      "versions": {
-        "1.0.0": "provideJupyterExecution"
       }
     }
   },
