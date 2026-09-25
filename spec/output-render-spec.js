@@ -1,8 +1,20 @@
 const etch = require("@lumine-code/etch");
+const path = require("path");
+const { pathToFileURL } = require("url");
 const { renderDisplay, isTextOutputOnly } = require("../lib/components/result-view/display");
 const { renderOutput } = require("../lib/components/output");
-const { HTML } = require("../lib/components/result-view/html");
-const { VegaEmbed } = require("../lib/components/result-view/vega");
+const { HTML, detectMediaType } = require("../lib/components/result-view/html");
+const {
+  VegaEmbed,
+  embed: embedVega,
+  loadVegaEmbed,
+  runtime: vegaRuntime,
+} = require("../lib/components/result-view/vega");
+const {
+  PlotlyTransform,
+  extractPlotlyFigure,
+  plotlyHtmlRenderer,
+} = require("../lib/components/result-view/plotly");
 const OutputStore = require("../lib/store/output");
 const History = require("../lib/components/result-view/history");
 const ScrollList = require("../lib/components/result-view/list");
@@ -98,6 +110,35 @@ describe("output rendering", () => {
     expect(rendered).toContain("height: 2em");
   });
 
+  it("renders WebP with the size its metadata asks for", () => {
+    const rendered = html({
+      output_type: "display_data",
+      data: { "image/webp": "AAAA" },
+      metadata: { "image/webp": { width: 12, height: "3em" } },
+    });
+
+    expect(rendered).toContain("data:image/webp;base64,AAAA");
+    expect(rendered).toContain("width: 12px");
+    expect(rendered).toContain("height: 3em");
+  });
+
+  it("renders SVG as an inert encoded image", () => {
+    const probe = new Probe({
+      output_type: "display_data",
+      data: {
+        "image/svg+xml":
+          '<svg xmlns="http://www.w3.org/2000/svg" onload="globalThis.svgRan=true"><script>globalThis.svgRan=true</script><rect width="1" height="1"/></svg>',
+      },
+      metadata: {},
+    });
+    const image = probe.element.querySelector("img.output-svg");
+
+    expect(image).toBeTruthy();
+    expect(image.getAttribute("src")).toMatch(/^data:image\/svg\+xml;base64,/);
+    expect(probe.element.querySelector("svg")).toBeFalsy();
+    expect(probe.element.querySelector("script")).toBeFalsy();
+  });
+
   it("prefers the richest representation a bundle offers", () => {
     const rendered = html({
       output_type: "execute_result",
@@ -144,6 +185,362 @@ describe("output rendering", () => {
     await component.update({ data: "<i>back</i>" });
     expect(component.element).toBe(root);
     expect(root.innerHTML).toContain("back");
+    component.destroy();
+  });
+
+  it("sanitizes HTML without discarding semantic output", () => {
+    const probe = new Probe({
+      output_type: "display_data",
+      data: {
+        "text/html":
+          "<style>body{display:none}</style><script>bad()</script>" +
+          '<iframe src="javascript:bad()"></iframe><form><input></form>' +
+          '<table class="dataframe"><tr><td onclick="bad()">42</td></tr></table>' +
+          '<img src="data:image/png;base64,AAAA" onerror="bad()">' +
+          '<a href="javascript:bad()">bad</a>' +
+          '<a href="https://example.com" target="_blank">good</a>',
+      },
+      metadata: {},
+    });
+    const root = probe.element;
+    const links = root.querySelectorAll("a");
+
+    expect(root.querySelector("script")).toBeFalsy();
+    expect(root.querySelector("style")).toBeFalsy();
+    expect(root.querySelector("iframe")).toBeFalsy();
+    expect(root.querySelector("form")).toBeFalsy();
+    expect(root.querySelector("table.dataframe").textContent).toBe("42");
+    expect(root.querySelector("td").hasAttribute("onclick")).toBe(false);
+    expect(root.querySelector("img").hasAttribute("onerror")).toBe(false);
+    expect(root.querySelector("img").getAttribute("src")).toContain("data:image/png;base64");
+    expect(links[0].hasAttribute("href")).toBe(false);
+    expect(links[1].getAttribute("href")).toBe("https://example.com");
+    expect(links[1].getAttribute("rel")).toBe("noopener noreferrer");
+  });
+
+  it("preserves standard IPython HTTPS frames", () => {
+    const probe = new Probe({
+      output_type: "display_data",
+      data: {
+        "text/html": `
+          <iframe
+            width="900"
+            height="490"
+            src="https://nteract.io/"
+            frameborder="0"
+            allowfullscreen
+          ></iframe>
+          <iframe class="relative-frame" src="./local.html"></iframe>
+        `,
+      },
+      metadata: {},
+    });
+    const iframe = probe.element.querySelector("iframe");
+
+    expect(iframe).toBeTruthy();
+    expect(iframe.getAttribute("src")).toBe("https://nteract.io/");
+    expect(iframe.getAttribute("width")).toBe("900");
+    expect(iframe.getAttribute("height")).toBe("490");
+    expect(iframe.getAttribute("frameborder")).toBe("0");
+    expect(iframe.hasAttribute("allowfullscreen")).toBe(true);
+    expect(iframe.getAttribute("sandbox")).toBe("allow-scripts allow-same-origin");
+    expect(iframe.getAttribute("referrerpolicy")).toBe("no-referrer");
+    expect(probe.element.querySelector("iframe.relative-frame")).toBeFalsy();
+  });
+
+  it("preserves standard IPython audio and video", () => {
+    const probe = new Probe({
+      output_type: "display_data",
+      data: {
+        "text/html": `
+          <audio controls="controls">
+            <source src="https://example.com/audio.mp3" type="audio/mpeg" />
+          </audio>
+          <audio class="embedded-audio" src="data:audio/wav;base64,AAAA" controls></audio>
+          <video src="https://example.com/video.mp4" controls width="640" height="360"></video>
+          <video class="embedded-video" src="data:video/mp4;base64,AAAA" controls></video>
+        `,
+      },
+      metadata: {},
+    });
+    const audio = probe.element.querySelector("audio");
+    const source = audio.querySelector("source");
+    const video = probe.element.querySelector("video");
+
+    expect(audio.hasAttribute("controls")).toBe(true);
+    expect(source.getAttribute("src")).toBe("https://example.com/audio.mp3");
+    expect(source.getAttribute("type")).toBe("audio/mpeg");
+    expect(video.getAttribute("src")).toBe("https://example.com/video.mp4");
+    expect(video.hasAttribute("controls")).toBe(true);
+    expect(video.getAttribute("width")).toBe("640");
+    expect(video.getAttribute("height")).toBe("360");
+    expect(probe.element.querySelector("audio.embedded-audio").getAttribute("src")).toContain(
+      "data:audio/wav;base64,AAAA",
+    );
+    expect(probe.element.querySelector("video.embedded-video").getAttribute("src")).toContain(
+      "data:video/mp4;base64,AAAA",
+    );
+  });
+
+  it("normalizes absolute image paths without allowing file links", () => {
+    const absolutePath = path.join(path.parse(process.cwd()).root, "Data", "plot #1.png");
+    const fileUrl = pathToFileURL(absolutePath).href;
+    const probe = new Probe({
+      output_type: "display_data",
+      data: {
+        "text/html":
+          `<img class="native-path" src="${absolutePath}" srcset="${fileUrl} 2x" width="800">` +
+          `<img class="file-url" src="${fileUrl}" width="400">` +
+          `<a class="file-link" href="${fileUrl}">local file</a>`,
+      },
+      metadata: {},
+    });
+    const root = probe.element;
+
+    expect(root.querySelector("img.native-path").getAttribute("src")).toBe(fileUrl);
+    expect(root.querySelector("img.native-path").hasAttribute("srcset")).toBe(false);
+    expect(root.querySelector("img.file-url").getAttribute("src")).toBe(fileUrl);
+    expect(root.querySelector("a.file-link").hasAttribute("href")).toBe(false);
+  });
+
+  it("loads an absolute local image after sanitization", async () => {
+    const imagePath = path.join(__dirname, "..", "assets", "logo.svg");
+    const probe = new Probe({
+      output_type: "display_data",
+      data: { "text/html": `<img src="${imagePath}" width="800">` },
+      metadata: {},
+    });
+    jasmine.attachToDOM(probe.element);
+    const image = probe.element.querySelector("img");
+
+    await new Promise((resolve, reject) => {
+      if (image.complete) {
+        return image.naturalWidth > 0 ? resolve() : reject(new Error("Local image did not load"));
+      }
+      image.addEventListener("load", resolve, { once: true });
+      image.addEventListener("error", () => reject(new Error("Local image did not load")), {
+        once: true,
+      });
+    });
+
+    expect(image.naturalWidth).toBeGreaterThan(0);
+    probe.element.remove();
+  }, 5000);
+});
+
+describe("modern rich media formats", () => {
+  it("renders the MIME spelling emitted by Altair 6 instead of its text fallback", () => {
+    spyOn(VegaEmbed.prototype, "callEmbedder");
+    const rendered = html({
+      output_type: "display_data",
+      data: {
+        "application/vnd.vegalite.v6.json": {
+          $schema: "https://vega.github.io/schema/vega-lite/v6.json",
+          data: { values: [{ x: 1, y: 2 }] },
+          mark: "point",
+          encoding: {
+            x: { field: "x", type: "quantitative" },
+            y: { field: "y", type: "quantitative" },
+          },
+        },
+        "text/plain": "<VegaLite 6 object> renderer has not been properly enabled",
+      },
+      metadata: {},
+    });
+
+    expect(rendered).toContain("output-vega");
+    expect(rendered).not.toContain("renderer has not been properly enabled");
+  });
+
+  it("prefers Vega 6 to Vega 5", () => {
+    const vnode = renderOutput(
+      {
+        output_type: "display_data",
+        data: {
+          "application/vnd.vega.v5+json": {},
+          "application/vnd.vega.v6+json": {},
+        },
+        metadata: {},
+      },
+      {
+        "application/vnd.vega.v5+json": () => etch.dom.div({ className: "vega-5" }),
+        "application/vnd.vega.v6+json": () => etch.dom.div({ className: "vega-6" }),
+      },
+    );
+
+    expect(vnode.props.className).toBe("vega-6");
+  });
+
+  it("recognizes only current Vega and Vega-Lite schemas", () => {
+    expect(detectMediaType({ $schema: "https://vega.github.io/schema/vega/v6.json" })).toBe(
+      "application/vnd.vega.v6+json",
+    );
+    expect(detectMediaType({ $schema: "https://vega.github.io/schema/vega-lite/v5.json" })).toBe(
+      "application/vnd.vegalite.v5+json",
+    );
+    expect(detectMediaType({ $schema: "https://vega.github.io/schema/vega-lite/v4.json" })).toBe(
+      null,
+    );
+  });
+
+  it("falls back from removed Vega media types to plain text", () => {
+    const rendered = html({
+      output_type: "display_data",
+      data: {
+        "application/vnd.vegalite.v4+json": { mark: "bar" },
+        "text/plain": "old chart",
+      },
+      metadata: {},
+    });
+
+    expect(rendered).toContain("output-text");
+    expect(rendered).toContain("old chart");
+    expect(rendered).not.toContain("output-vega");
+  });
+
+  it("extracts literal Plotly JSON from newPlot and react", () => {
+    const newPlot = extractPlotlyFigure(
+      '<script>Plotly.newPlot("chart", [{"x":[1,2],"name":"a,b"}], {"title":{"text":"A \\"quote\\""}}, {"responsive":true});</script>',
+    );
+    const react = extractPlotlyFigure(
+      '<script>Plotly.react(document.getElementById("chart"), [{"y":[3,4]}], {"showlegend":false});</script>',
+    );
+
+    expect(newPlot).toEqual({
+      data: [{ x: [1, 2], name: "a,b" }],
+      layout: { title: { text: 'A "quote"' } },
+    });
+    expect(react).toEqual({ data: [{ y: [3, 4] }], layout: { showlegend: false } });
+
+    const vnode = plotlyHtmlRenderer(
+      '<script>Plotly.newPlot("chart", [{"x":[1]}], {"title":"safe"});</script>',
+    );
+    expect(vnode.tag).toBe(PlotlyTransform);
+    expect(vnode.props.data).toEqual({ data: [{ x: [1] }], layout: { title: "safe" } });
+  });
+
+  it("declines executable Plotly HTML and uses plain text", () => {
+    expect(
+      extractPlotlyFigure('<script>Plotly.newPlot("chart", getData(), layout);</script>'),
+    ).toBe(null);
+    const rendered = html({
+      output_type: "display_data",
+      data: {
+        "text/vnd.plotly.v1+html": '<script>Plotly.newPlot("chart", getData(), layout);</script>',
+        "text/plain": "Plotly figure",
+      },
+      metadata: {},
+    });
+
+    expect(rendered).toContain("output-text");
+    expect(rendered).toContain("Plotly figure");
+  });
+});
+
+describe("vega lifecycle", () => {
+  afterEach(() => vegaRuntime.reset());
+
+  it("routes Vega and Vega-Lite 5 and 6 through the current embedder", async () => {
+    const embedder = jasmine.createSpy("embed").and.returnValue(Promise.resolve({ finalize() {} }));
+    spyOn(vegaRuntime, "load").and.returnValue(Promise.resolve(embedder));
+    const formats = {
+      "application/vnd.vega.v5.json": "vega",
+      "application/vnd.vega.v5+json": "vega",
+      "application/vnd.vega.v6.json": "vega",
+      "application/vnd.vega.v6+json": "vega",
+      "application/vnd.vegalite.v5.json": "vega-lite",
+      "application/vnd.vegalite.v5+json": "vega-lite",
+      "application/vnd.vegalite.v6.json": "vega-lite",
+      "application/vnd.vegalite.v6+json": "vega-lite",
+    };
+
+    for (const [mediaType, mode] of Object.entries(formats)) {
+      const anchor = document.createElement("div");
+      const spec = { mark: "point" };
+      await embedVega(anchor, mediaType, spec);
+      expect(embedder).toHaveBeenCalledWith(anchor, spec, { actions: false, ast: true, mode });
+    }
+  });
+
+  it("loads the official runtime and renders Vega-Lite 6 in the window", async () => {
+    const anchor = document.createElement("div");
+    jasmine.attachToDOM(anchor);
+    const result = await embedVega(anchor, "application/vnd.vegalite.v6+json", {
+      $schema: "https://vega.github.io/schema/vega-lite/v6.json",
+      data: { values: [{ category: "A", value: 1 }] },
+      mark: "bar",
+      encoding: {
+        x: { field: "category", type: "nominal" },
+        y: { field: "value", type: "quantitative" },
+      },
+    });
+
+    expect(anchor.querySelector("canvas, svg")).toBeTruthy();
+    result.finalize();
+    anchor.remove();
+  }, 15000);
+
+  it("retries the runtime import after a failure", async () => {
+    const failure = new Error("load failed");
+    let seen = null;
+    try {
+      await loadVegaEmbed(() => Promise.reject(failure));
+    } catch (error) {
+      seen = error;
+    }
+    expect(seen).toBe(failure);
+
+    const embedder = () => {};
+    const loaded = await loadVegaEmbed(() => Promise.resolve({ default: embedder }));
+    expect(loaded).toBe(embedder);
+  });
+
+  it("finalizes a superseded asynchronous result and the current result", async () => {
+    let resolveFirst;
+    const firstPromise = new Promise((resolve) => (resolveFirst = resolve));
+    const firstResult = { finalize: jasmine.createSpy("first finalize") };
+    const secondResult = { finalize: jasmine.createSpy("second finalize") };
+    let callCount = 0;
+    const embedder = jasmine.createSpy("embed").and.callFake(() => {
+      callCount++;
+      return callCount === 1 ? firstPromise : Promise.resolve(secondResult);
+    });
+    spyOn(vegaRuntime, "load").and.returnValue(Promise.resolve(embedder));
+
+    const component = new VegaEmbed({
+      mediaType: "application/vnd.vegalite.v6+json",
+      spec: { mark: "bar" },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    await component.update({
+      mediaType: "application/vnd.vegalite.v6+json",
+      spec: { mark: "line" },
+    });
+    resolveFirst(firstResult);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(firstResult.finalize).toHaveBeenCalled();
+    expect(component.embedResult).toBe(secondResult);
+    component.destroy();
+    expect(secondResult.finalize).toHaveBeenCalled();
+  });
+
+  it("shows a load error with the bundle's plain-text fallback", async () => {
+    spyOn(vegaRuntime, "load").and.returnValue(Promise.reject(new Error("cannot load Vega")));
+    const component = new VegaEmbed({
+      mediaType: "application/vnd.vegalite.v6+json",
+      spec: { mark: "bar" },
+      fallback: "chart fallback",
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    etch.updateSync(component);
+
+    expect(component.element.textContent).toContain("cannot load Vega");
+    expect(component.element.textContent).toContain("chart fallback");
     component.destroy();
   });
 });

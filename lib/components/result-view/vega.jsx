@@ -1,98 +1,64 @@
 /** @jsx etch.dom */
-/**
- * Adapted from
- * https://github.com/nteract/nteract/blob/master/packages/transform-vega/src/index.tsx
- * Copyright (c) 2016 - present, nteract contributors All rights reserved.
- */
+/** Vega and Vega-Lite rendering through the official, current runtime. */
 const etch = require("@lumine-code/etch");
 
-/** All the information. All of it. On Vega (Lite) media types, at least. */
 const MEDIA_TYPES = {
-  "application/vnd.vega.v2+json": {
-    kind: "vega",
-    version: "2",
-    vegaLevel: 2,
-    mediaType: "application/vnd.vega.v2+json",
-    schemaPrefix: "https://vega.github.io/schema/vega/v2.json",
+  "application/vnd.vega.v6.json": { kind: "vega", version: "6" },
+  "application/vnd.vega.v6+json": { kind: "vega", version: "6" },
+  "application/vnd.vega.v5.json": { kind: "vega", version: "5" },
+  "application/vnd.vega.v5+json": { kind: "vega", version: "5" },
+  "application/vnd.vegalite.v6.json": { kind: "vega-lite", version: "6" },
+  "application/vnd.vegalite.v6+json": { kind: "vega-lite", version: "6" },
+  "application/vnd.vegalite.v5.json": { kind: "vega-lite", version: "5" },
+  "application/vnd.vegalite.v5+json": { kind: "vega-lite", version: "5" },
+};
+
+let embedPromise = null;
+
+function loadVegaEmbed(
+  importer = () => Promise.resolve().then(() => require("../../vendor/vega-embed")),
+) {
+  if (!embedPromise) {
+    embedPromise = importer()
+      .then((module) => module.default || module)
+      .then((embedder) => {
+        if (typeof embedder !== "function") {
+          throw new TypeError("vega-embed did not export an embed function");
+        }
+        return embedder;
+      })
+      .catch((error) => {
+        embedPromise = null;
+        throw error;
+      });
+  }
+  return embedPromise;
+}
+
+// Kept as an object so specs can replace the loader without intercepting the
+// language-level dynamic import. A failed import clears the cache and can be
+// retried by the next output.
+const runtime = {
+  load() {
+    return loadVegaEmbed();
   },
-  "application/vnd.vega.v3+json": {
-    kind: "vega",
-    version: "3",
-    vegaLevel: 3,
-    mediaType: "application/vnd.vega.v3+json",
-    schemaPrefix: "https://vega.github.io/schema/vega/v3.json",
-  },
-  "application/vnd.vega.v4+json": {
-    kind: "vega",
-    version: "4",
-    vegaLevel: 4,
-    mediaType: "application/vnd.vega.v4+json",
-    schemaPrefix: "https://vega.github.io/schema/vega/v4.json",
-  },
-  "application/vnd.vega.v5+json": {
-    kind: "vega",
-    version: "5",
-    vegaLevel: 5,
-    mediaType: "application/vnd.vega.v5+json",
-    schemaPrefix: "https://vega.github.io/schema/vega/v5.json",
-  },
-  "application/vnd.vegalite.v1+json": {
-    kind: "vega-lite",
-    version: "1",
-    vegaLevel: 2,
-    mediaType: "application/vnd.vegalite.v1+json",
-    schemaPrefix: "https://vega.github.io/schema/vega-lite/v1.json",
-  },
-  "application/vnd.vegalite.v2+json": {
-    kind: "vega-lite",
-    version: "2",
-    vegaLevel: 3,
-    mediaType: "application/vnd.vegalite.v2+json",
-    schemaPrefix: "https://vega.github.io/schema/vega-lite/v2.json",
-  },
-  "application/vnd.vegalite.v3+json": {
-    kind: "vega-lite",
-    version: "3",
-    vegaLevel: 5,
-    mediaType: "application/vnd.vegalite.v3+json",
-    schemaPrefix: "https://vega.github.io/schema/vega-lite/v3.json",
-  },
-  "application/vnd.vegalite.v4+json": {
-    kind: "vega-lite",
-    version: "4",
-    vegaLevel: 5,
-    mediaType: "application/vnd.vegalite.v4+json",
-    schemaPrefix: "https://vega.github.io/schema/vega-lite/v4.json",
-  },
-  "application/vnd.vegalite.v5+json": {
-    kind: "vega-lite",
-    version: "5",
-    vegaLevel: 6,
-    mediaType: "application/vnd.vegalite.v5+json",
-    schemaPrefix: "https://vega.github.io/schema/vega-lite/v5.json",
+  reset() {
+    embedPromise = null;
   },
 };
 
-/** Call the external library to do the embedding. */
 async function embed(anchor, mediaType, spec, options = {}) {
-  const version = MEDIA_TYPES[mediaType];
-  const defaults = {
+  const format = MEDIA_TYPES[mediaType];
+  if (!format) {
+    throw new TypeError(`Unsupported Vega media type: ${mediaType}`);
+  }
+  const embedVega = await runtime.load();
+  return embedVega(anchor, spec, {
+    ...options,
     actions: false,
-    mode: version.kind,
-  };
-  // Map unsupported versions to latest supported (npm @nteract/any-vega@1.0.1
-  // supports vega 2-5, vegalite 1-4)
-  const embedVersion = {
-    kind: version.kind,
-    version: version.kind === "vega-lite" && version.version === "5" ? "4" : version.version,
-  };
-  // Required here rather than at module scope: the package ships 15M of
-  // prebuilt vega bundles, and this module now loads at activation (the
-  // jupyter.output service is built eagerly). Nothing should parse that
-  // until a vega output actually renders.
-  const { embed: embedVega } = require("@nteract/any-vega");
-  const embedThisVega = await embedVega(embedVersion);
-  return embedThisVega(anchor, spec, { ...options, ...defaults });
+    ast: true,
+    mode: format.kind,
+  });
 }
 
 const ERROR_STYLE = {
@@ -106,77 +72,103 @@ const ERROR_STYLE = {
   fontSize: "12px",
 };
 
-/** Embeds one Vega (Lite) spec, and reports a failure in place of the chart. */
+function finalizeResult(result) {
+  if (result?.finalize) {
+    result.finalize();
+  } else {
+    result?.view?.finalize?.();
+  }
+}
+
+/** Embeds one Vega spec and owns every asynchronous result it creates. */
 class VegaEmbed {
   constructor(props) {
     this.props = props;
     this.embedError = null;
     this.embedResult = null;
+    this.destroyed = false;
+    this.renderToken = 0;
     etch.initialize(this);
     this.callEmbedder();
   }
 
   render() {
     return (
-      <div>
+      <div className="output-vega">
         {this.embedError ? (
-          <div style={ERROR_STYLE}>{this.embedError.message || String(this.embedError)}</div>
+          <div className="output-vega-error" style={ERROR_STYLE}>
+            <div>{this.embedError.message || String(this.embedError)}</div>
+            {this.props.fallback ? <pre className="output-text">{this.props.fallback}</pre> : null}
+          </div>
         ) : null}
-        <div ref="anchor" />
+        <div ref="anchor" key={this.renderToken} />
       </div>
     );
   }
 
   async callEmbedder() {
     const anchor = this.refs.anchor;
-    if (!anchor) {
-      return;
-    }
+    if (!anchor || this.destroyed) return;
+
+    const token = ++this.renderToken;
+    this.finalize();
+    this.embedError = null;
 
     try {
-      this.embedResult = await embed(anchor, this.props.mediaType, this.props.spec, {
+      const result = await embed(anchor, this.props.mediaType, this.props.spec, {
         ...this.props.options,
       });
-      this.props.resultHandler?.(this.embedResult);
+      if (this.destroyed || token !== this.renderToken) {
+        finalizeResult(result);
+        return;
+      }
+      this.embedResult = result;
+      this.props.resultHandler?.(result);
     } catch (error) {
-      this.props.errorHandler?.(error);
+      if (this.destroyed || token !== this.renderToken) return;
       this.embedError = error;
-      etch.update(this);
+      this.props.errorHandler?.(error);
+      return etch.update(this);
     }
   }
 
   update(props) {
-    // Re-embedding is expensive, so only a new spec is worth one.
-    if (props.spec === this.props.spec) {
-      this.props = props;
-      return Promise.resolve();
-    }
+    const changed = props.spec !== this.props.spec || props.mediaType !== this.props.mediaType;
     this.props = props;
+    if (!changed) return Promise.resolve();
+
+    // Invalidate an import/embed already in flight before yielding to etch.
+    this.renderToken++;
     this.embedError = null;
     this.finalize();
     return etch.update(this).then(() => this.callEmbedder());
   }
 
-  // The Vega view holds its own listeners and animation frames, so it has to be
-  // told to release them; removing the element is not enough.
   finalize() {
     if (this.embedResult) {
-      if (this.embedResult.finalize) {
-        this.embedResult.finalize();
-      } else if (this.embedResult.view?.finalize) {
-        this.embedResult.view.finalize();
-      }
+      finalizeResult(this.embedResult);
       this.embedResult = null;
     }
   }
 
   destroy() {
+    this.destroyed = true;
+    this.renderToken++;
     this.finalize();
     return etch.destroy(this);
   }
 }
 
-/** A renderer for one Vega (Lite) media type, for the media-type table. */
-const vegaRenderer = (mediaType) => (data) => <VegaEmbed mediaType={mediaType} spec={data} />;
+const vegaRenderer = (mediaType) => (data, metadata, bundle) => (
+  <VegaEmbed mediaType={mediaType} spec={data} fallback={bundle?.["text/plain"]} />
+);
 
-module.exports = { MEDIA_TYPES, embed, VegaEmbed, vegaRenderer };
+module.exports = {
+  MEDIA_TYPES,
+  loadVegaEmbed,
+  runtime,
+  embed,
+  finalizeResult,
+  VegaEmbed,
+  vegaRenderer,
+};

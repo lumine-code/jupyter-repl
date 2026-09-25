@@ -13,6 +13,89 @@
 const etch = require("@lumine-code/etch");
 const cloneDeep = require("lodash/cloneDeep");
 
+const CLOSING_DELIMITER = { "(": ")", "[": "]", "{": "}" };
+
+/**
+ * Split the arguments of a JavaScript call without evaluating them. Plotly's
+ * HTML MIME representation writes the figure as JSON literals inside a
+ * Plotly.newPlot/Plotly.react call; only those literals are accepted below.
+ */
+function callArguments(source, openParen) {
+  const args = [];
+  const stack = ["("];
+  let start = openParen + 1;
+  let quote = null;
+  let escaped = false;
+
+  for (let index = start; index < source.length; index++) {
+    const character = source[index];
+
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (character === '"' || character === "'" || character === "`") {
+      quote = character;
+      continue;
+    }
+
+    if (CLOSING_DELIMITER[character]) {
+      stack.push(character);
+      continue;
+    }
+
+    const expected = CLOSING_DELIMITER[stack[stack.length - 1]];
+    if (character === expected) {
+      if (stack.length === 1) {
+        args.push(source.slice(start, index).trim());
+        return args;
+      }
+      stack.pop();
+      continue;
+    }
+
+    if (character === "," && stack.length === 1) {
+      args.push(source.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+
+  return null;
+}
+
+/** Extract a JSON Plotly figure from its notebook HTML representation. */
+function extractPlotlyFigure(html) {
+  if (typeof html !== "string") return null;
+
+  const pattern = /\bPlotly\.(?:newPlot|react)\s*\(/g;
+  let match;
+  while ((match = pattern.exec(html)) !== null) {
+    const openParen = match.index + match[0].lastIndexOf("(");
+    const args = callArguments(html, openParen);
+    if (!args || args.length < 3) continue;
+
+    try {
+      const data = JSON.parse(args[1]);
+      const layout = JSON.parse(args[2]);
+      if (Array.isArray(data) && layout && typeof layout === "object" && !Array.isArray(layout)) {
+        return { data, layout };
+      }
+    } catch {
+      // Variable references and executable JavaScript are deliberately not
+      // supported. Try another Plotly call, then let the MIME bundle fall back.
+    }
+  }
+
+  return null;
+}
+
 class PlotlyTransform {
   constructor(props) {
     this.props = props;
@@ -121,4 +204,15 @@ class PlotlyTransform {
 
 const plotlyRenderer = (data) => <PlotlyTransform data={data} />;
 
-module.exports = { PlotlyTransform, plotlyRenderer };
+const plotlyHtmlRenderer = (data) => {
+  const figure = extractPlotlyFigure(data);
+  return figure ? <PlotlyTransform data={figure} /> : null;
+};
+
+module.exports = {
+  PlotlyTransform,
+  callArguments,
+  extractPlotlyFigure,
+  plotlyRenderer,
+  plotlyHtmlRenderer,
+};

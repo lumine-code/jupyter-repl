@@ -1,5 +1,6 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch"); // JSX factory
+const { Buffer } = require("buffer");
 const { ansiNodes, truncateOutput } = require("../../ansi-utils");
 
 // Each renderer takes the decoded data for its media type and returns virtual
@@ -23,22 +24,12 @@ function Plain(data) {
 }
 
 /**
- * Basic HTML renderer. The result view uses the richer `result-view/html`
- * component instead, which also pulls Vega specs out of Altair output.
- */
-function HTML(data) {
-  if (!data) return null;
-  // Strip script tags for basic safety
-  const sanitized = typeof data === "string" ? data.replace(/<script[\s\S]*?<\/script>/gi, "") : "";
-  return <div className="output-html" innerHTML={sanitized} />;
-}
-
-/**
- * Image renderer for png, jpeg and gif. Data is base64; metadata may carry the
+ * Image renderer for the base64 image media types. Metadata may carry the
  * width and height set by IPython.display.Image, as a number of pixels or as a
- * string with its own unit.
+ * string with its own unit. SVG uses the same path after encoding its XML so
+ * notebook markup never enters the document as active DOM.
  */
-function image(mediaType) {
+function image(mediaType, className = "output-image") {
   return (data, metadata) => {
     if (!data) return null;
     const src = `data:${mediaType};base64,${data}`;
@@ -54,13 +45,14 @@ function image(mediaType) {
       }
     }
 
-    return <img className="output-image" src={src} alt="Output" style={style} draggable={false} />;
+    return <img className={className} src={src} alt="Output" style={style} draggable={false} />;
   };
 }
 
-function SVG(data) {
+function SVG(data, metadata) {
   if (!data) return null;
-  return <div className="output-svg" innerHTML={data} />;
+  const encoded = Buffer.from(String(data), "utf8").toString("base64");
+  return image("image/svg+xml", "output-image output-svg")(encoded, metadata);
 }
 
 /** Pretty-printed JSON. */
@@ -83,7 +75,6 @@ function JavaScript(data) {
 
 module.exports = {
   Plain,
-  HTML,
   SVG,
   Json,
   JavaScript,

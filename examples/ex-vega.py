@@ -1,11 +1,12 @@
 # Vega and Vega-Lite direct spec examples
 # No external dependencies required - uses IPython display
 
-# %% Vega-Lite 5 - Simple Bar Chart
+# %% Vega-Lite 6 - Simple Bar Chart
+
 from IPython.display import display
 
 vegalite_spec = {
-    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
     "description": "A simple bar chart",
     "data": {
         "values": [
@@ -24,9 +25,10 @@ vegalite_spec = {
     }
 }
 
-display({"application/vnd.vegalite.v5+json": vegalite_spec}, raw=True)
+display({"application/vnd.vegalite.v6.json": vegalite_spec}, raw=True)
 
 # %% Vega-Lite 5 - Line Chart
+
 line_spec = {
     "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
     "description": "A line chart with points",
@@ -49,9 +51,10 @@ line_spec = {
 
 display({"application/vnd.vegalite.v5+json": line_spec}, raw=True)
 
-# %% Vega 5 - Arc/Pie Chart
+# %% Vega 6 - Arc/Pie Chart
+
 vega_spec = {
-    "$schema": "https://vega.github.io/schema/vega/v5.json",
+    "$schema": "https://vega.github.io/schema/vega/v6.json",
     "description": "A basic pie chart",
     "width": 200,
     "height": 200,
@@ -114,9 +117,10 @@ vega_spec = {
     ]
 }
 
-display({"application/vnd.vega.v5+json": vega_spec}, raw=True)
+display({"application/vnd.vega.v6.json": vega_spec}, raw=True)
 
 # %% Vega-Lite 5 - Scatter Plot with Tooltips
+
 scatter_spec = {
     "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
     "description": "Scatter plot with tooltips",

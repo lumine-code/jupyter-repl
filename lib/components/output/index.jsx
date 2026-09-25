@@ -19,23 +19,24 @@ const MIME_PRIORITY = [
   // to be driven from Python, and the static spec is the degraded form.
   "application/vnd.jupyter.widget-view+json",
   // Vega/Vega-Lite (interactive visualizations)
+  "application/vnd.vega.v6.json",
+  "application/vnd.vega.v6+json",
+  "application/vnd.vega.v5.json",
   "application/vnd.vega.v5+json",
-  "application/vnd.vega.v4+json",
-  "application/vnd.vega.v3+json",
-  "application/vnd.vega.v2+json",
+  "application/vnd.vegalite.v6.json",
+  "application/vnd.vegalite.v6+json",
+  "application/vnd.vegalite.v5.json",
   "application/vnd.vegalite.v5+json",
-  "application/vnd.vegalite.v4+json",
-  "application/vnd.vegalite.v3+json",
-  "application/vnd.vegalite.v2+json",
-  "application/vnd.vegalite.v1+json",
   // Plotly
   "application/vnd.plotly.v1+json",
+  "text/vnd.plotly.v1+html",
   // Rich formats
   "text/html",
   "text/markdown",
   "text/latex",
   "image/svg+xml",
   // Images
+  "image/webp",
   "image/png",
   "image/jpeg",
   "image/gif",

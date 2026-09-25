@@ -5,6 +5,7 @@
  * security policy would block.
  */
 const etch = require("@lumine-code/etch");
+const { sanitizeHtml } = require("../../output-utils");
 const { VegaEmbed } = require("./vega");
 
 function extractBalancedJSON(str, startIndex, startChar = "{") {
@@ -185,7 +186,7 @@ function detectMediaType(spec) {
   if (!spec || !spec.$schema) {
     // Default to latest vega-lite if no schema
     if (spec && (spec.mark || spec.layer || spec.hconcat || spec.vconcat)) {
-      return "application/vnd.vegalite.v5+json";
+      return "application/vnd.vegalite.v6+json";
     }
     return null;
   }
@@ -194,23 +195,16 @@ function detectMediaType(spec) {
 
   // Check for Vega-Lite
   if (schema.includes("vega-lite")) {
-    if (schema.includes("/v6")) return "application/vnd.vegalite.v5+json";
+    if (schema.includes("/v6")) return "application/vnd.vegalite.v6+json";
     if (schema.includes("/v5")) return "application/vnd.vegalite.v5+json";
-    if (schema.includes("/v4")) return "application/vnd.vegalite.v4+json";
-    if (schema.includes("/v3")) return "application/vnd.vegalite.v3+json";
-    if (schema.includes("/v2")) return "application/vnd.vegalite.v2+json";
-    if (schema.includes("/v1")) return "application/vnd.vegalite.v1+json";
-    return "application/vnd.vegalite.v5+json";
+    return null;
   }
 
   // Check for Vega
   if (schema.includes("vega")) {
-    if (schema.includes("/v6")) return "application/vnd.vega.v5+json";
+    if (schema.includes("/v6")) return "application/vnd.vega.v6+json";
     if (schema.includes("/v5")) return "application/vnd.vega.v5+json";
-    if (schema.includes("/v4")) return "application/vnd.vega.v4+json";
-    if (schema.includes("/v3")) return "application/vnd.vega.v3+json";
-    if (schema.includes("/v2")) return "application/vnd.vega.v2+json";
-    return "application/vnd.vega.v5+json";
+    return null;
   }
 
   return null;
@@ -283,11 +277,7 @@ class HTML {
       );
     }
 
-    // Scripts are stripped: this content is injected as-is.
-    const sanitized =
-      typeof this.props.data === "string"
-        ? this.props.data.replace(/<script[\s\S]*?<\/script>/gi, "")
-        : "";
+    const sanitized = sanitizeHtml(this.props.data);
     return (
       <div className="output-html">
         <div innerHTML={sanitized} />
@@ -312,4 +302,11 @@ class HTML {
 
 const htmlRenderer = (data) => <HTML data={data} />;
 
-module.exports = { HTML, htmlRenderer };
+module.exports = {
+  extractBalancedJSON,
+  extractVegaSpec,
+  detectMediaType,
+  isVegaHTML,
+  HTML,
+  htmlRenderer,
+};

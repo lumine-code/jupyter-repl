@@ -64,9 +64,12 @@ describe("what activation is allowed to load", () => {
     const fs = require("fs");
     const bannedExternals = new Set([
       "zeromq",
-      "@nteract/any-vega",
       "plotly.js-dist",
       "@mathjax/src",
+      "sanitize-html",
+      "vega",
+      "vega-embed",
+      "vega-lite",
       // The widget stack. `jupyter-widgets` is the pre-bundled copy under
       // lib/vendor, about 700 KB; the scoped names are banned too so a direct
       // require of one is caught rather than resolving to the same weight by
@@ -87,6 +90,7 @@ describe("what activation is allowed to load", () => {
       "widget-manager",
       "widget-output",
       "jupyter-widgets",
+      "vega-embed",
     ]);
     const libRoot = path.join(__dirname, "..", "lib");
 
@@ -192,10 +196,13 @@ describe("the jupyter.output surface", () => {
     const dummies = {
       "application/json": {},
       "application/javascript": "1 + 1",
+      "text/vnd.plotly.v1+html":
+        '<script>Plotly.newPlot("chart", [{"x":[1],"y":[2]}], {"title":"x"});</script>',
       "text/html": "<b>x</b>",
       "text/markdown": "# x",
       "text/latex": "$x$",
       "image/svg+xml": "<svg xmlns='http://www.w3.org/2000/svg'></svg>",
+      "image/webp": "AAAA",
       "text/plain": "x",
     };
 

@@ -635,6 +635,14 @@ describe("the copy action", () => {
     expect(actions.hasCopyableContent([latexOutput])).toBe(true);
   });
 
+  it("counts a WebP bundle as copyable", () => {
+    expect(
+      actions.hasCopyableContent([
+        { output_type: "display_data", data: { "image/webp": "AAAA" }, metadata: {} },
+      ]),
+    ).toBe(true);
+  });
+
   it("copies the bundle's own text when the rendered DOM has none", async () => {
     spyOn(lumine.clipboard, "write");
     const element = document.createElement("div"); // SVG paths: no innerText
