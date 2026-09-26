@@ -113,7 +113,9 @@ describe("notebook adapter kernel integration", () => {
     for (let index = 0; index < 10; index++) await Promise.resolve();
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const languageText = await lumine.packages.activatePackage("language-text");
+    await languageText.resourceLoadPromise;
     adapterIntegration.activateAdapterIntegration();
     previousEditor = store.editor;
     owners = [];
@@ -188,7 +190,7 @@ describe("notebook adapter kernel integration", () => {
     await flushPromises();
 
     expect(manager.startKernel).toHaveBeenCalled();
-    expect(manager.startKernel.calls.mostRecent().args[1].scopeName).toContain("text.plain");
+    expect(manager.startKernel.calls.mostRecent().args[1].scopeName).toBe("text.plain");
     expect(lumine.notifications.addError).not.toHaveBeenCalled();
   });
 
