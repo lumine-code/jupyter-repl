@@ -176,6 +176,12 @@
       "type": "boolean",
       "default": true
     },
+    "outputScrollChaining": {
+      "title": "Enable output scroll chaining",
+      "description": "If enabled, scrolling a result at an edge continues in the editor.",
+      "type": "boolean",
+      "default": false
+    },
     "scrollOnMoveDown": {
       "title": "Scroll behavior on move down",
       "description": "Controls scrolling behavior when running code and moving to the next line.",

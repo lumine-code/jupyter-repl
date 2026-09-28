@@ -37,6 +37,13 @@ function build(store, props) {
   });
 }
 
+function setOutputScrollChaining(value) {
+  const getConfig = lumine.config.get.bind(lumine.config);
+  spyOn(lumine.config, "get").and.callFake((keyPath, ...args) =>
+    keyPath === "jupyter-repl.outputScrollChaining" ? value : getConfig(keyPath, ...args),
+  );
+}
+
 // The floor the grip clamps to, mirrored from result-view.jsx.
 const MIN_RESIZE_WIDTH = 64;
 const MIN_RESIZE_HEIGHT = 32;
@@ -156,6 +163,80 @@ describe("the result bubble", () => {
 
     expect(component.expanded).toBe(true);
     expect(component.element.querySelector(".result-expand").className).toContain("icon-fold");
+  });
+
+  it("does not cascade wheel scrolling from a scrollable result into the editor", () => {
+    setOutputScrollChaining(false);
+    const store = blockStore();
+    store.appendOutput(stream("line\n".repeat(200)));
+    component = build(store);
+    etch.updateSync(component);
+
+    const display = component.refs.display;
+    Object.defineProperties(display, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 200 },
+      clientWidth: { configurable: true, value: 100 },
+      scrollWidth: { configurable: true, value: 100 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+    });
+    const outerWheel = jasmine.createSpy("outerWheel");
+    component.element.addEventListener("wheel", outerWheel);
+
+    display.scrollTop = 0;
+    display.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -10 }));
+    display.scrollTop = 100;
+    display.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 10 }));
+
+    expect(outerWheel).not.toHaveBeenCalled();
+  });
+
+  it("can enable scroll chaining from a result edge into the editor", () => {
+    setOutputScrollChaining(true);
+    const store = blockStore();
+    store.appendOutput(stream("line\n".repeat(200)));
+    component = build(store);
+    etch.updateSync(component);
+
+    const display = component.refs.display;
+    Object.defineProperties(display, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 200 },
+      clientWidth: { configurable: true, value: 100 },
+      scrollWidth: { configurable: true, value: 100 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+    });
+    const outerWheel = jasmine.createSpy("outerWheel");
+    component.element.addEventListener("wheel", outerWheel);
+
+    display.scrollTop = 50;
+    display.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 10 }));
+    expect(outerWheel).not.toHaveBeenCalled();
+
+    display.scrollTop = 100;
+    display.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 10 }));
+    expect(outerWheel).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets wheel events pass through a result that has no scrolling", () => {
+    const store = blockStore();
+    store.appendOutput(stream("one line\n"));
+    component = build(store);
+    etch.updateSync(component);
+
+    const display = component.refs.display;
+    Object.defineProperties(display, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 100 },
+      clientWidth: { configurable: true, value: 100 },
+      scrollWidth: { configurable: true, value: 100 },
+    });
+    const outerWheel = jasmine.createSpy("outerWheel");
+    component.element.addEventListener("wheel", outerWheel);
+
+    display.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 10 }));
+
+    expect(outerWheel).toHaveBeenCalledTimes(1);
   });
 
   it("resizes from the grip, clamps to a floor, and can be put back", () => {

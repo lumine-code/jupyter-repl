@@ -203,22 +203,34 @@ class ResultViewComponent {
     this.props.onUserResize?.(false);
   };
 
-  // Keep a scroll gesture inside a scrollable result instead of letting it
-  // continue on through to the editor underneath.
+  // A scrollable result normally owns the whole wheel gesture, including the
+  // events it receives at an edge. Scroll chaining restores the old hand-off:
+  // the editor receives an event only after the result reaches that edge.
   onWheel = (event) => {
     const element = this.wheelElement;
     if (!element) {
       return;
     }
     const { clientHeight, scrollHeight, clientWidth, scrollWidth, scrollTop, scrollLeft } = element;
-    const atTop = scrollTop !== 0 && event.deltaY < 0;
-    const atLeft = scrollLeft !== 0 && event.deltaX < 0;
-    const atBottom = scrollTop !== scrollHeight - clientHeight && event.deltaY > 0;
-    const atRight = scrollLeft !== scrollWidth - clientWidth && event.deltaX > 0;
+    const scrollsVertically = clientHeight < scrollHeight;
+    const scrollsHorizontally = clientWidth < scrollWidth;
+    if (!scrollsVertically && !scrollsHorizontally) {
+      return;
+    }
 
-    if (clientHeight < scrollHeight && (atTop || atBottom)) {
+    if (lumine.config.get("jupyter-repl.outputScrollChaining") !== true) {
       event.stopPropagation();
-    } else if (clientWidth < scrollWidth && (atLeft || atRight)) {
+      return;
+    }
+
+    const canScrollUp = scrollTop > 0 && event.deltaY < 0;
+    const canScrollDown = scrollTop < scrollHeight - clientHeight && event.deltaY > 0;
+    const canScrollLeft = scrollLeft > 0 && event.deltaX < 0;
+    const canScrollRight = scrollLeft < scrollWidth - clientWidth && event.deltaX > 0;
+    if (
+      (scrollsVertically && (canScrollUp || canScrollDown)) ||
+      (scrollsHorizontally && (canScrollLeft || canScrollRight))
+    ) {
       event.stopPropagation();
     }
   };

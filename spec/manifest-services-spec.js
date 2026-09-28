@@ -51,6 +51,17 @@ describe("the services this package declares", () => {
   });
 });
 
+describe("the output scroll setting", () => {
+  it("keeps scroll chaining off by default", () => {
+    expect(manifest.configSchema.outputScrollChaining).toEqual({
+      title: "Enable output scroll chaining",
+      description: "If enabled, scrolling a result at an edge continues in the editor.",
+      type: "boolean",
+      default: false,
+    });
+  });
+});
+
 describe("what activation is allowed to load", () => {
   // Activating and providing the service parses only package-local code. The native kernel
   // transport and the heavy renderers must stay behind lazy, function-body
