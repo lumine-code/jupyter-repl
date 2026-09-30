@@ -83,6 +83,27 @@ describe("typed source preparation", () => {
     );
   });
 
+  it("preserves an EOF-only magic header when part of a notebook header is selected", async () => {
+    await lumine.packages.activatePackage("language-python");
+    editor.destroy();
+    editor = lumine.workspace.buildTextEditor();
+    registration = lumine.textEditors.add(editor, { role: "fragment" });
+    lumine.grammars.assignLanguageMode(editor.getBuffer(), "source.python");
+    for (const fixture of [
+      { source: "%%time -n 3", row: 0, header: "%%time -n 3" },
+      { source: "\n%%! --flag", row: 1, header: "%%! --flag" },
+    ]) {
+      editor.setText(fixture.source);
+      editor.setSelectedBufferRange(new Range([fixture.row, 2], [fixture.row, 3]));
+      const block = require("../lib/cell-magic").selectionBlock(editor, editor.getLastSelection());
+      expect(block.code).toBe(fixture.header);
+      expect(block.row).toBe(fixture.row);
+      expect(
+        (await cells.getExecutionBlocks(editor, editor.getSelectedBufferRange()))[0].code,
+      ).toBe(block.code);
+    }
+  });
+
   it("does not execute a mixed document when the required service is unavailable", async () => {
     const request = spyOn(lumine.packages, "requestService").and.returnValue(Promise.resolve(null));
     editor.setText("# %% [raw]\nprint('raw')\n");
@@ -101,6 +122,16 @@ describe("typed source preparation", () => {
     expect(blocks[0].code).toBe("%%time\nvalue = 1\nlater = 2\n");
     const below = await source.inlineBlocks(editor, 2, editor.getLastBufferRow(), () => null);
     expect(below[0].code).toBe("%%time\nlater = 2\n");
+  });
+
+  it("keeps an EOF-only magic intact in the inline fallback without a cells service", async () => {
+    await lumine.packages.activatePackage("language-python");
+    lumine.grammars.assignLanguageMode(editor.getBuffer(), "source.python");
+    editor.setText("%%time -n 3");
+
+    const blocks = await source.inlineBlocks(editor, 0, 0, () => null);
+
+    expect(blocks).toEqual([{ code: "%%time -n 3", row: 0, cellType: "code" }]);
   });
 
   it("does not reinterpret empty cell bodies as the next executable cell", async () => {
