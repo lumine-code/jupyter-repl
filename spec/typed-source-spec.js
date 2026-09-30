@@ -91,4 +91,64 @@ describe("typed source preparation", () => {
     expect(lumine.notifications.getNotifications().at(-1).getMessage()).toContain("jupyter-cells");
     expect(main.getJupyterCellsService()).toBeDefined();
   });
+
+  it("keeps cell magic execution available in ordinary Python without jupyter-cells", async () => {
+    await lumine.packages.activatePackage("language-python");
+    lumine.grammars.assignLanguageMode(editor.getBuffer(), "source.python");
+    editor.setText("%%time\nvalue = 1\nlater = 2\n");
+    const blocks = await source.inlineBlocks(editor, 0, editor.getLastBufferRow(), () => null);
+    expect(blocks.map((block) => block.cellType)).toEqual(["code"]);
+    expect(blocks[0].code).toBe("%%time\nvalue = 1\nlater = 2\n");
+    const below = await source.inlineBlocks(editor, 2, editor.getLastBufferRow(), () => null);
+    expect(below[0].code).toBe("%%time\nlater = 2\n");
+  });
+
+  it("does not reinterpret empty cell bodies as the next executable cell", async () => {
+    editor.setText(
+      "# %% [markdown]\n# %% [raw]\n# %% Empty Code\n# %% Code\ndangerous()\n# %% [raw]\n# %% Magic\n%%bash -e\nprintf 'once'\n",
+    );
+    for (const row of [0, 1, 2, 5]) {
+      editor.setCursorBufferPosition([row, 0]);
+      expect(await source.selectionBlocks(editor, () => cells)).toEqual([]);
+    }
+    const blocks = await source.inlineBlocks(editor, 0, editor.getLastBufferRow(), () => cells);
+    expect(blocks.map((block) => block.cellType)).toEqual(["code", "code"]);
+    expect(blocks.map((block) => block.code)).toEqual([
+      "dangerous()",
+      "%%bash -e\nprintf 'once'\n",
+    ]);
+  });
+
+  it("cancels selected execution when text moves while preparation awaits parsing", async () => {
+    editor.setText("# %% Code\nextra()\nharmless()\n# %% Next\ndangerous()\n");
+    editor.setSelectedBufferRange([
+      [2, 0],
+      [3, 0],
+    ]);
+    let resume;
+    let entered;
+    const started = new Promise((resolve) => {
+      entered = resolve;
+    });
+    const service = {
+      getCellDescriptors: async () => [],
+      getExecutionBlocks: () =>
+        new Promise((resolve) => {
+          resume = resolve;
+          entered();
+        }),
+    };
+    const pending = source.selectionBlocks(editor, () => service);
+    await started;
+    editor.setTextInBufferRange(
+      [
+        [0, 0],
+        [2, 0],
+      ],
+      "",
+    );
+    resume([{ code: "dangerous()", row: 2, cellType: "code" }]);
+    expect(await pending).toEqual([]);
+    expect(lumine.notifications.getNotifications().at(-1).getMessage()).toContain("Source changed");
+  });
 });
