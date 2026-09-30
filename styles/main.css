@@ -381,11 +381,10 @@
   .multiline-container .result-resize {
     position: absolute;
     z-index: 1;
-    /* No transition in either direction: the chrome is there the moment the
-       pointer enters the box and gone the moment it leaves. Visibility rather
-       than pointer-events, so it is usable for exactly as long as it is on
-       screen and never while invisible. */
-    visibility: hidden;
+    /* Keep each corner hit-testable while transparent, so it can reveal its
+       own chrome without hovering the rest of the result. No transition: the
+       controls appear as soon as the pointer reaches them. */
+    opacity: 0;
     background: var(--jupyter-repl-inline-background);
   }
 
@@ -406,9 +405,10 @@
     border-top: solid 1px var(--base-border-color);
   }
 
-  .multiline-container:hover .result-actions,
-  .multiline-container:hover .result-resize {
-    visibility: visible;
+  .multiline-container .result-actions:hover,
+  .multiline-container .result-resize:hover,
+  .multiline-container .result-resize:active {
+    opacity: 1;
   }
 
   .multiline-container .result-actions .icon {
@@ -448,9 +448,8 @@
        A 4px period draws three strokes across the wedge — enough for the taper
        to read as a triangle, few enough that it stays a hint rather than a
        texture. Wider than this and the strokes stop reading as hatching and
-       become two thick bands. The colour does not answer hover: the grip is
-       chrome that only appears once the pointer is inside the box already, and
-       the cursor turning into a resize arrow is what confirms the target. */
+       become two thick bands. The grip appears when its corner is hovered and
+       stays visible during a drag; the resize cursor confirms the target. */
     background-image: repeating-linear-gradient(
       -45deg,
       transparent 0 3px,
