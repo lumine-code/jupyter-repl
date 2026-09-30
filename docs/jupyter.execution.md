@@ -30,7 +30,7 @@ Service consumption is passive and has no activation mode. The provider is avail
 ## Contract
 
 ```ts
-type CodeBlock = { code: string; row: number; cellType: "codecell" | "markdown" };
+type CodeBlock = { code: string; row: number; cellType: "code" | "markdown" | "raw" };
 
 type JupyterExecution = {
   runAdapter(scope: "active" | "all" | "above", moveDown?: boolean): boolean;
@@ -53,7 +53,7 @@ type JupyterExecution = {
 | `importOutputs(editor, bundle)` | Render outputs saved in a notebook as an inline result bubble at `row`.                         |
 | `markdownToOutput(source)`      | A markdown source as the display-data shape `importOutputs` renders.                            |
 
-A `CodeBlock`'s `row` is the buffer row the result bubble anchors to — the last meaningful row of what ran, not the first. `cellType: "markdown"` renders the block instead of executing it; strip the comment prefixes before handing it over.
+A `CodeBlock`'s `row` is the buffer row the result bubble anchors to — the last meaningful row of what ran, not the first. Markdown renders locally without a kernel; raw is skipped before kernel selection or result allocation. Obtain prepared blocks from `jupyter.cells.getExecutionBlocks()` so literal `.ipy` source retains headings and indentation and selected magic bodies retain their original headers.
 
 ## Minimal example
 
@@ -69,9 +69,7 @@ module.exports = {
   runWholeFile(editor) {
     if (this.execution.runAdapter("all")) return;
     const lastRow = editor.getLastBufferRow();
-    this.execution.runBlocks(editor, [
-      { code: editor.getText(), row: lastRow, cellType: "codecell" },
-    ]);
+    this.execution.runBlocks(editor, [{ code: editor.getText(), row: lastRow, cellType: "code" }]);
   },
 };
 ```
@@ -80,9 +78,9 @@ module.exports = {
 
 **Call `runAdapter` first, with the scope you mean.** A notebook pane owned by a `jupyter.adapter` provider handles its own runs; when it claims the active item the adapter answer is the run, and dispatching blocks as well would run things twice. This mirrors what the built-in run commands have always done, and it is what keeps one keystroke meaningful in a notebook pane and a text editor alike.
 
-`runBlocks` resolves `true` once the run is handed to the kernel pipeline and `false` when the context is too incomplete to run — no editor, no blocks, no grammar. The refusal is silent by design: the absence is on screen, and the consumer owns whatever notification its surface warrants. When no kernel is attached yet, starting one may prompt the user with the kernel picker; the promise resolves without waiting for that, so a dismissed picker is not an error.
+`runBlocks` resolves `true` once the run is accepted and `false` when there is no editor, no blocks, or no grammar for executable code. Markdown-only runs require no kernel grammar; raw-only runs are accepted without effects. In a mixed run, leading Markdown renders before the first code block requests a kernel, and the remaining blocks retain their order and stop after a code failure. Kernel selection may prompt the user; acceptance does not wait for that picker.
 
-One block renders through the single-result path; several go through the batch path, which keeps its guard against overlapping batches — a second `runBlocks` while a batch is in flight resolves `false`.
+One block renders through the single-result path; several go through the batch path. Repeated requests while that kernel's batch is in flight are accepted without queueing duplicate executions.
 
 `moveDown` is deliberately a separate member rather than an option: the built-in commands capture their blocks first and move the cursor before the kernel answers, and a consumer that wants the same feel calls it in the same order.
 
@@ -92,4 +90,4 @@ One block renders through the single-result path; several go through the batch p
 
 ## Versioning
 
-`1.0.0` provided, `^1.0.0` consumed. A change that breaks this shape gets a new service name rather than a new major version, and both sides move in the same release.
+`1.0.0` provided, `^1.0.0` consumed. This unreleased contract uses `code`, `markdown` and `raw` throughout the ecosystem; providers and consumers are updated together before the first release.

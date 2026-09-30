@@ -54,7 +54,7 @@ describe("the jupyter.execution service", () => {
     const batch = spyOn(result, "createResultBatch");
 
     const accepted = await execution.runBlocks(editor, [
-      { code: "first()", row: 0, cellType: "codecell" },
+      { code: "first()", row: 0, cellType: "code" },
     ]);
 
     expect(accepted).toBe(true);
@@ -69,8 +69,8 @@ describe("the jupyter.execution service", () => {
     const batch = spyOn(result, "createResultBatch").and.returnValue(Promise.resolve(true));
 
     const accepted = await execution.runBlocks(editor, [
-      { code: "first()", row: 0, cellType: "codecell" },
-      { code: "second()", row: 1, cellType: "codecell" },
+      { code: "first()", row: 0, cellType: "code" },
+      { code: "second()", row: 1, cellType: "code" },
     ]);
 
     expect(accepted).toBe(true);
@@ -81,11 +81,66 @@ describe("the jupyter.execution service", () => {
     const single = spyOn(result, "createResult");
 
     expect(await execution.runBlocks(editor, [])).toBe(false);
-    expect(await execution.runBlocks(null, [{ code: "x", row: 0, cellType: "codecell" }])).toBe(
-      false,
-    );
+    expect(await execution.runBlocks(null, [{ code: "x", row: 0, cellType: "code" }])).toBe(false);
     expect(single).not.toHaveBeenCalled();
     expect(lumine.notifications.getNotifications().length).toBe(0);
+  });
+
+  it("renders Markdown without a kernel or kernel picker", async () => {
+    store.kernelMapping.delete(filePath);
+    const start = spyOn(require("../lib/kernel-manager").KernelManager.prototype, "startKernelFor");
+    const render = spyOn(result, "createResult");
+    expect(
+      await execution.runBlocks(editor, [{ code: "# Heading", row: 0, cellType: "markdown" }]),
+    ).toBe(true);
+    expect(start).not.toHaveBeenCalled();
+    expect(render.calls.mostRecent().args[0].kernel).toBeNull();
+    expect(render.calls.mostRecent().args[1].code).toBe("# Heading");
+  });
+
+  it("skips raw before allocating results or choosing a kernel", async () => {
+    store.kernelMapping.delete(filePath);
+    const markerCount = store.markersMapping.size;
+    const start = spyOn(require("../lib/kernel-manager").KernelManager.prototype, "startKernelFor");
+    const render = spyOn(result, "createResult");
+    const batch = spyOn(result, "createResultBatch");
+    expect(
+      await execution.runBlocks(editor, [{ code: "dangerous()", row: 0, cellType: "raw" }]),
+    ).toBe(true);
+    expect(start).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
+    expect(batch).not.toHaveBeenCalled();
+    expect(store.markersMapping.size).toBe(markerCount);
+  });
+
+  it("renders leading Markdown before kernel selection and resumes the remaining order", async () => {
+    store.kernelMapping.delete(filePath);
+    let resume;
+    const render = spyOn(result, "createResult");
+    const batch = spyOn(result, "createResultBatch").and.returnValue(Promise.resolve(true));
+    const start = spyOn(
+      require("../lib/kernel-manager").KernelManager.prototype,
+      "startKernelFor",
+    ).and.callFake((_grammar, _editor, _path, callback) => {
+      resume = callback;
+    });
+    expect(
+      await execution.runBlocks(editor, [
+        { code: "# Before", row: 0, cellType: "markdown" },
+        { code: "ignored()", row: 1, cellType: "raw" },
+        { code: "run()", row: 2, cellType: "code" },
+        { code: "# After", row: 3, cellType: "markdown" },
+      ]),
+    ).toBe(true);
+    expect(render.calls.count()).toBe(1);
+    expect(render.calls.mostRecent().args[1].code).toBe("# Before");
+    expect(start).toHaveBeenCalled();
+    expect(batch).not.toHaveBeenCalled();
+    await resume(fakeKernel);
+    expect(batch.calls.mostRecent().args[1].map((block) => block.code)).toEqual([
+      "run()",
+      "# After",
+    ]);
   });
 
   it("renders imported outputs through the editor's own marker store", () => {
@@ -128,8 +183,8 @@ describe("the optional jupyter.cells consumption", () => {
     const disposable = main.consumeJupyterCells({
       getCell: () => ({ start: { row: 2 }, end: { row: 3 } }),
       getCurrentCell: () => null,
-      getMetadataForRow: () => "codecell",
-      removeCommentsMarkdownCell: (target, text) => text,
+      getCellDescriptors: async () => [],
+      getExecutionBlocks: async () => [],
     });
     expect(codeManager.findCodeBlockAtRow(editor, 1).code).toBe("");
 

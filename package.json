@@ -20,6 +20,11 @@
   "engines": {
     "lumine": "^1.0.0"
   },
+  "specPackages": [
+    "jupyter-cells",
+    "language-ipython",
+    "language-python"
+  ],
   "deserializers": {
     "jupyter-repl/OutputPane": "deserializeOutputPane"
   },

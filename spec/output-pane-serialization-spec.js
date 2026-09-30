@@ -128,7 +128,7 @@ describe("restoring the Output Area pane", () => {
 
       result.createResult(
         { editor, kernel, markers },
-        { code: "value()", row: 0, cellType: "codecell" },
+        { code: "value()", row: 0, cellType: "code" },
       );
 
       expect(globalOutputStore.setLastCode).toHaveBeenCalledWith("value()");

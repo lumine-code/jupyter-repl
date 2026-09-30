@@ -204,7 +204,7 @@ describe("settling in-flight executions", () => {
     // the kernel wiring is exercised.
     const resolution = createResultAsync(
       { editor: {}, kernel, markers: null },
-      { code: "sleep(9999)", row: 0, cellType: "codecell", inline: false },
+      { code: "sleep(9999)", row: 0, cellType: "code", inline: false },
     );
 
     kernel.restart();

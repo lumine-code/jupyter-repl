@@ -12,6 +12,7 @@ Supports Python, R, JavaScript, and other languages with rich output including p
 - **Kernel intelligence**: autocomplete, object introspection, and a shared namespace with one kernel per language across files.
 - **Kernel management**: starts local kernels, connects to remote gateways, and interrupts, restarts or shuts them down.
 - **Notebook adapters**: drives external notebook cells, such as jupyter-view's, through the `jupyter.adapter` service.
+- **Typed source cells**: renders literal Markdown locally, skips raw cells, and preserves cell magic headers when running selected body fragments.
 - **Jupyter console**: attaches a console to the active kernel in an embedded terminal, a system terminal, or via a copied command.
 - **Extensible services**: provides and consumes services for autocomplete, kernels, execution, and third-party integrations.
 

@@ -74,9 +74,9 @@ describe("batch inline feedback", () => {
 
   it("reserves all positions, preserves fast results, and X-marks skipped blocks", async () => {
     const batchPromise = result.createResultBatch({ editor, kernel: fakeKernel, markers }, [
-      { code: "first()", row: 0, cellType: "codecell" },
-      { code: "second()", row: 1, cellType: "codecell" },
-      { code: "third()", row: 2, cellType: "codecell" },
+      { code: "first()", row: 0, cellType: "code" },
+      { code: "second()", row: 1, cellType: "code" },
+      { code: "third()", row: 2, cellType: "code" },
     ]);
 
     // Let the resolved first execution advance the queue to the second block.
@@ -113,7 +113,7 @@ describe("batch inline feedback", () => {
     // A held run-all keybinding repeats faster than any batch finishes; each
     // repeat is the same request already being served, and queueing it again
     // would duplicate every cell at the kernel.
-    const blocks = [{ code: "first()", row: 0, cellType: "codecell" }];
+    const blocks = [{ code: "first()", row: 0, cellType: "code" }];
     const batchPromise = result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks);
 
     const repeats = await Promise.all([
@@ -134,19 +134,24 @@ describe("batch inline feedback", () => {
     await again;
   });
 
-  it("leaves the cursor where the user put it", () => {
+  it("leaves the cursor where the user put it", async () => {
     // The old inline loop walked the cursor to each cell as it ran — progress
     // feedback the queued/running bubbles now give without stealing the
     // user's position mid-run.
     editor.setCursorBufferPosition([2, 4]);
 
-    runAllInline();
+    fakeKernel.execute = (code, callback) => {
+      fakeKernel.executions.push({ code, callback });
+      callback({ data: "ok", stream: "status" });
+      callback({ output_type: "status", execution_state: "idle" });
+    };
+    await runAllInline();
 
     expect(fakeKernel.executions.length).toBeGreaterThan(0);
     expect(editor.getCursorBufferPosition().toArray()).toEqual([2, 4]);
   });
 
-  it("routes multi-selection run through the shared batch path", () => {
+  it("routes multi-selection run through the shared batch path", async () => {
     const batchSpy = spyOn(result, "createResultBatch").and.returnValue(Promise.resolve(true));
     editor.setSelectedBufferRanges([
       new Range([0, 0], [0, 7]),
@@ -154,7 +159,7 @@ describe("batch inline feedback", () => {
       new Range([2, 0], [2, 7]),
     ]);
 
-    run();
+    await run();
     expect(batchSpy).toHaveBeenCalled();
     expect(batchSpy.calls.mostRecent().args[1].length).toBe(3);
   });

@@ -61,6 +61,14 @@ jobs:
         with:
           repository: lumine-code/lumine
           path: lumine
+      - uses: actions/checkout@v6
+        with:
+          repository: lumine-code/language-ipython
+          path: language-ipython
+      - uses: actions/checkout@v6
+        with:
+          repository: lumine-code/jupyter-cells
+          path: jupyter-cells
       - uses: actions/setup-node@v6
         with:
           node-version-file: lumine/.nvmrc
@@ -103,4 +111,8 @@ jobs:
       - name: Run the Jasmine spec suite
         working-directory: lumine
         timeout-minutes: 20
-        run: xvfb-run --auto-servernum npm start -- --test ../jupyter-repl/spec
+        run: |
+          mkdir -p "$HOME/.lumine/packages-dev"
+          ln -s "$GITHUB_WORKSPACE/language-ipython" "$HOME/.lumine/packages-dev/language-ipython"
+          ln -s "$GITHUB_WORKSPACE/jupyter-cells" "$HOME/.lumine/packages-dev/jupyter-cells"
+          xvfb-run --auto-servernum npm start -- --test ../jupyter-repl/spec
