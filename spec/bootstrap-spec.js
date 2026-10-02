@@ -57,4 +57,26 @@ describe("jupyter-repl bootstrap", () => {
     expect(outputService).toBeTruthy();
     subscription.dispose();
   });
+
+  it("keeps a replacement cells provider when the old provider detaches", () => {
+    const first = {};
+    const second = {};
+    const original = pack.mainModule.consumeJupyterCells(first);
+    const replacement = pack.mainModule.consumeJupyterCells(second);
+    original.dispose();
+    expect(pack.mainModule.getJupyterCellsService()).toBe(second);
+    replacement.dispose();
+    expect(pack.mainModule.getJupyterCellsService()).toBeNull();
+  });
+
+  it("keeps a replacement image provider when the old provider detaches", () => {
+    const first = {};
+    const second = {};
+    const original = pack.mainModule.consumeImageEditor(first);
+    const replacement = pack.mainModule.consumeImageEditor(second);
+    original.dispose();
+    expect(pack.mainModule.getImageEditorService()).toBe(second);
+    replacement.dispose();
+    expect(pack.mainModule.getImageEditorService()).toBeNull();
+  });
 });

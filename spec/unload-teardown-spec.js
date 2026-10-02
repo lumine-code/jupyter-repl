@@ -80,6 +80,30 @@ describe("teardown with a running kernel", () => {
     expect(order).toEqual(["subscriptions", "kernel"]);
   });
 
+  it("closes pending startup transports immediately after UI subscriptions", async () => {
+    const { KernelManager } = require("../lib/kernel-manager");
+    let manager;
+    spyOn(KernelManager.prototype, "updateKernelSpecs").and.callFake(function () {
+      manager = this;
+      return Promise.resolve([]);
+    });
+    await lumine.commands.dispatch(
+      lumine.views.getView(lumine.workspace),
+      "jupyter-repl:update-kernels",
+    );
+    const order = [];
+    store.subscriptions.add(new Disposable(() => order.push("subscriptions")));
+    manager._pendingStarts.add({ destroy: (forUnload) => order.push(["pending", forUnload]) });
+    const kernel = fakeKernel();
+    kernel.destroy = (forUnload) => order.push(["running", forUnload]);
+    store.runningKernels.push(kernel);
+
+    lumine.emitter.emit("will-destroy");
+
+    expect(order).toEqual(["subscriptions", ["pending", true], ["running", true]]);
+    expect(manager._pendingStarts.size).toBe(0);
+  });
+
   // `CompositeDisposable#add` is a silent no-op once disposed, and the store
   // outlives the window, so the handler has to leave a usable one behind.
   it("leaves a fresh CompositeDisposable behind", () => {

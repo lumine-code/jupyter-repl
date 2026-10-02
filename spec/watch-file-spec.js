@@ -19,7 +19,7 @@ describe("kernel mapping file observation", () => {
   afterEach(async () => {
     handle?.dispose();
     await handle?.closed;
-    store.kernelMapping.delete(filePath);
+    store.removeKernelKey(filePath);
     fs.rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
   it("drops the original filename mapping when that file is renamed away", async () => {
@@ -30,5 +30,34 @@ describe("kernel mapping file observation", () => {
     await globalThis.conditionPromise(() => !store.kernelMapping.has(filePath));
     expect(handle.path).toBe(filePath);
     await handle.closed;
+  });
+
+  it("keeps one watcher per file when a kernel is rebound", async () => {
+    store.kernelMapping.set(filePath, {});
+    store.addFileDisposer(null, filePath);
+    store.addFileDisposer(null, filePath);
+    expect(lumine.fileWatchClient.watchFile).toHaveBeenCalledTimes(1);
+    await handle.ready;
+  });
+
+  it("closes the watcher as soon as its mapping is removed", async () => {
+    store.kernelMapping.set(filePath, {});
+    store.addFileDisposer(null, filePath);
+    await handle.ready;
+    store.removeKernelKey(filePath);
+    await handle.closed;
+    expect(store.fileDisposers.has(filePath)).toBe(false);
+  });
+
+  it("closes the watcher when the final grammar's kernel is removed", async () => {
+    const kernel = { grammar: { name: "Python" } };
+    store.kernelMapping.set(filePath, new Map([["Python", kernel]]));
+    store.runningKernels.push(kernel);
+    store.addFileDisposer(null, filePath);
+    await handle.ready;
+    store.deleteKernel(kernel);
+    await handle.closed;
+    expect(store.kernelMapping.has(filePath)).toBe(false);
+    expect(store.fileDisposers.has(filePath)).toBe(false);
   });
 });

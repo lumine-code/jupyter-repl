@@ -127,6 +127,23 @@ describe("kernel discovery", () => {
       expect(found[ALPHA]).toBeDefined();
     });
 
+    it("skips valid JSON that cannot describe a kernel", async () => {
+      for (const [suffix, data] of [
+        ["null", "null"],
+        ["array", "[]"],
+        ["number", "123"],
+        ["unnamed", "{}"],
+        ["invalid-name", '{"display_name": 1}'],
+      ]) {
+        writeKernel(root, `${BETA}-${suffix}`, data);
+      }
+      writeKernel(root, ALPHA, JSON.stringify({ display_name: "Alpha" }));
+      process.env.JUPYTER_PATH = root;
+      const found = await findAll();
+      expect(found[ALPHA]).toBeDefined();
+      expect(Object.keys(found).filter((name) => name.startsWith(BETA))).toEqual([]);
+    });
+
     it("resolves without throwing when a data directory does not exist", async () => {
       process.env.JUPYTER_PATH = path.join(root, "nonexistent");
       const found = await findAll();
