@@ -75,9 +75,18 @@ require.extensions[".jsx"] = (module, filename) => {
 
 const ZMQKernel = require("../lib/zmq-kernel");
 const Kernel = require("../lib/kernel");
+const { queryRuntimeSource } = require("../lib/runtime-source");
 const live = new Set();
 const retired = [];
-const counts = { starts: 0, restarts: 0, executes: 0, watches: 0, inspections: 0, completions: 0 };
+const counts = {
+  starts: 0,
+  restarts: 0,
+  executes: 0,
+  watches: 0,
+  inspections: 0,
+  completions: 0,
+  sourceLookups: 0,
+};
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const outputText = (result) =>
   result.outputs.map((output) => output.text || output.data?.["text/plain"] || "").join("");
@@ -207,6 +216,20 @@ async function run() {
         assert.equal((await api.inspect("print", 5)).found, true);
         counts.inspections++;
       }
+      const definition = await api.execute(
+        "def live_target(value):\n    return value + 1\nlive_alias = live_target",
+        { timeoutMs: 15000 },
+      );
+      assert.equal(definition.status, "ok");
+      counts.executes++;
+      const countBeforeLookup = api.executionCount;
+      const source = await queryRuntimeSource(kernel, "live_alias");
+      assert.equal(source?.executionCount, definition.executionCount);
+      assert.equal(source.line, 1);
+      assert(source.source.startsWith("def live_target(value):"));
+      assert.equal(await queryRuntimeSource(kernel, "unknown_live_symbol"), null);
+      assert.equal(api.executionCount, countBeforeLookup);
+      counts.sourceLookups += 2;
       const stream = await api.execute("print('ż😀 ' * 62500)", { timeoutMs: 15000 });
       assert.equal(stream.status, "ok");
       assert.equal(outputText(stream), "ż😀 ".repeat(62500) + "\n");

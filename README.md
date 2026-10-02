@@ -9,13 +9,12 @@ Supports Python, R, JavaScript, and other languages with rich output including p
 - **Interactive execution**: run lines, selections, or automatically detected code blocks with inline results, multiple cursors, and smart Python/bracket/fold detection.
 - **Rich media output**: renders Plotly, Vega, Bokeh and Panel charts, images, audio, video, HTTP(S) frames, safe HTML, Markdown, and LaTeX inline.
 - **Jupyter widgets**: renders core `ipywidgets`, `interact`, output widgets and ipympl against the kernel, with custom anywidget modules in isolated frames.
-- **Kernel intelligence**: autocomplete, object introspection, and a shared namespace with one kernel per language across files.
+- **Kernel intelligence**: autocomplete, object introspection, Python runtime source navigation through hyperclick, and a shared namespace with one kernel per language across files.
 - **Kernel management**: starts local kernels, connects to remote gateways, and interrupts, restarts or shuts them down.
 - **Notebook adapters**: drives external notebook cells, such as jupyter-view's, through the `jupyter.adapter` service.
 - **MCP automation**: exposes explicit kernel and notebook execution with live UI results, source revision guards, bounded progress observation, and operation receipts that prevent duplicate runs.
 - **Typed source cells**: renders literal Markdown locally, skips raw cells, and preserves cell magic headers when running selected body fragments.
 - **Jupyter console**: attaches a console to the active kernel in an embedded terminal, a system terminal, or via a copied command.
-- **Extensible services**: provides and consumes services for autocomplete, kernels, execution, and third-party integrations.
 
 ## Installation
 
@@ -83,6 +82,8 @@ Rendered in the editor under Settings, and readable here:
 - [`jupyter.kernel`](docs/jupyter.kernel.md): provided to let other packages execute code, request completions and introspection, and follow kernel state.
 - [`jupyter.output`](docs/jupyter.output.md): provided to let other packages render Jupyter output bundles with this package's renderers.
 - `autocomplete.provider`: provided to feed kernel-backed completions to autocomplete consumers while a kernel is active for the editor.
+- `hyperclick.provider`: provided to follow Python symbols to the source known by their running kernel.
+- `ipython.source`: consumed to restrict runtime navigation in mixed IPython documents to their Python regions.
 - [`jupyter.execution`](docs/jupyter.execution.md): provided to run pre-computed code blocks through this package's kernels and result bubbles.
 - `mcp.tools`: provided to publish Jupyter kernel and execution tools through lumine-mcp.
 - `jupyter.notebook`: consumed to resolve live notebooks by stable ID and capture their current source revision for MCP execution.

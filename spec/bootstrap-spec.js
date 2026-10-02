@@ -69,6 +69,20 @@ describe("jupyter-repl bootstrap", () => {
     expect(pack.mainModule.getJupyterCellsService()).toBeNull();
   });
 
+  it("retires the hyperclick facade when the package unloads", async () => {
+    const provider = pack.mainModule.provideHyperclick();
+    expect(provider.providerName).toBe("jupyter-repl");
+    expect(provider.priority).toBe(5);
+    await lumine.packages.unloadPackage(PACKAGE_NAME);
+    expect(
+      provider.getSuggestionForWord(
+        { getGrammar: () => ({ scopeName: "source.python" }) },
+        "name",
+        null,
+      ),
+    ).toBeUndefined();
+  });
+
   it("keeps a replacement image provider when the old provider detaches", () => {
     const first = {};
     const second = {};

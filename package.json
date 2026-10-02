@@ -11,6 +11,7 @@
     "kernel",
     "ipython",
     "python",
+    "go-to-definition",
     "interactive",
     "notebook",
     "ipynb"
@@ -50,6 +51,11 @@
     "format:check": "prettier --check ."
   },
   "providedServices": {
+    "hyperclick.provider": {
+      "versions": {
+        "1.0.0": "provideHyperclick"
+      }
+    },
     "autocomplete.provider": {
       "versions": {
         "1.0.0": "provideAutocomplete"
@@ -82,6 +88,11 @@
     }
   },
   "consumedServices": {
+    "ipython.source": {
+      "versions": {
+        "^1.0.0": "consumeIPythonSource"
+      }
+    },
     "status-bar": {
       "versions": {
         "^1.0.0": "consumeStatusBar"
