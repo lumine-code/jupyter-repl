@@ -309,13 +309,9 @@
     "natural-compare-lite": "^1.4.1",
     "plotly.js-dist": "^4.1.1",
     "sanitize-html": "^2.17.7",
-    "uuid": "^14.0.2",
     "ws": "^8.22.0",
     "xmlhttprequest": "^1.8.0",
     "zeromq": "^6.8.0"
-  },
-  "overrides": {
-    "uuid": "$uuid"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
