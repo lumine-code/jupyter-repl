@@ -131,4 +131,29 @@ describe("introspection over a websocket", () => {
 
     expect(seen).toEqual([]);
   });
+
+  it("settles a request that throws synchronously", () => {
+    const kernel = bareKernel({
+      requestComplete() {
+        throw new Error("Disposed connection");
+      },
+    });
+    const seen = [];
+    expect(() => kernel.complete("x", (message) => seen.push(message))).not.toThrow();
+    expect(seen.length).toBe(1);
+    expect(seen[0].content.evalue).toBe("Disposed connection");
+  });
+
+  it("isolates a failing consumer without fabricating another reply", async () => {
+    const kernel = bareKernel({
+      requestComplete: () => Promise.resolve({ content: { matches: [] } }),
+    });
+    let deliveries = 0;
+    kernel.complete("x", () => {
+      deliveries++;
+      throw new Error("Broken consumer");
+    });
+    await flushMicrotasks();
+    expect(deliveries).toBe(1);
+  });
 });
