@@ -455,3 +455,178 @@ describe("per-execution durations", () => {
     transport.destroy();
   });
 });
+
+describe("execution cleanup when callbacks or middleware fail", () => {
+  let transport;
+  let kernel;
+
+  beforeEach(() => {
+    transport = new FakeTransport();
+    kernel = new Kernel(transport);
+  });
+
+  afterEach(() => kernel.destroy());
+
+  it("removes an execution rejected synchronously by middleware", () => {
+    kernel.addMiddleware({
+      execute() {
+        throw new Error("middleware failed");
+      },
+    });
+
+    expect(() => kernel.execute("1", () => {})).toThrowError("middleware failed");
+    expect(kernel._inFlight.size).toBe(0);
+  });
+
+  it("releases the watch hold when the transport throws while sending", () => {
+    spyOn(transport, "executeWatch").and.throwError("send failed");
+
+    expect(() => kernel.executeWatch("x", () => {})).toThrowError("send failed");
+    expect(kernel._watchExecutionDepth).toBe(0);
+    expect(kernel._inFlight.size).toBe(0);
+  });
+
+  it("retires a finished execution even if its final callback throws", () => {
+    kernel.execute("1", (result) => {
+      if (result.output_type === "status") throw new Error("consumer failed");
+    });
+    transport.deliverReply("ok", 1);
+
+    expect(() => transport.deliverIdle()).toThrowError("consumer failed");
+    expect(kernel._inFlight.size).toBe(0);
+  });
+
+  it("delivers terminal watch messages after a consumer rejects its abort error", () => {
+    spyOn(console, "error");
+    const seen = [];
+    kernel.executeWatch("x", (result) => {
+      if (result.output_type === "error") throw new Error("consumer failed");
+      seen.push(result);
+    });
+
+    kernel.abortInFlight("Kernel restarted");
+
+    expect(seen).toContain({ data: "error", stream: "status" });
+    expect(seen).toContain({ output_type: "status", execution_state: "idle" });
+    expect(kernel._watchExecutionDepth).toBe(0);
+    expect(kernel._inFlight.size).toBe(0);
+  });
+
+  it("does not let one broken watch prevent the other panels from refetching", () => {
+    spyOn(console, "error");
+    kernel.onDidBecomeIdle(() => {
+      throw new Error("watch failed");
+    });
+    const refetch = jasmine.createSpy("refetch");
+    kernel.onDidBecomeIdle(refetch);
+
+    kernel._callWatchCallbacks();
+
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("settles a result even when its external output hook throws on terminal messages", async () => {
+    spyOn(lumine.notifications, "addError");
+    const answer = createResultAsync(
+      { editor: {}, kernel, markers: null },
+      {
+        code: "1",
+        row: 0,
+        cellType: "code",
+        inline: false,
+        onResult() {
+          throw new Error("adapter output failed");
+        },
+      },
+    );
+
+    expect(() => transport.deliverReply("ok", 1)).not.toThrow();
+    expect(() => transport.deliverIdle()).not.toThrow();
+
+    expect((await answer).success).toBe(false);
+    expect(kernel._inFlight.size).toBe(0);
+    expect(lumine.notifications.addError.calls.count()).toBe(1);
+  });
+
+  it("settles after a renderer fails while preserving delivery to other recipients", async () => {
+    spyOn(lumine.notifications, "addError");
+    const onResult = jasmine.createSpy("onResult");
+    const answer = createResultAsync(
+      { editor: {}, kernel, markers: {} },
+      {
+        code: "1",
+        row: 0,
+        cellType: "code",
+        globalOutputStore: null,
+        pendingResult: {
+          appendOutput() {
+            throw new Error("renderer failed");
+          },
+        },
+        onResult,
+      },
+    );
+    transport.deliverReply("ok", 1);
+    transport.deliverIdle();
+
+    expect((await answer).success).toBe(false);
+    expect(onResult.calls.count()).toBe(2);
+    expect(lumine.notifications.addError.calls.count()).toBe(1);
+  });
+});
+
+describe("kernel input prompt lifetime", () => {
+  const InputView = require("../lib/input-view");
+  let transport;
+  let kernel;
+
+  beforeEach(() => {
+    transport = new FakeTransport();
+    transport.inputReply = jasmine.createSpy("inputReply");
+    kernel = new Kernel(transport);
+    spyOn(InputView.prototype, "attach");
+    kernel.execute("input()", () => {});
+    transport.deliver(
+      {
+        header: { msg_id: "prompt", msg_type: "input_request" },
+        parent_header: { msg_id: "execute_1", msg_type: "execute_request" },
+        content: { prompt: "Name: ", password: false },
+      },
+      "stdin",
+    );
+  });
+
+  afterEach(() => kernel.destroy());
+
+  it("closes the old prompt on restart and cannot send input to the new process", () => {
+    const [view] = kernel._inputViews;
+    view.miniEditor.setText("late input");
+
+    kernel.restart();
+    view.confirm();
+
+    expect(view.miniEditor).toBeNull();
+    expect(kernel._inputViews.size).toBe(0);
+    expect(transport.inputReply).not.toHaveBeenCalled();
+  });
+
+  it("closes a prompt when interruption finishes its execution", () => {
+    const [view] = kernel._inputViews;
+    transport.deliverReply("error", 1);
+    transport.deliverIdle();
+
+    expect(view.miniEditor).toBeNull();
+    expect(kernel._inputViews.size).toBe(0);
+  });
+
+  it("sends a confirmation once and removes the prompt's lifetime record", () => {
+    const [view] = kernel._inputViews;
+    view.miniEditor.setText("answer");
+    view.confirm();
+    view.confirm();
+
+    expect(transport.inputReply.calls.count()).toBe(1);
+    expect(transport.inputReply).toHaveBeenCalledWith("answer");
+    expect(kernel._inputViews.size).toBe(0);
+  });
+});

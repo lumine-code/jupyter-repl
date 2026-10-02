@@ -1,5 +1,12 @@
-const { findCodeBlockAtRow, getCommentStartString } = require("../lib/code-manager");
-const store = require("../lib/store");
+let findCodeBlockAtRow, getCommentStartString, store;
+
+function refreshPackageModules() {
+  // Earlier lifecycle suites unload the package and discard its module cache.
+  // The detector resolves the current store lazily, so its spies must use that
+  // same generation rather than the objects present when specs were loaded.
+  ({ findCodeBlockAtRow, getCommentStartString } = require("../lib/code-manager"));
+  store = require("../lib/store");
+}
 
 // Multiline triple-quoted strings hide their brackets from the line-based
 // bracket checks (`doc.x('''` ends with the string opener, `''')` starts with
@@ -17,6 +24,7 @@ describe("code block detection for multiline strings", () => {
 
   beforeEach(() => {
     lumine.packages.deactivatePackages();
+    refreshPackageModules();
   });
 
   it("captures a bracket-wrapped multiline string from its opening line", async () => {
@@ -113,6 +121,7 @@ describe("code block detection for multiline strings", () => {
 });
 
 describe("comment delimiter lookup", () => {
+  beforeEach(refreshPackageModules);
   it("uses the first non-whitespace position and a block opener fallback", () => {
     const getCommentDelimitersForBufferPosition = jasmine
       .createSpy("getCommentDelimitersForBufferPosition")
@@ -125,5 +134,54 @@ describe("comment delimiter lookup", () => {
 
     expect(getCommentStartString(editor)).toBe("<!--");
     expect(getCommentDelimitersForBufferPosition).toHaveBeenCalledWith([3, 3]);
+  });
+});
+
+describe("Python compound blocks without syntax-tree or fold support", () => {
+  let editor;
+
+  beforeEach(async () => {
+    refreshPackageModules();
+    editor = await lumine.workspace.open();
+    spyOn(editor, "getGrammar").and.returnValue({ scopeName: "source.python", name: "Python" });
+    spyOn(editor, "getSyntaxNodeAtBufferPosition").and.returnValue(null);
+    spyOn(editor, "isFoldableAtBufferRow").and.returnValue(false);
+    spyOnProperty(store, "kernel", "get").and.returnValue({ language: "python" });
+  });
+
+  afterEach(() => editor.destroy());
+
+  it("captures try and its complete continuation chain from every header", () => {
+    const source =
+      "try: # guarded\n    first()\nexcept: # fallback\n    second()\nelse:\n    third()\nfinally:\n    cleanup()";
+    editor.setText(source + "\noutside()");
+
+    for (const row of [0, 2, 4, 6]) {
+      const block = findCodeBlockAtRow(editor, row);
+      expect(block.code.trimEnd()).withContext(`header row ${row}`).toBe(source);
+      expect(block.row).toBe(7);
+    }
+  });
+
+  it("finds the complete match statement from either case", () => {
+    const source = "match value:\n    case 1:\n        first()\n    case _:\n        other()";
+    editor.setText(source + "\noutside()");
+
+    for (const row of [1, 3]) {
+      const block = findCodeBlockAtRow(editor, row);
+      expect(block.code.trimEnd()).toBe(source);
+      expect(block.row).toBe(4);
+    }
+  });
+
+  it("captures an async loop and its else clause", () => {
+    const source = "async for item in items:\n    consume(item)\nelse: # exhausted\n    done()";
+    editor.setText(source + "\noutside()");
+
+    for (const row of [0, 2]) {
+      const block = findCodeBlockAtRow(editor, row);
+      expect(block.code.trimEnd()).toBe(source);
+      expect(block.row).toBe(3);
+    }
   });
 });

@@ -723,16 +723,62 @@ describe("notebook adapter kernel integration", () => {
     const { adapter } = makeAdapter({ targets: [target] });
     adapter.cancelTargetExecution = jasmine.createSpy("cancelTargetExecution");
     adapter.finishTargetExecution = jasmine.createSpy("finishTargetExecution");
+    adapter.appendTargetOutput = jasmine.createSpy("appendTargetOutput");
     const kernel = fakeKernel(adapter.getMetadata().kernelspec);
     store.kernelMapping.set(adapter.getPath(), kernel);
     spyOn(result, "createResultAsync").and.returnValue(new Promise(() => {}));
 
     adapterIntegration.runAdapterTargets(serviceFor(adapter), {}, { scope: "active" });
     await flushPromises();
+    const onResult = result.createResultAsync.calls.mostRecent().args[1].onResult;
     adapterIntegration.disposeAdapterIntegration();
+    onResult({ output_type: "stream", name: "stdout", text: "late output" });
     await flushPromises();
 
     expect(adapter.cancelTargetExecution).not.toHaveBeenCalled();
     expect(adapter.finishTargetExecution).not.toHaveBeenCalled();
+    expect(adapter.appendTargetOutput).not.toHaveBeenCalled();
+  });
+
+  it("ignores delayed output and finish callbacks after its notebook closes", async () => {
+    const editor = makeEditor(45);
+    const target = { id: "cell", type: "code", executable: true, source: "slow()", editor };
+    const { adapter, owner } = makeAdapter({ targets: [target] });
+    adapter.finishTargetExecution = jasmine.createSpy("finishTargetExecution");
+    adapter.appendTargetOutput = jasmine.createSpy("appendTargetOutput");
+    const kernel = fakeKernel(adapter.getMetadata().kernelspec);
+    store.kernelMapping.set(adapter.getPath(), kernel);
+    spyOn(result, "createResultAsync").and.returnValue(new Promise(() => {}));
+
+    adapterIntegration.runAdapterTargets(serviceFor(adapter), {}, { scope: "active" });
+    await flushPromises();
+    const onResult = result.createResultAsync.calls.mostRecent().args[1].onResult;
+    owner.destroy();
+    onResult({ output_type: "stream", name: "stdout", text: "late output" });
+    await flushPromises();
+
+    expect(adapter.finishTargetExecution).not.toHaveBeenCalled();
+    expect(adapter.appendTargetOutput).not.toHaveBeenCalled();
+  });
+
+  it("does not mix interrupted execution output into a subsequent run", async () => {
+    const editor = makeEditor(46);
+    const target = { id: "cell", type: "code", executable: true, source: "slow()", editor };
+    const { adapter } = makeAdapter({ targets: [target] });
+    adapter.appendTargetOutput = jasmine.createSpy("appendTargetOutput");
+    const kernel = fakeKernel(adapter.getMetadata().kernelspec);
+    kernel.interrupt = jasmine.createSpy("interrupt");
+    store.kernelMapping.set(adapter.getPath(), kernel);
+    spyOn(result, "createResultAsync").and.returnValue(new Promise(() => {}));
+
+    adapterIntegration.runAdapterTargets(serviceFor(adapter), {}, { scope: "active" });
+    await flushPromises();
+    const onResult = result.createResultAsync.calls.mostRecent().args[1].onResult;
+    adapterIntegration.handleAdapterKernelCommand(serviceFor(adapter), "interrupt-kernel");
+    onResult({ output_type: "stream", name: "stdout", text: "old execution output" });
+    await flushPromises();
+
+    expect(kernel.interrupt).toHaveBeenCalled();
+    expect(adapter.appendTargetOutput).not.toHaveBeenCalled();
   });
 });

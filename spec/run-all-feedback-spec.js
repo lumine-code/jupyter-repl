@@ -163,4 +163,36 @@ describe("batch inline feedback", () => {
     expect(batchSpy).toHaveBeenCalled();
     expect(batchSpy.calls.mostRecent().args[1].length).toBe(3);
   });
+
+  it("releases the batch and marks pending results when sending fails synchronously", async () => {
+    spyOn(fakeKernel, "execute").and.throwError("send failed");
+    const batch = result.createResultBatch({ editor, kernel: fakeKernel, markers }, [
+      { code: "first()", row: 0, cellType: "code" },
+      { code: "second()", row: 1, cellType: "code" },
+    ]);
+
+    await expectAsync(batch).toBeRejectedWithError("send failed");
+
+    expect(fakeKernel.batchInFlight).toBe(false);
+    expect(resultAtRow(0).outputStore.status).toBe("error");
+    expect(resultAtRow(1).outputStore.status).toBe("error");
+  });
+
+  it("stops before running the next block when the editor closes mid-batch", async () => {
+    const batch = result.createResultBatch({ editor, kernel: fakeKernel, markers }, [
+      { code: "first()", row: 0, cellType: "code" },
+      { code: "second()", row: 1, cellType: "code" },
+      { code: "third()", row: 2, cellType: "code" },
+    ]);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(fakeKernel.executions.length).toBe(2);
+    editor.destroy();
+    fakeKernel.executions[1].callback({ data: "ok", stream: "status" });
+    fakeKernel.executions[1].callback({ output_type: "status", execution_state: "idle" });
+
+    expect(await batch).toBe(false);
+    expect(fakeKernel.executions.length).toBe(2);
+    expect(fakeKernel.batchInFlight).toBe(false);
+  });
 });

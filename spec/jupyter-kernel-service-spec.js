@@ -118,6 +118,7 @@ describe("JupyterKernel#execute", () => {
     emit({ data: 1, stream: "execution_count" });
     emit(STREAM);
     emit({ data: "ok", stream: "status" });
+    emit({ output_type: "status", execution_state: "idle" });
 
     const { status, outputs, executionCount } = await answer;
     expect(status).toBe("ok");
@@ -130,6 +131,7 @@ describe("JupyterKernel#execute", () => {
     emit(STREAM);
     emit(RESULT);
     emit({ data: "ok", stream: "status" });
+    emit({ output_type: "status", execution_state: "idle" });
 
     expect((await answer).outputs).toEqual([STREAM, RESULT]);
   });
@@ -138,6 +140,7 @@ describe("JupyterKernel#execute", () => {
     const answer = wrapper.execute("raise ValueError('no')");
     emit(ERROR);
     emit({ data: "error", stream: "status" });
+    emit({ output_type: "status", execution_state: "idle" });
 
     const { status, outputs, error } = await answer;
     expect(status).toBe("error");
@@ -153,10 +156,62 @@ describe("JupyterKernel#execute", () => {
     const answer = wrapper.execute("1");
     emit({ data: 7, stream: "execution_count" });
     emit({ data: "ok", stream: "status" });
+    emit({ output_type: "status", execution_state: "idle" });
 
     const { outputs, executionCount } = await answer;
     expect(outputs).toEqual([]);
     expect(executionCount).toBe(7);
+  });
+
+  it("collects late IOPub output when the shell reply arrives first", async () => {
+    let settled = false;
+    const answer = wrapper.execute("print('hello'); 42");
+    answer.then(() => {
+      settled = true;
+    });
+    emit({ data: "ok", stream: "status" });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    emit({ data: 8, stream: "execution_count" });
+    emit(STREAM);
+    emit(RESULT);
+    emit({ output_type: "status", execution_state: "idle" });
+
+    const result = await answer;
+    expect(result.status).toBe("ok");
+    expect(result.outputs).toEqual([STREAM, RESULT]);
+    expect(result.executionCount).toBe(8);
+  });
+
+  it("keeps an error that arrives after its shell reply", async () => {
+    const answer = wrapper.execute("raise ValueError('no')");
+    emit({ data: "error", stream: "status" });
+    emit(ERROR);
+    emit({ output_type: "status", execution_state: "idle" });
+
+    expect((await answer).error.ename).toBe("ValueError");
+    expect((await answer).outputs).toEqual([ERROR]);
+  });
+
+  it("also settles when the IOPub idle arrives before the reply", async () => {
+    const answer = wrapper.execute("1");
+    emit(RESULT);
+    emit({ output_type: "status", execution_state: "idle" });
+    emit({ data: "ok", stream: "status" });
+
+    expect((await answer).outputs).toEqual([RESULT]);
+  });
+
+  it("releases its timeout when sending throws synchronously", async () => {
+    spyOn(internal, "execute").and.throwError("middleware failed");
+    spyOn(window, "clearTimeout").and.callThrough();
+
+    await expectAsync(wrapper.execute("1", { timeoutMs: 5000 })).toBeRejectedWithError(
+      "middleware failed",
+    );
+
+    expect(window.clearTimeout).toHaveBeenCalled();
   });
 
   describe("when the kernel never replies", () => {
@@ -176,6 +231,7 @@ describe("JupyterKernel#execute", () => {
     it("does not give up on a kernel that answers in time", async () => {
       const answer = wrapper.execute("1", { timeoutMs: 5000 });
       emit({ data: "ok", stream: "status" });
+      emit({ output_type: "status", execution_state: "idle" });
 
       expect((await answer).status).toBe("ok");
     });

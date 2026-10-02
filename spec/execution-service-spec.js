@@ -154,6 +154,22 @@ describe("the jupyter.execution service", () => {
     expect(bundle.row).toBe(1);
   });
 
+  it("does not dispatch a delayed run after its editor is closed", async () => {
+    store.kernelMapping.delete(filePath);
+    let resume;
+    spyOn(require("../lib/kernel-manager").KernelManager.prototype, "startKernelFor").and.callFake(
+      (_grammar, _editor, _path, callback) => {
+        resume = callback;
+      },
+    );
+    const render = spyOn(result, "createResult");
+    await execution.runBlocks(editor, [{ code: "first()", row: 0, cellType: "code" }]);
+    editor.destroy();
+
+    expect(await resume(fakeKernel)).toBe(false);
+    expect(render).not.toHaveBeenCalled();
+  });
+
   it("restarts through the current kernel, or calls straight back without one", () => {
     const onRestarted = jasmine.createSpy("onRestarted");
     store.kernelMapping.delete(filePath);
