@@ -1,6 +1,7 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch"); // JSX factory
 const { ansiNodes, truncateOutput } = require("../../ansi-utils");
+const Traceback = require("../result-view/traceback");
 
 // Replaces @nteract/outputs. The upstream shape configured the renderers by
 // passing them as React children and cloning the matching one; here the caller
@@ -18,6 +19,10 @@ const MIME_PRIORITY = [
   // the plot formats too — a figure widget emits one precisely because it wants
   // to be driven from Python, and the static spec is the degraded form.
   "application/vnd.jupyter.widget-view+json",
+  "application/vnd.bokehjs_load.v0+json",
+  "application/vnd.bokehjs_exec.v0+json",
+  "application/vnd.holoviews_load.v0+json",
+  "application/vnd.holoviews_exec.v0+json",
   // Vega/Vega-Lite (interactive visualizations)
   "application/vnd.vega.v6.json",
   "application/vnd.vega.v6+json",
@@ -63,7 +68,7 @@ const PRIORITIZED_MEDIA_TYPES = new Set(MIME_PRIORITY);
  * @param {Object} renderers - Media type to `(data, metadata, bundle) => vnode|null`
  * @returns {*} Virtual nodes, or null when nothing in the bundle can be rendered
  */
-function renderRichMedia(data, metadata, renderers) {
+function renderRichMedia(data, metadata, renderers, options = {}) {
   if (!data || typeof data !== "object") {
     return null;
   }
@@ -72,7 +77,7 @@ function renderRichMedia(data, metadata, renderers) {
   // renderer that can only partly represent its own media type can fall back
   // to what the kernel sent with it rather than showing a bare error.
   const render = (mediaType) =>
-    renderers[mediaType](data[mediaType], metadata && metadata[mediaType], data);
+    renderers[mediaType](data[mediaType], metadata && metadata[mediaType], data, options);
 
   for (const mediaType of MIME_PRIORITY) {
     if (data[mediaType] !== undefined && renderers[mediaType]) {
@@ -116,28 +121,13 @@ function renderStreamText(output) {
 }
 
 /** An error, as name, value and traceback. */
-function renderError(output) {
-  const { ename, evalue, traceback } = output;
-
-  const rawTraceback = Array.isArray(traceback) ? traceback.join("\n") : "";
-  const { text: truncatedTraceback, truncated } = truncateOutput(rawTraceback);
-
-  // The traceback already ends with the error, so the header would repeat it.
-  const showHeader = !truncatedTraceback;
-
+function renderError(output, options = {}) {
   return (
-    <div className="output-error">
-      {showHeader ? (
-        <div className="error-header">
-          <span className="error-name">{ename}</span>
-          {evalue ? <span className="error-value">: {ansiNodes(evalue)}</span> : null}
-        </div>
-      ) : null}
-      {truncatedTraceback ? (
-        <pre className="error-traceback">{ansiNodes(truncatedTraceback)}</pre>
-      ) : null}
-      {truncated ? <div className="output-truncated">... traceback truncated</div> : null}
-    </div>
+    <Traceback
+      output={output}
+      resolveTracebackFrame={options.resolveTracebackFrame}
+      kernel={options.kernel}
+    />
   );
 }
 
@@ -148,7 +138,7 @@ function renderError(output) {
  * @param {Object} renderers - Media type table for the rich output types
  * @returns {*} Virtual nodes, or null for an output type with nothing to show
  */
-function renderOutput(output, renderers) {
+function renderOutput(output, renderers, options = {}) {
   if (!output || !output.output_type) {
     return null;
   }
@@ -156,13 +146,13 @@ function renderOutput(output, renderers) {
   switch (output.output_type) {
     case "execute_result":
     case "display_data":
-      return output.data ? renderRichMedia(output.data, output.metadata, renderers) : null;
+      return output.data ? renderRichMedia(output.data, output.metadata, renderers, options) : null;
 
     case "stream":
       return renderStreamText(output);
 
     case "error":
-      return renderError(output);
+      return renderError(output, options);
 
     default:
       return null;

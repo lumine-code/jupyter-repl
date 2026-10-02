@@ -37,6 +37,7 @@ const ENTRY = [
   'export * as base from "@jupyter-widgets/base";',
   'export * as baseManager from "@jupyter-widgets/base-manager";',
   'export * as controls from "@jupyter-widgets/controls";',
+  'export * as matplotlib from "jupyter-matplotlib";',
   // @lumino/widgets is in here anyway as a dependency of controls, and the
   // renderer needs its attach messages: a box, tab or accordion view lays
   // itself out only once Lumino tells it it is attached. Exporting the copy
@@ -77,6 +78,7 @@ async function main() {
     "@jupyter-widgets/base",
     "@jupyter-widgets/base-manager",
     "@jupyter-widgets/controls",
+    "jupyter-matplotlib",
   ]
     .map((name) => `//   ${name}@${versionOf(name)}`)
     .join("\n");
@@ -92,6 +94,8 @@ async function main() {
     format: "cjs",
     // The renderer is a browser context; this must not resolve node builtins.
     platform: "browser",
+    // Styles are loaded lazily from their installed sources by widget-styles.
+    loader: { ".css": "empty" },
     external: EXTERNAL,
     outfile: OUTFILE,
     banner: {

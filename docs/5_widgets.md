@@ -33,11 +33,28 @@ def show(n):
 
 Anything a widget prints inside `with out:` is captured by that widget rather than appearing under the cell, so `tqdm.notebook` progress bars and `interactive_output` behave normally.
 
-## What is not
+## Interactive Matplotlib
 
-**Third-party widget packages are not loaded.** `ipyleaflet`, `bqplot`, `ipycanvas`, `plotly`'s `FigureWidget` and anything else outside the core set render a message naming the module they wanted instead of the control.
+Install `ipympl` in the kernel's Python environment, then enable its backend before drawing a figure:
 
-This is deliberate. Every other notebook front end answers an unknown widget module by fetching it from a CDN while the notebook renders — arbitrary remote code, chosen by whatever the kernel happened to print, executed in an editor with full access to your machine. That is not a trade this editor makes.
+```python
+%matplotlib ipympl
+import matplotlib.pyplot as plt
+plt.plot([1, 2, 3], [1, 4, 9])
+plt.show()
+```
+
+The package bundles `jupyter-matplotlib` 0.12 for `ipympl` 0.10. The figure and toolbar use the same live widget connection as the core controls.
+
+## Custom widgets
+
+Install `anywidget` in the kernel environment to use widgets whose frontend is an inline ES module or an HTTPS module. Their code runs in an isolated frame with no Node or editor access; its bridge exposes only the widget's traits, custom messages and referenced anywidget children. See [anywidget](anywidget.md) for the supported frontend interface and lifecycle.
+
+## Other widget modules
+
+Widget modules outside the bundled core controls, `jupyter-matplotlib` and `anywidget` are not loaded. `ipyleaflet`, `bqplot` and `ipycanvas` render a message naming the module they requested. Plotly's modern `FigureWidget` uses anywidget; older versions requiring another module still use their plain-figure fallback.
+
+Unknown widget modules cannot run in the editor process. Custom anywidget code has its own sandbox; the core widget manager resolves only the modules shipped with this package.
 
 Those libraries usually have a non-widget rendering path that works here: Plotly figures render through `plotly.io.show` or a plain `Figure`, and most plotting libraries fall back to a static image.
 

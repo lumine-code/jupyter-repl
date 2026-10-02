@@ -1,4 +1,5 @@
 const { renderOutput } = require("../output");
+const { renderOptionsForOutput } = require("../../traceback-context");
 const media = require("../output/media");
 const { plotlyRenderer, plotlyHtmlRenderer } = require("./plotly");
 const { vegaRenderer } = require("./vega");
@@ -6,6 +7,7 @@ const { markdownRenderer } = require("./markdown");
 const { htmlRenderer } = require("./html");
 const { latexRenderer } = require("./latex");
 const { widgetRenderer } = require("./widget");
+const { bokehRenderer, BOKEH_LOAD, BOKEH_EXEC, PANEL_LOAD, PANEL_EXEC } = require("./bokeh");
 
 /**
  * Every media type this package can render, mapped to the function that renders
@@ -15,6 +17,10 @@ const { widgetRenderer } = require("./widget");
  */
 const MEDIA_RENDERERS = {
   "application/vnd.jupyter.widget-view+json": widgetRenderer,
+  [BOKEH_LOAD]: bokehRenderer(BOKEH_LOAD),
+  [BOKEH_EXEC]: bokehRenderer(BOKEH_EXEC),
+  [PANEL_LOAD]: bokehRenderer(PANEL_LOAD),
+  [PANEL_EXEC]: bokehRenderer(PANEL_EXEC),
   "application/vnd.vega.v6.json": vegaRenderer("application/vnd.vega.v6.json"),
   "application/vnd.vega.v6+json": vegaRenderer("application/vnd.vega.v6+json"),
   "application/vnd.vega.v5.json": vegaRenderer("application/vnd.vega.v5.json"),
@@ -52,8 +58,8 @@ function isTextOutputOnly(data) {
 }
 
 /** Render one output with the full media-type table. */
-function renderDisplay(output) {
-  return renderOutput(output, MEDIA_RENDERERS);
+function renderDisplay(output, options) {
+  return renderOutput(output, MEDIA_RENDERERS, { ...renderOptionsForOutput(output), ...options });
 }
 
 module.exports = {

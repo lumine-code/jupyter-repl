@@ -7,8 +7,8 @@ Supports Python, R, JavaScript, and other languages with rich output including p
 ## Features
 
 - **Interactive execution**: run lines, selections, or automatically detected code blocks with inline results, multiple cursors, and smart Python/bracket/fold detection.
-- **Rich media output**: renders Plotly and Vega charts, images, audio, video, HTTP(S) frames, safe HTML, Markdown, and LaTeX inline.
-- **Jupyter widgets**: renders the core `ipywidgets` controls live against the kernel, including `interact` and the output widget.
+- **Rich media output**: renders Plotly, Vega, Bokeh and Panel charts, images, audio, video, HTTP(S) frames, safe HTML, Markdown, and LaTeX inline.
+- **Jupyter widgets**: renders core `ipywidgets`, `interact`, output widgets and ipympl against the kernel, with custom anywidget modules in isolated frames.
 - **Kernel intelligence**: autocomplete, object introspection, and a shared namespace with one kernel per language across files.
 - **Kernel management**: starts local kernels, connects to remote gateways, and interrupts, restarts or shuts them down.
 - **Notebook adapters**: drives external notebook cells, such as jupyter-view's, through the `jupyter.adapter` service.

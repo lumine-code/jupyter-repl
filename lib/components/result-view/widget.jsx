@@ -68,9 +68,11 @@ function detachWidget(view) {
     const runtime = panel && view.el?.isConnected ? lumino() : null;
     if (runtime) {
       runtime.MessageLoop.sendMessage(panel, runtime.Widget.Msg.BeforeDetach);
+      view.prepareForDetach?.();
       view.el.remove();
       runtime.MessageLoop.sendMessage(panel, runtime.Widget.Msg.AfterDetach);
     } else {
+      view.prepareForDetach?.();
       view.el?.remove();
     }
     view.remove();
