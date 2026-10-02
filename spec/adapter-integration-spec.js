@@ -1,7 +1,7 @@
 const { Disposable, Emitter } = require("lumine");
-const adapterIntegration = require("../lib/adapter-integration");
-const result = require("../lib/result");
-const store = require("../lib/store");
+let adapterIntegration;
+let result;
+let store;
 
 describe("notebook adapter kernel integration", () => {
   const pythonGrammar = { name: "Python", scopeName: "source.python" };
@@ -114,6 +114,9 @@ describe("notebook adapter kernel integration", () => {
   }
 
   beforeEach(async () => {
+    adapterIntegration = require("../lib/adapter-integration");
+    result = require("../lib/result");
+    store = require("../lib/store");
     const languageText = await lumine.packages.activatePackage("language-text");
     await languageText.resourceLoadPromise;
     adapterIntegration.activateAdapterIntegration();
@@ -300,6 +303,173 @@ describe("notebook adapter kernel integration", () => {
     await Promise.resolve();
 
     expect(executions).toEqual([kernel, kernel]);
+  });
+
+  it("runs an explicit MCP target through the same notebook output and lifecycle callbacks", async () => {
+    const editor = makeEditor(103, pythonGrammar);
+    const target = {
+      id: "stable-cell",
+      type: "code",
+      executable: true,
+      source: "print(1)",
+      editor,
+      row: 0,
+    };
+    const { adapter } = makeAdapter({ targets: [target] });
+    const kernel = fakeKernel({ name: "python3", display_name: "Python 3", language: "python" });
+    store.kernelMapping.set(adapter.getPath(), kernel);
+    adapter.beginTargetExecution = jasmine.createSpy("beginTargetExecution");
+    adapter.finishTargetExecution = jasmine.createSpy("finishTargetExecution");
+    adapter.clearTargetOutputs = jasmine.createSpy("clearTargetOutputs");
+    adapter.setTargetExecutionCount = jasmine.createSpy("setTargetExecutionCount");
+    adapter.appendTargetOutput = jasmine.createSpy("appendTargetOutput");
+    const observe = jasmine.createSpy("observe");
+    const output = { output_type: "stream", name: "stdout", text: "1\n" };
+    spyOn(result, "createResultAsync").and.callFake((_context, options) => {
+      options.onResult({ stream: "execution_count", data: 19 });
+      options.onResult(output);
+      return Promise.resolve({ success: true, durationMs: 2 });
+    });
+    const completed = await adapterIntegration.runExplicitAdapterTarget(
+      [serviceFor(adapter)],
+      adapter,
+      kernel,
+      target,
+      observe,
+    );
+    expect(completed.success).toBe(true);
+    expect(adapter.beginTargetExecution).toHaveBeenCalledWith(target, { kernel });
+    expect(adapter.clearTargetOutputs).toHaveBeenCalledWith(target);
+    expect(adapter.setTargetExecutionCount).toHaveBeenCalledWith(target, 19);
+    expect(adapter.appendTargetOutput).toHaveBeenCalledWith(target, output);
+    expect(observe).toHaveBeenCalledWith(output);
+    expect(adapter.finishTargetExecution).toHaveBeenCalled();
+    expect(result.createResultAsync.calls.mostRecent().args[1].inline).toBe(false);
+  });
+
+  it("binds an explicit existing kernel through the normal transactional metadata and store path", async () => {
+    const target = {
+      id: "stable-cell",
+      type: "code",
+      source: "one",
+      editor: makeEditor(106),
+      row: 0,
+    };
+    const { adapter, owner } = makeAdapter({ path: null, targets: [target] });
+    const kernel = fakeKernel({
+      name: "existing",
+      display_name: "Existing Python",
+      language: "python",
+    });
+    store.runningKernels = [kernel];
+    const metadata = spyOn(adapter, "setKernelSpec").and.callThrough();
+    const accepted = await adapterIntegration.bindExistingAdapterKernel(
+      [serviceFor(adapter)],
+      adapter,
+      kernel,
+    );
+    expect(accepted).toBe(true);
+    expect(metadata).toHaveBeenCalledWith(kernel.kernelSpec, null);
+    expect(owner.metadata.kernelspec.name).toBe("existing");
+    expect(adapterIntegration.getKernelForAdapter(adapter)).toBe(kernel);
+    expect(store.runningKernels).toEqual([kernel]);
+    metadata.calls.reset();
+    expect(
+      await adapterIntegration.bindExistingAdapterKernel([serviceFor(adapter)], adapter, kernel),
+    ).toBe(true);
+    expect(metadata).not.toHaveBeenCalled();
+  });
+
+  it("refuses to replace a busy existing binding without modifying metadata or starting a kernel", async () => {
+    const target = {
+      id: "stable-cell",
+      type: "code",
+      source: "one",
+      editor: makeEditor(107),
+      row: 0,
+    };
+    const { adapter, owner } = makeAdapter({ targets: [target] });
+    const old = fakeKernel({ name: "old", language: "python" });
+    old.executionState = "busy";
+    const replacement = fakeKernel({ name: "replacement", language: "python" });
+    store.runningKernels = [old, replacement];
+    store.kernelMapping.set(adapter.getPath(), old);
+    const before = JSON.stringify(owner.metadata);
+    let failed;
+    try {
+      await adapterIntegration.bindExistingAdapterKernel(
+        [serviceFor(adapter)],
+        adapter,
+        replacement,
+      );
+    } catch (error) {
+      failed = error;
+    }
+    expect(failed.code).toBe("kernel_binding_busy");
+    expect(JSON.stringify(owner.metadata)).toBe(before);
+    expect(adapterIntegration.getKernelForAdapter(adapter)).toBe(old);
+    expect(old.shutdownAndDestroy).not.toHaveBeenCalled();
+  });
+
+  it("restores the original unsaved kernel binding after a failed Save As path rolls back to null", async () => {
+    const target = {
+      id: "stable-cell",
+      type: "code",
+      executable: true,
+      source: "one",
+      editor: makeEditor(104, pythonGrammar),
+      row: 0,
+    };
+    const { adapter, owner } = makeAdapter({ path: null, targets: [target] });
+    const kernel = fakeKernel({ name: "python3", display_name: "Python 3", language: "python" });
+    const originalKey = `Jupyter Adapter ${owner.id}`;
+    store.kernelMapping.set(originalKey, kernel);
+    expect(adapterIntegration.getKernelForAdapter(adapter)).toBe(kernel);
+    const attemptedPath = "C:\\missing\\failed-save-as.ipynb";
+    owner.setPath(attemptedPath);
+    expect(store.kernelMapping.has(originalKey)).toBe(false);
+    expect(store.kernelMapping.get(attemptedPath)).toBe(kernel);
+    owner.setPath(null);
+    expect(store.kernelMapping.has(attemptedPath)).toBe(false);
+    expect(store.kernelMapping.get(originalKey)).toBe(kernel);
+    expect(adapterIntegration.getKernelForAdapter(adapter)).toBe(kernel);
+    const execute = spyOn(result, "createResultAsync").and.returnValue(
+      Promise.resolve({ success: true }),
+    );
+    const manager = {
+      startKernel: jasmine.createSpy("startKernel"),
+      getAllKernelSpecs: jasmine.createSpy("getAllKernelSpecs"),
+    };
+    adapterIntegration.runAdapterTargets(serviceFor(adapter), manager, { scope: "all" });
+    await flushPromises();
+    expect(execute.calls.mostRecent().args[0].kernel).toBe(kernel);
+    expect(manager.startKernel).not.toHaveBeenCalled();
+    expect(manager.getAllKernelSpecs).not.toHaveBeenCalled();
+  });
+
+  it("ignores a stale null path event after a concurrent notebook rename", () => {
+    const target = {
+      id: "stable-cell",
+      type: "code",
+      source: "one",
+      editor: makeEditor(105),
+      row: 0,
+    };
+    const { adapter, owner } = makeAdapter({ path: null, targets: [target] });
+    let notifyPath;
+    owner.onDidChangePath = (callback) => {
+      notifyPath = callback;
+      return new Disposable();
+    };
+    const kernel = fakeKernel({ name: "python3", display_name: "Python 3", language: "python" });
+    store.kernelMapping.set(`Jupyter Adapter ${owner.id}`, kernel);
+    adapterIntegration.getKernelForAdapter(adapter);
+    const currentPath = "C:\\work\\renamed.ipynb";
+    owner.filePath = currentPath;
+    notifyPath(currentPath);
+    notifyPath(null);
+    expect(store.kernelMapping.get(currentPath)).toBe(kernel);
+    expect(adapterIntegration.getKernelForAdapter(adapter)).toBe(kernel);
   });
 
   it("detaches a binding that source metadata changed to another language", async () => {

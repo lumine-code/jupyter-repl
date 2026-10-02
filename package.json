@@ -69,6 +69,11 @@
         "1.0.0": "provideJupyterExecution"
       }
     },
+    "mcp.tools": {
+      "versions": {
+        "1.0.0": "provideMcpTools"
+      }
+    },
     "background-tips.provider": {
       "versions": {
         "1.0.0": "provideBackgroundTips"
@@ -84,6 +89,11 @@
     "jupyter.adapter": {
       "versions": {
         "^1.0.0": "consumeJupyterAdapter"
+      }
+    },
+    "jupyter.notebook": {
+      "versions": {
+        "^1.0.0": "consumeJupyterNotebook"
       }
     },
     "image-editor": {

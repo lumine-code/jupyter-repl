@@ -70,6 +70,8 @@ Optional members:
 
 Each kernel is a `JupyterKernel`:
 
+The id is an opaque UUID-backed identity shared by every consumer, including MCP tools. It stays stable for the live kernel facade and is never reused for a new kernel after package reload or in another editor window. Compare IDs as complete strings; do not parse a sequence number or substitute a kernelspec display name.
+
 ```ts
 type JupyterKernel = {
   // identity

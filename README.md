@@ -12,6 +12,7 @@ Supports Python, R, JavaScript, and other languages with rich output including p
 - **Kernel intelligence**: autocomplete, object introspection, and a shared namespace with one kernel per language across files.
 - **Kernel management**: starts local kernels, connects to remote gateways, and interrupts, restarts or shuts them down.
 - **Notebook adapters**: drives external notebook cells, such as jupyter-view's, through the `jupyter.adapter` service.
+- **MCP automation**: exposes explicit kernel and notebook execution with live UI results, source revision guards, bounded progress observation, and operation receipts that prevent duplicate runs.
 - **Typed source cells**: renders literal Markdown locally, skips raw cells, and preserves cell magic headers when running selected body fragments.
 - **Jupyter console**: attaches a console to the active kernel in an embedded terminal, a system terminal, or via a copied command.
 - **Extensible services**: provides and consumes services for autocomplete, kernels, execution, and third-party integrations.
@@ -74,6 +75,7 @@ Rendered in the editor under Settings, and readable here:
 - [Running code](docs/2_running.md) — what a run sends, what the results do, and the console launcher.
 - [Integration](docs/3_integration.md) — the notebook adapter and the kernel object a service hands over.
 - [Widgets](docs/5_widgets.md) — which `ipywidgets` controls render, and what happens to them when the kernel restarts.
+- [MCP tools](docs/mcp-tools.md) — explicit kernel selection, live notebook execution, progress, cancellation and operation receipts.
 - [jupyter.kernel](docs/jupyter.kernel.md), [jupyter.output](docs/jupyter.output.md), [jupyter.execution](docs/jupyter.execution.md) — the service contracts.
 
 ## Services
@@ -82,6 +84,8 @@ Rendered in the editor under Settings, and readable here:
 - [`jupyter.output`](docs/jupyter.output.md): provided to let other packages render Jupyter output bundles with this package's renderers.
 - `autocomplete.provider`: provided to feed kernel-backed completions to autocomplete consumers while a kernel is active for the editor.
 - [`jupyter.execution`](docs/jupyter.execution.md): provided to run pre-computed code blocks through this package's kernels and result bubbles.
+- `mcp.tools`: provided to publish Jupyter kernel and execution tools through lumine-mcp.
+- `jupyter.notebook`: consumed to resolve live notebooks by stable ID and capture their current source revision for MCP execution.
 - `jupyter.adapter`: consumed to run cells of external pane items, such as jupyter-view notebooks, through the normal run commands.
 - `jupyter.cells`: consumed to read cell boundaries and markdown-cell metadata where the run paths meet `# %%` markers.
 - `status-bar`: consumed to display the kernel of the active editor and its execution state.

@@ -47,7 +47,10 @@ describe("the services this package declares", () => {
   });
 
   it("keeps service registration declarative and activation logic in JavaScript", () => {
-    expect(manifest.providedServices["mcp.tools"]).toBeUndefined();
+    expect(manifest.providedServices["mcp.tools"].versions["1.0.0"]).toBe("provideMcpTools");
+    expect(manifest.consumedServices["jupyter.notebook"].versions["^1.0.0"]).toBe(
+      "consumeJupyterNotebook",
+    );
   });
 });
 
