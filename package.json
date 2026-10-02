@@ -41,6 +41,7 @@
   ],
   "scripts": {
     "test": "lumine --test spec",
+    "test:kernel-lifecycle": "node script/check-kernel-lifecycle.js",
     "build:vega": "node script/build-vega.js",
     "build:widgets": "node script/build-widgets.js",
     "build:isolated-frame": "node script/build-isolated-frame.js",
