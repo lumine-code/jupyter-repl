@@ -11,9 +11,9 @@ class History {
   constructor({ store }) {
     this.store = store;
     etch.initialize(this);
+    this.storeSubscription = this.store.onDidUpdate(() => etch.update(this));
 
     this.disposables = new CompositeDisposable(
-      this.store.onDidUpdate(() => etch.update(this)),
       lumine.commands.add(this.element, {
         "core:move-left": () => this.store.decrementIndex(),
         "core:move-right": () => this.store.incrementIndex(),
@@ -79,11 +79,17 @@ class History {
     );
   }
 
-  update() {
+  update({ store = this.store } = {}) {
+    if (store !== this.store) {
+      this.storeSubscription.dispose();
+      this.store = store;
+      this.storeSubscription = store.onDidUpdate(() => etch.update(this));
+    }
     return etch.update(this);
   }
 
   destroy() {
+    this.storeSubscription.dispose();
     this.disposables.dispose();
     // destroySync, not destroy: etch defers an ordinary destroy to the next
     // animation frame, and by then the caller has already torn down what owned

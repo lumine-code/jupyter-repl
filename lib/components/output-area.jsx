@@ -6,6 +6,7 @@ const History = require("./result-view/history");
 const ScrollList = require("./result-view/list");
 const { OUTPUT_AREA_URI } = require("../utils");
 const { renderEmptyMessage } = require("./empty-message");
+const { getOutputPlainText } = require("../output-utils");
 
 /**
  * The dock view of the current kernel's output, either as a scrubbable history
@@ -50,19 +51,7 @@ class OutputArea {
   };
 
   getOutputText(output) {
-    switch (output.output_type) {
-      case "stream":
-        return output.text;
-
-      case "execute_result":
-        return output.data["text/plain"];
-
-      case "error":
-        return Array.isArray(output.traceback) ? output.traceback.join("\n") : "";
-
-      default:
-        return null;
-    }
+    return getOutputPlainText([output]);
   }
 
   handleClick = () => {

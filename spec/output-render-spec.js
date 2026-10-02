@@ -18,6 +18,7 @@ const {
 const OutputStore = require("../lib/store/output");
 const History = require("../lib/components/result-view/history");
 const ScrollList = require("../lib/components/result-view/list");
+const OutputArea = require("../lib/components/output-area");
 
 // The output renderers moved off React, which also replaced the upstream
 // children-as-configuration shape with a media-type table. Nothing had ever
@@ -578,9 +579,42 @@ describe("output history", () => {
 
     expect(component.element.textContent).toContain("later");
   });
+
+  it("transfers rendering and subscriptions to the next kernel's store", () => {
+    const previous = new OutputStore();
+    previous.appendOutput({ output_type: "stream", name: "stdout", text: "previous kernel" });
+    const next = new OutputStore();
+    next.appendOutput({ output_type: "stream", name: "stdout", text: "next kernel" });
+    component = new History({ store: previous });
+    component.update({ store: next });
+    etch.updateSync(component);
+
+    expect(component.element.textContent).toContain("next kernel");
+    expect(component.element.textContent).not.toContain("previous kernel");
+    const updates = spyOn(etch, "update").and.callThrough();
+    previous.appendOutput({ output_type: "stream", name: "stdout", text: "stale output" });
+    expect(updates).not.toHaveBeenCalled();
+
+    next.appendOutput({ output_type: "stream", name: "stdout", text: " fresh output" });
+    expect(updates).toHaveBeenCalledWith(component);
+    etch.updateSync(component);
+    expect(component.element.textContent).toContain("fresh output");
+  });
 });
 
 describe("output scroll list", () => {
+  it("preserves the scroll position when autoscroll is disabled", () => {
+    const getConfig = lumine.config.get.bind(lumine.config);
+    spyOn(lumine.config, "get").and.callFake((keyPath, ...args) =>
+      keyPath === "jupyter-repl.autoScroll" ? false : getConfig(keyPath, ...args),
+    );
+    const list = Object.create(ScrollList.prototype);
+    list.element = { scrollHeight: 1000, clientHeight: 200, scrollTop: 100 };
+    list.scrollToBottom();
+
+    expect(list.element.scrollTop).toBe(100);
+  });
+
   it("renders one item per output", () => {
     const list = new ScrollList({
       outputs: [
@@ -592,6 +626,42 @@ describe("output scroll list", () => {
 
     expect(list.element.querySelectorAll(".scroll-list-item").length).toBe(2);
     list.destroy();
+  });
+});
+
+describe("copying dock output", () => {
+  it("copies display_data and execute_result plain-text lines with the same formatting", () => {
+    const clipboard = spyOn(lumine.clipboard, "write");
+    spyOn(lumine.notifications, "addSuccess");
+    const outputStore = new OutputStore();
+    const component = new OutputArea({
+      store: {
+        kernel: { outputStore },
+        onDidChangeCurrentKernel: () => ({ dispose() {} }),
+      },
+    });
+    try {
+      for (const output_type of ["display_data", "execute_result"]) {
+        outputStore.appendOutput({
+          output_type,
+          data: { "text/plain": ["first\n", "\u001b[31msecond\u001b[0m"] },
+        });
+        component.handleClick();
+        expect(clipboard.calls.mostRecent().args).toEqual(["first\nsecond"]);
+      }
+    } finally {
+      component.destroy();
+    }
+  });
+
+  it("joins notebook stream line arrays without inserting commas", () => {
+    const text = OutputArea.prototype.getOutputText({
+      output_type: "stream",
+      name: "stdout",
+      text: ["first\n", "second\n"],
+    });
+
+    expect(text).toBe("first\nsecond\n");
   });
 });
 

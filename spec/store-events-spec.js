@@ -71,8 +71,40 @@ describe("output store events", () => {
 
     store.appendOutput({ output_type: "stream", name: "stdout", text: "hi" });
 
-    expect(calls).toBeGreaterThan(0);
+    expect(calls).toBe(1);
     expect(store.outputs.length).toBe(1);
+    subscription.dispose();
+  });
+
+  it("announces a deferred clear and its replacement as one settled update", () => {
+    store.appendOutput({ output_type: "stream", name: "stdout", text: "old" });
+    store.appendOutput({ output_type: "clear_output", wait: true });
+    const snapshots = [];
+    const subscription = store.onDidUpdate(() =>
+      snapshots.push({ texts: store.outputs.map((output) => output.text), index: store.index }),
+    );
+
+    store.appendOutput({ output_type: "stream", name: "stdout", text: "new" });
+
+    expect(snapshots).toEqual([{ texts: ["new"], index: 0 }]);
+    subscription.dispose();
+  });
+
+  it("does not schedule redraws for a history index that cannot move", () => {
+    let calls = 0;
+    const subscription = store.onDidUpdate(() => calls++);
+    store.incrementIndex();
+    store.decrementIndex();
+    store.setIndex(0);
+    expect(store.index).toBe(-1);
+    expect(calls).toBe(0);
+
+    store.appendOutput({ output_type: "stream", name: "stdout", text: "only entry" });
+    expect(calls).toBe(1);
+    store.incrementIndex();
+    store.decrementIndex();
+    store.setIndex(0);
+    expect(calls).toBe(1);
     subscription.dispose();
   });
 

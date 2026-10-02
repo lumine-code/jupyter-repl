@@ -36,6 +36,7 @@ class ScrollList {
   }
 
   scrollToBottom() {
+    if (lumine.config.get("jupyter-repl.autoScroll") === false) return;
     const maxScrollTop = this.element.scrollHeight - this.element.clientHeight;
     this.element.scrollTop = maxScrollTop > 0 ? maxScrollTop : 0;
   }

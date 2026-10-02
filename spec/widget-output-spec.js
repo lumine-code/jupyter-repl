@@ -136,8 +136,8 @@ describe("the Output widget", () => {
     });
 
     it("replaces the array rather than mutating it", () => {
-      // Backbone compares by identity, so appending in place would render
-      // nothing.
+      // The model's previous trait must remain a snapshot for Backbone's
+      // equality check.
       const before = model.get("outputs");
 
       transport.routes.get("execute_1")(streamMessage("hello\n"));
@@ -155,6 +155,27 @@ describe("the Output widget", () => {
       const outputs = model.get("outputs");
       expect(outputs.length).toBe(1);
       expect(outputs[0].text).toBe("one two three");
+    });
+
+    it("notifies the view about every merged chunk without changing previous traits", () => {
+      const changed = jasmine.createSpy("outputs changed");
+      model.on("change:outputs", changed);
+      const capture = transport.routes.get("execute_1");
+      capture(streamMessage("one "));
+      const previous = model.get("outputs");
+      capture(streamMessage("two"));
+
+      expect(changed).toHaveBeenCalledTimes(2);
+      expect(previous[0].text).toBe("one ");
+      expect(model.get("outputs")[0].text).toBe("one two");
+    });
+
+    it("preserves a progress line's cursor across copy-on-write merges", () => {
+      const capture = transport.routes.get("execute_1");
+      capture(streamMessage("abcdef\rXY"));
+      capture(streamMessage("Z"));
+
+      expect(model.get("outputs")[0].text).toBe("XYZdef");
     });
 
     it("clears on clear_output", () => {
@@ -231,6 +252,19 @@ describe("the Output widget", () => {
       etch.updateSync(view.list);
 
       expect(view.el.textContent).toContain("captured");
+      view.remove();
+    });
+
+    it("redraws a real widget view when an existing stream grows", async () => {
+      model.set("msg_id", "execute_1");
+      const view = await manager.create_view(model);
+      const capture = transport.routes.get("execute_1");
+      capture(streamMessage("first "));
+      etch.updateSync(view.list);
+      capture(streamMessage("second"));
+      etch.updateSync(view.list);
+
+      expect(view.el.textContent).toContain("first second");
       view.remove();
     });
   });

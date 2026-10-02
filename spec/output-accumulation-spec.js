@@ -1,5 +1,6 @@
-const { reduceOutputs } = require("../lib/output-utils");
+const { reduceOutputs, normalizeOutput } = require("../lib/output-utils");
 const { escapeCarriageReturn } = require("../lib/ansi-utils");
+const OutputStore = require("../lib/store/output");
 
 // Stream output arrives in as many pieces as the kernel and the socket happen to
 // split it into, and `\r` rewrites the line it sits on — so what a chunk means
@@ -59,6 +60,66 @@ describe("stream output accumulation", () => {
     expect(outputs.length).toBe(3);
     expect(outputs[0].text).toBe("text ");
     expect(outputs[2].text).toBe("after");
+  });
+
+  it("never merges stdout or stderr into a previous execution", () => {
+    const store = new OutputStore();
+    store.appendOutput({ output_type: "stream", name: "stdout", text: "old run\n" });
+    store.startNewRun();
+    store.appendOutput({ output_type: "stream", name: "stderr", text: "new warning\n" });
+    store.appendOutput({ output_type: "stream", name: "stdout", text: "new result\n" });
+    store.appendOutput({ output_type: "stream", name: "stderr", text: "more warnings\n" });
+
+    expect(store.outputs.map((output) => output.text)).toEqual([
+      "old run\n",
+      "new warning\nmore warnings\n",
+      "new result\n",
+    ]);
+
+    store.appendOutput({ output_type: "clear_output", wait: false });
+    expect(store.outputs.map((output) => output.text)).toEqual(["old run\n"]);
+  });
+
+  it("keeps a run boundary intact when the oldest history is trimmed", () => {
+    const store = new OutputStore(3);
+    store.appendOutput({ output_type: "display_data", data: { "text/plain": "first run" } });
+    store.startNewRun();
+    store.appendOutput({ output_type: "stream", name: "stdout", text: "second run\n" });
+    store.startNewRun();
+    store.appendOutput({ output_type: "stream", name: "stderr", text: "warning\n" });
+    store.appendOutput({ output_type: "stream", name: "stdout", text: "third run\n" });
+
+    expect(store.outputs.map((output) => output.text)).toEqual([
+      "second run\n",
+      "warning\n",
+      "third run\n",
+    ]);
+    store.appendOutput({ output_type: "clear_output", wait: false });
+    expect(store.outputs.map((output) => output.text)).toEqual(["second run\n"]);
+  });
+});
+
+describe("notebook output normalization", () => {
+  it("joins textual MIME lines while preserving structured JSON arrays and primitives", () => {
+    const array = [{ value: 1 }, { value: 2 }];
+    const output = {
+      output_type: "display_data",
+      data: {
+        "text/plain": ["one\n", "two"],
+        "image/png": ["AA", "BB"],
+        "application/json": array,
+        "application/vnd.example+json": false,
+        "application/vnd.example.json": 0,
+      },
+    };
+
+    const normalized = normalizeOutput(output);
+    expect(normalized.data["text/plain"]).toBe("one\ntwo");
+    expect(normalized.data["image/png"]).toBe("AABB");
+    expect(normalized.data["application/json"]).toBe(array);
+    expect(normalized.data["application/vnd.example+json"]).toBe(false);
+    expect(normalized.data["application/vnd.example.json"]).toBe(0);
+    expect(output.data["text/plain"]).toEqual(["one\n", "two"]);
   });
 });
 
