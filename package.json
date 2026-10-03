@@ -22,6 +22,7 @@
     "lumine": "^1.0.0"
   },
   "specPackages": [
+    "hyperclick",
     "jupyter-cells",
     "language-ipython",
     "language-python"

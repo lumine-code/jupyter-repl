@@ -2,7 +2,7 @@
 
 Python and IPython errors keep their original traceback text and ANSI colours. Recognized frames link to an existing local source file or to the source captured when the code was submitted. No kernel helper or custom MIME format is required. Other kernel traceback formats remain readable as text.
 
-Click an underlined frame to open its source. Frames from site-packages, dist-packages and recognizable Python standard-library directories are grouped in a collapsed section; expand it to inspect library code. The exception message remains visible. SyntaxError, IndentationError and TabError underlines select the indicated columns when the printed source matches the executed source.
+With `hyperclick` installed, hold Alt and hover over a frame to reveal its source link after the configured hover delay, then Alt-click to open it. Plain clicks select traceback text. Traceback navigation shares hyperclick's gesture and keyboard handling; it never bypasses them with its own click handler. Frames from site-packages, dist-packages and recognizable Python standard-library directories are grouped in a collapsed section; expand it to inspect library code. The exception message remains visible. SyntaxError, IndentationError and TabError underlines select the indicated columns when the printed source matches the executed source.
 
 REPL execution counts identify captured executions, including earlier executions that defined a function. Notebook frames resolve through the stable cell ID that produced that execution, so moving a cell does not change its destination. Editing or deleting the executed source disables the link. Transformed cell magics or selections that cannot be mapped exactly retain their text without an invented source location.
 

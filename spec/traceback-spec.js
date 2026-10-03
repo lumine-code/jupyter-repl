@@ -1,15 +1,31 @@
-const Traceback = require("../lib/components/result-view/traceback");
-const { parseTraceback } = require("../lib/traceback");
-const {
-  captureSource,
-  rangeFor,
-  captureExecution,
-  resolverForOutput,
-} = require("../lib/traceback-context");
+const etch = require("@lumine-code/etch");
+let Traceback;
+let parseTraceback;
+let captureSource;
+let rangeFor;
+let captureExecution;
+let resolverForOutput;
+let sourceLink;
+let getSuggestionForElement;
 
 describe("traceback navigation", () => {
   let view;
-  afterEach(() => view?.destroy());
+  beforeEach(() => {
+    Traceback = require("../lib/components/result-view/traceback");
+    ({ parseTraceback } = require("../lib/traceback"));
+    ({
+      captureSource,
+      rangeFor,
+      captureExecution,
+      resolverForOutput,
+      sourceLink,
+    } = require("../lib/traceback-context"));
+    ({ getSuggestionForElement } = require("../lib/traceback-targets"));
+  });
+  afterEach(() => {
+    view?.destroy();
+    view = null;
+  });
 
   it("recognizes ANSI IPython frames and classic quoted Windows paths", () => {
     const parts = parseTraceback(
@@ -41,13 +57,23 @@ describe("traceback navigation", () => {
     expect(view.element.textContent).toContain("ValueError: bad");
   });
 
-  it("opens existing local source files at the requested line", async () => {
+  it("opens existing local source files through a provider callback and preserves plain clicks", async () => {
     const open = spyOn(lumine.workspace, "open").and.returnValue(Promise.resolve({}));
     view = new Traceback({
       output: { traceback: [`  File "${__filename}", line 4, in example`, "RuntimeError: bad"] },
     });
-    view.element.querySelector("button").click();
+    document.body.appendChild(view.element);
+    const location = view.element.querySelector(".traceback-location");
+    expect(location.tagName).toBe("SPAN");
+    expect(location.getAttribute("title")).toBe(null);
+    expect(view.element.getAttribute("data-hyperclick-boundary")).toBe("true");
+    expect(view.element.querySelector("button")).toBe(null);
+    location.click();
     await Promise.resolve();
+    expect(open).not.toHaveBeenCalled();
+    const suggestion = getSuggestionForElement(location);
+    expect(suggestion.element).toBe(location);
+    await suggestion.callback();
     expect(open).toHaveBeenCalledWith(__filename, { initialLine: 3, initialColumn: 0 });
   });
 
@@ -62,7 +88,7 @@ describe("traceback navigation", () => {
         ],
       },
     });
-    expect(view.element.querySelector("button")).toBeFalsy();
+    expect(view.element.querySelector(".traceback-location")).toBeFalsy();
     expect(view.element.querySelector("script")).toBeFalsy();
     expect(view.element.textContent).toContain("<script>bad()</script>");
   });
@@ -149,5 +175,96 @@ describe("traceback navigation", () => {
     const error = { output_type: "error" };
     next(error);
     expect(resolverForOutput(error)({ executionCount: 201, line: 1 })).toBe(null);
+  });
+
+  it("invalidates the old suggestion immediately when identical text reuses a span for new props", async () => {
+    const first = jasmine.createSpy("first source");
+    const second = jasmine.createSpy("second source");
+    const output = { traceback: ["Cell In[7], line 1", "Error: failed"] };
+    view = new Traceback({ output, resolveTracebackFrame: () => ({ open: first }) });
+    document.body.appendChild(view.element);
+    const span = view.element.querySelector(".traceback-location");
+    const revision = span.getAttribute("data-hyperclick-revision");
+    const previous = getSuggestionForElement(span);
+    view.update({ output: { ...output }, resolveTracebackFrame: () => ({ open: second }) });
+    expect(previous.isCurrent()).toBe(false);
+    await previous.callback();
+    expect(first).not.toHaveBeenCalled();
+    etch.updateSync(view);
+    expect(view.element.querySelector(".traceback-location")).toBe(span);
+    expect(span.getAttribute("data-hyperclick-revision")).not.toBe(revision);
+    await getSuggestionForElement(span).callback();
+    expect(second).toHaveBeenCalledTimes(1);
+    await previous.callback();
+    expect(first).not.toHaveBeenCalled();
+  });
+
+  it("does not reuse a suggestion after source edits or source-editor destruction", async () => {
+    let code = "work()";
+    let destroyed = false;
+    const editor = { getText: () => code, isDestroyed: () => destroyed };
+    const snapshot = captureSource(editor, code, 0);
+    const open = spyOn(lumine.workspace, "open");
+    view = new Traceback({
+      output: { traceback: ["Cell In[1], line 1", "RuntimeError: failed"] },
+      resolveTracebackFrame: (frame) => sourceLink(snapshot, frame),
+    });
+    document.body.appendChild(view.element);
+    const span = view.element.querySelector(".traceback-location");
+    const suggestion = getSuggestionForElement(span);
+    code = "other_file()";
+    expect(suggestion.isCurrent()).toBe(false);
+    await suggestion.callback();
+    expect(open).not.toHaveBeenCalled();
+    code = "work()";
+    destroyed = true;
+    expect(getSuggestionForElement(span)).toBe(null);
+    await suggestion.callback();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("rejects retained callbacks after kernel generation changes, disconnects and view destruction", async () => {
+    const open = jasmine.createSpy("open");
+    const kernel = {
+      executionState: "idle",
+      transport: { lifecycle: "ready", _connectionGeneration: 1 },
+    };
+    view = new Traceback({
+      output: { traceback: ["Cell In[1], line 1"] },
+      kernel,
+      resolveTracebackFrame: () => ({ open }),
+    });
+    document.body.appendChild(view.element);
+    const span = view.element.querySelector(".traceback-location");
+    const suggestion = getSuggestionForElement(span);
+    kernel.transport._connectionGeneration++;
+    expect(suggestion.isCurrent()).toBe(false);
+    await suggestion.callback();
+    kernel.transport._connectionGeneration = 1;
+    kernel.transport.lifecycle = "recovering";
+    expect(getSuggestionForElement(span)).toBe(null);
+    await suggestion.callback();
+    view.destroy();
+    view = null;
+    expect(suggestion.isCurrent()).toBe(false);
+    await suggestion.callback();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("rejects changed raw output or span text even when the component has not been patched yet", async () => {
+    const open = jasmine.createSpy("open");
+    const output = { traceback: ["Cell In[1], line 1"] };
+    view = new Traceback({ output, resolveTracebackFrame: () => ({ open }) });
+    document.body.appendChild(view.element);
+    const span = view.element.querySelector(".traceback-location");
+    const suggestion = getSuggestionForElement(span);
+    output.traceback[0] = "Cell In[2], line 1";
+    expect(suggestion.isCurrent()).toBe(false);
+    await suggestion.callback();
+    output.traceback[0] = "Cell In[1], line 1";
+    span.textContent = "File another.py:1";
+    expect(suggestion.isCurrent()).toBe(false);
+    await suggestion.callback();
+    expect(open).not.toHaveBeenCalled();
   });
 });

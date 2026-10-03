@@ -671,16 +671,11 @@ autocomplete-suggestion-list.select-list.popover-list .suggestion-description {
 }
 
 .structured-traceback .traceback-location {
-  display: inline;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
   white-space: pre-wrap;
-  cursor: pointer;
-  text-decoration: none;
+}
+
+.structured-traceback .traceback-location:not(.hyperclick-dom-link) {
+  cursor: text;
 }
 
 .structured-traceback .traceback-location:focus-visible {
