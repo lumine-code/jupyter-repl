@@ -34,7 +34,11 @@ type CodeBlock = { code: string; row: number; cellType: "code" | "markdown" | "r
 
 type JupyterExecution = {
   runAdapter(scope: "active" | "all" | "above", moveDown?: boolean): boolean;
-  runBlocks(editor: TextEditor, codeBlocks: CodeBlock[]): Promise<boolean>;
+  runBlocks(
+    editor: TextEditor,
+    codeBlocks: CodeBlock[],
+    options?: { autocompleteCancelled?: boolean },
+  ): Promise<boolean>;
   moveDown(editor: TextEditor, endRow: number): void;
   clearResults(): void;
   restartKernel(onRestarted?: () => void): void;
@@ -54,6 +58,8 @@ type JupyterExecution = {
 | `markdownToOutput(source)`      | A markdown source as the display-data shape `importOutputs` renders.                            |
 
 A `CodeBlock`'s `row` is the buffer row the result bubble anchors to — the last meaningful row of what ran, not the first. Markdown renders locally without a kernel; raw is skipped before kernel selection or result allocation. Obtain prepared blocks from `jupyter.cells.getExecutionBlocks()` so literal `.ipy` source retains headings and indentation and selected magic bodies retain their original headers.
+
+`runBlocks` cancels the editor's completion session at entry. A caller that already cancelled it before asynchronous source preparation can pass `{ autocompleteCancelled: true }` to preserve a newer completion session opened while that preparation was pending.
 
 ## Minimal example
 
