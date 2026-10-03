@@ -61,7 +61,6 @@ class Traceback {
         {link ? (
           <button
             className="traceback-location"
-            title={link.title}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();

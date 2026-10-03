@@ -680,7 +680,7 @@ autocomplete-suggestion-list.select-list.popover-list .suggestion-description {
   text-align: left;
   white-space: pre-wrap;
   cursor: pointer;
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .structured-traceback .traceback-location:focus-visible {
