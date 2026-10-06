@@ -16,7 +16,13 @@ describe("kernel discovery", () => {
 
   // dataDirs() reads the environment, so each case gets a clean slate and the
   // real machine's Jupyter install is kept out of the results.
-  const ENV_KEYS = ["JUPYTER_PATH", "JUPYTER_RUNTIME_DIR", "XDG_RUNTIME_DIR"];
+  const ENV_KEYS = [
+    "JUPYTER_PATH",
+    "JUPYTER_DATA_DIR",
+    "XDG_DATA_HOME",
+    "JUPYTER_RUNTIME_DIR",
+    "XDG_RUNTIME_DIR",
+  ];
 
   function writeKernel(dataDir, name, spec) {
     const resourceDir = path.join(dataDir, "kernels", name);
@@ -103,6 +109,42 @@ describe("kernel discovery", () => {
       expect(found[ALPHA].resources_dir).toBe(path.join(root, "kernels", ALPHA));
       expect(found[BETA].spec.display_name).toBe("Beta");
     });
+
+    it("discovers kernels from the explicit Jupyter data directory", async () => {
+      process.env.JUPYTER_DATA_DIR = path.join(root, "user-data");
+      process.env.XDG_DATA_HOME = path.join(root, "xdg-data");
+      const resourceDir = writeKernel(
+        process.env.JUPYTER_DATA_DIR,
+        ALPHA,
+        JSON.stringify({ display_name: "User Data Kernel" }),
+      );
+
+      const found = await findAll();
+
+      expect(found[ALPHA].spec.display_name).toBe("User Data Kernel");
+      expect(found[ALPHA].resources_dir).toBe(resourceDir);
+    });
+
+    if (process.platform !== "win32" && process.platform !== "darwin") {
+      it("discovers XDG kernels and lets JUPYTER_PATH shadow the same name", async () => {
+        process.env.XDG_DATA_HOME = path.join(root, "xdg-data");
+        const xdgDir = path.join(process.env.XDG_DATA_HOME, "jupyter");
+        const resourceDir = writeKernel(
+          xdgDir,
+          ALPHA,
+          JSON.stringify({ display_name: "XDG Kernel" }),
+        );
+        const userKernels = await findAll();
+        expect(userKernels[ALPHA].spec.display_name).toBe("XDG Kernel");
+        expect(userKernels[ALPHA].resources_dir).toBe(resourceDir);
+
+        const preferred = path.join(root, "preferred");
+        process.env.JUPYTER_PATH = preferred;
+        writeKernel(preferred, ALPHA, JSON.stringify({ display_name: "Preferred Kernel" }));
+        const overridden = await findAll();
+        expect(overridden[ALPHA].spec.display_name).toBe("Preferred Kernel");
+      });
+    }
 
     it("skips directories that hold no kernel.json", async () => {
       fs.mkdirSync(path.join(root, "kernels", BETA), { recursive: true });

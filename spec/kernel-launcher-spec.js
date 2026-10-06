@@ -21,6 +21,8 @@ describe("kernel launcher", () => {
   let root;
   let savedRuntimeDir;
   let savedRunAsNode;
+  const savedPathEnv = {};
+  const PATH_ENV_KEYS = ["JUPYTER_DATA_DIR", "XDG_DATA_HOME", "XDG_RUNTIME_DIR"];
 
   // A kernel that exits immediately, so specs never leave a process behind.
   // `process.execPath` is Electron under the spec runner, so the stand-in
@@ -65,6 +67,10 @@ describe("kernel launcher", () => {
 
   beforeEach(() => {
     root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "jupyter-repl-launch-")));
+    for (const key of PATH_ENV_KEYS) {
+      savedPathEnv[key] = process.env[key];
+      delete process.env[key];
+    }
     savedRuntimeDir = process.env.JUPYTER_RUNTIME_DIR;
     // Point the runtime directory at a path that does not exist yet, so the
     // specs also cover creating it.
@@ -74,6 +80,10 @@ describe("kernel launcher", () => {
   });
 
   afterEach(() => {
+    for (const key of PATH_ENV_KEYS) {
+      if (savedPathEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = savedPathEnv[key];
+    }
     if (savedRuntimeDir === undefined) {
       delete process.env.JUPYTER_RUNTIME_DIR;
     } else {
@@ -97,6 +107,24 @@ describe("kernel launcher", () => {
       expect(path.dirname(connectionFile)).toBe(process.env.JUPYTER_RUNTIME_DIR);
       expect(JSON.parse(fs.readFileSync(connectionFile, "utf8"))).toEqual(config);
     });
+
+    const dataOverrides = ["JUPYTER_DATA_DIR"];
+    if (process.platform !== "win32" && process.platform !== "darwin") {
+      dataOverrides.push("XDG_DATA_HOME");
+    }
+    for (const variable of dataOverrides) {
+      it(`creates a connection file beneath ${variable} when runtime overrides are unset`, async () => {
+        const dataHome = path.join(root, "data");
+        process.env[variable] = dataHome;
+        delete process.env.JUPYTER_RUNTIME_DIR;
+        const dataDir = variable === "XDG_DATA_HOME" ? path.join(dataHome, "jupyter") : dataHome;
+
+        const { config, connectionFile } = await writeConnectionFile();
+
+        expect(path.dirname(connectionFile)).toBe(path.join(dataDir, "runtime"));
+        expect(JSON.parse(fs.readFileSync(connectionFile, "utf8"))).toEqual(config);
+      });
+    }
 
     it("describes all five channels on distinct ports", async () => {
       const { config } = await writeConnectionFile();

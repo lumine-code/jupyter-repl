@@ -77,6 +77,8 @@ jupyter kernelspec list
 
 For general information on installing and managing kernels, see the [Jupyter documentation](https://docs.jupyter.org/en/latest/install/kernels.html).
 
+On Linux and other Unix platforms outside macOS, jupyter-repl searches `${XDG_DATA_HOME}/jupyter/kernels` when `XDG_DATA_HOME` is an absolute path; an unset, empty, or relative value uses `~/.local/share/jupyter/kernels`. `JUPYTER_DATA_DIR` overrides the user data directory on every platform, and directories in `JUPYTER_PATH` are searched first. The default connection-file directory follows the chosen user data directory under `runtime`; `JUPYTER_RUNTIME_DIR` and then `XDG_RUNTIME_DIR` keep their existing priority.
+
 ## Windows native startup
 
 The Windows ZeroMQ build can abort with `Bad file descriptor` when its internal IPC uses a temporary directory under `AppData`. jupyter-repl avoids the [upstream libzmq issue](https://github.com/zeromq/libzmq/pull/4734) by initializing the native library with `~/.lumine/cache/zeromq-ipc`, then immediately restoring the process's `TMP`. The cache directory must remain available while the editor is running; it can be removed after the editor closes.
