@@ -25,6 +25,28 @@ describe("empty kernel store lookup", () => {
     return kernel;
   }
 
+  it("keeps replacement collections writable through the store facade", () => {
+    const kernel = knownKernel();
+    const path = "/work/shared.ipynb";
+    const kernels = [kernel];
+    const mapping = new Map([[path, kernel]]);
+    const starting = new Map([["pending", true]]);
+    store.runningKernels = kernels;
+    store.kernelMapping = mapping;
+    store.startingKernels = starting;
+    store.activePaneItem = { getPath: () => path };
+
+    expect(store.runningKernels).toBe(kernels);
+    expect(store.kernelMapping).toBe(mapping);
+    expect(store.startingKernels).toBe(starting);
+    expect(store.kernel).toBe(kernel);
+    store.startKernel("another");
+    expect(starting.get("another")).toBe(true);
+    store.deleteKernel(kernel);
+    expect(mapping.has(path)).toBe(false);
+    expect(store.runningKernels).toEqual([]);
+  });
+
   it("does not consult pane, editor path, grammar, or config when there is nothing to resolve", () => {
     const pane = {
       getJupyterKernel: jasmine
