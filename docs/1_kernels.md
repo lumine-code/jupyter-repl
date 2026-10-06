@@ -77,6 +77,10 @@ jupyter kernelspec list
 
 For general information on installing and managing kernels, see the [Jupyter documentation](https://docs.jupyter.org/en/latest/install/kernels.html).
 
+## Windows native startup
+
+The Windows ZeroMQ build can abort with `Bad file descriptor` when its internal IPC uses a temporary directory under `AppData`. jupyter-repl avoids the [upstream libzmq issue](https://github.com/zeromq/libzmq/pull/4734) by initializing the native library with `~/.lumine/cache/zeromq-ipc`, then immediately restoring the process's `TMP`. The cache directory must remain available while the editor is running; it can be removed after the editor closes.
+
 ## Selection
 
 When multiple kernels are available for a language, you can specify which kernel to use with a magic comment `<comment>:: kernelname` on the first line. The comment character is automatically detected based on the language:
