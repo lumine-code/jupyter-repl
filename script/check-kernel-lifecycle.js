@@ -87,6 +87,7 @@ const counts = {
   inspections: 0,
   completions: 0,
   sourceLookups: 0,
+  recoveries: 0,
 };
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const outputText = (result) =>
@@ -179,6 +180,73 @@ function watch(kernel, code) {
   });
 }
 
+async function recoverWithoutReplay(kernel, api) {
+  const transport = kernel.transport;
+  assert.equal((await api.execute("recovery_counter = 0", { timeoutMs: 15000 })).status, "ok");
+  const shell = transport.onShellMessage;
+  const iopub = transport.onIOMessage;
+  const buffered = [];
+  let requestId;
+  const receive = (channel, original) => (message) => {
+    if (requestId && message.parent_header?.msg_id === requestId) {
+      buffered.push({ channel, message });
+    } else {
+      original.call(transport, message);
+    }
+  };
+  transport.onShellMessage = receive("shell", shell);
+  transport.onIOMessage = receive("iopub", iopub);
+  let execution;
+  try {
+    // Simulate delayed inbound traffic only. The code, sockets, watchdog and
+    // independent recovery probes remain the real shipped implementations.
+    execution = api.execute("recovery_counter += 1\nprint('recovered once')", {
+      timeoutMs: 15000,
+    });
+    requestId = transport._activeShellRequest;
+    assert(requestId, "Recovery target must have reached the native shell queue");
+    const deadline = Date.now() + 10000;
+    while (
+      Date.now() < deadline &&
+      !(
+        transport.lifecycle === "recovering" &&
+        transport._recovery?.probes.length &&
+        buffered.some(
+          ({ channel, message }) =>
+            channel === "shell" && message.header.msg_type === "execute_reply",
+        ) &&
+        buffered.some(
+          ({ channel, message }) =>
+            channel === "iopub" && message.content.execution_state === "idle",
+        )
+      )
+    ) {
+      await wait(10);
+    }
+    assert.equal(transport.lifecycle, "recovering");
+    assert(transport._recovery.probes.length > 0, "A real recovery probe must be sent");
+    assert(buffered.some(({ message }) => message.header.msg_type === "execute_reply"));
+  } finally {
+    transport.onShellMessage = shell;
+    transport.onIOMessage = iopub;
+    for (const { channel, message } of buffered) {
+      (channel === "shell" ? shell : iopub).call(transport, message);
+    }
+  }
+  const result = await execution;
+  assert.equal(result.status, "ok");
+  assert.equal(outputText(result), "recovered once\n");
+  const deadline = Date.now() + 5000;
+  while (transport.lifecycle === "recovering" && Date.now() < deadline) await wait(10);
+  assert.equal(transport.lifecycle, "ready");
+  assert.equal(transport._recovery, null);
+  const counter = await api.execute("print(recovery_counter)", { timeoutMs: 15000 });
+  assert.equal(counter.status, "ok");
+  assert.equal(outputText(counter), "1\n");
+  counts.executes += 3;
+  counts.recoveries++;
+}
+
 async function run() {
   for (let cycle = 0; cycle < 2; cycle++) {
     const kernel = await start();
@@ -217,6 +285,7 @@ async function run() {
         assert.equal((await api.inspect("print", 5)).found, true);
         counts.inspections++;
       }
+      await recoverWithoutReplay(kernel, api);
       const definition = await api.execute(
         "def live_target(value):\n    return value + 1\nlive_alias = live_target",
         { timeoutMs: 15000 },
