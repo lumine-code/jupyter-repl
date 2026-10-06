@@ -107,6 +107,77 @@ describe("the result bubble", () => {
     expect(component.hasImage).toBe(true);
   });
 
+  for (const replacement of ["deferred clear", "bounded history"]) {
+    it(`refreshes image actions after ${replacement} replaces an output at the same count`, () => {
+      const store = new OutputStore(replacement === "bounded history" ? 1 : Infinity);
+      store.appendOutput(stream("plain text"));
+      component = build(store);
+      etch.updateSync(component);
+      component.afterRender();
+      expect(component.hasImage).toBe(false);
+      const scroll = component.outputScroll;
+      let previousId = store.outputs[0]._id;
+      spyOn(actions, "getImage").and.callThrough();
+
+      if (replacement === "deferred clear") {
+        store.appendOutput({ output_type: "clear_output", wait: true });
+        etch.updateSync(component);
+        component.afterRender();
+        expect(actions.getImage).not.toHaveBeenCalled();
+        expect(store.outputs[0]._id).toBe(previousId);
+      }
+      store.appendOutput({ output_type: "display_data", data: { "image/png": "AAAA" } });
+      etch.updateSync(component);
+      component.afterRender();
+      expect(store.outputs.length).toBe(1);
+      expect(store.outputs[0]._id).not.toBe(previousId);
+      expect(component.hasImage).toBe(true);
+      expect(actions.getImage).toHaveBeenCalledTimes(1);
+      previousId = store.outputs[0]._id;
+
+      if (replacement === "deferred clear") {
+        store.appendOutput({ output_type: "clear_output", wait: true });
+        etch.updateSync(component);
+        component.afterRender();
+        expect(component.hasImage).toBe(true);
+        expect(actions.getImage).toHaveBeenCalledTimes(1);
+      }
+      store.appendOutput(stream("replacement text"));
+      etch.updateSync(component);
+      component.afterRender();
+      expect(store.outputs.length).toBe(1);
+      expect(store.outputs[0]._id).not.toBe(previousId);
+      expect(component.hasImage).toBe(false);
+      expect(actions.getImage).toHaveBeenCalledTimes(2);
+      expect(component.outputScroll).toBe(scroll);
+    });
+  }
+
+  it("repaints geometry without probing images or replacing a rich renderer or scroll owner", () => {
+    const store = blockStore();
+    store.appendOutput({ output_type: "display_data", data: { "text/html": "<b>ready</b>" } });
+    component = build(store);
+    etch.updateSync(component);
+    component.afterRender();
+    const renderer = component.element.querySelector(".output-html");
+    const display = component.refs.display;
+    const scroll = component.outputScroll;
+    spyOn(actions, "getImage").and.callThrough();
+
+    component.layout.updatePosition({
+      editorWidth: 500,
+      lineLength: 20,
+      charWidth: 8,
+      lineHeight: 16,
+    });
+    etch.updateSync(component);
+    component.afterRender();
+    expect(actions.getImage).not.toHaveBeenCalled();
+    expect(component.element.querySelector(".output-html")).toBe(renderer);
+    expect(component.refs.display).toBe(display);
+    expect(component.outputScroll).toBe(scroll);
+  });
+
   it("gives a block result hover chrome and an inline result none", () => {
     // The chrome is positioned out of the layout — the old toolbar is gone, so
     // nothing reserves space beside the content. Only what is about the box

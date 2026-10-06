@@ -46,8 +46,10 @@ class ResultViewComponent {
     this.resizedWidth = null;
     this.resizedHeight = null;
     this.resizeOrigin = null;
-    // Output count the rendered tree was last searched for an image at.
+    // Retained output list and display last searched for an image.
     this.probedOutputCount = -1;
+    this.probedOutputIdentity = null;
+    this.probedDisplay = null;
     this.wheelHandler = null;
     this.wheelElement = null;
     this.outputScroll = new OutputScroll();
@@ -361,13 +363,22 @@ class ResultViewComponent {
     this.scrollToBottom(display, scrollHeight, clientHeight, isPlain);
     this.syncWheelHandler(isPlain);
 
-    // An image can only arrive as a new output, since reduceOutputs merges a
-    // stream into the one already there — so the output count is enough to know
-    // when it is worth walking the rendered tree again. Only the context menu
-    // reads this one, so a change needs no re-render of its own.
-    const outputCount = this.store.outputs.length;
-    if (outputCount !== this.probedOutputCount) {
+    // A clear-and-replace or trimmed history can keep the same count while
+    // changing the last output's identity. Stream merges preserve that record,
+    // so neither those chunks nor geometry changes need another DOM search.
+    // A display rebuilt after hidden status output needs its own first probe.
+    const outputs = this.store.outputs;
+    const outputCount = outputs.length;
+    const lastOutput = outputs[outputCount - 1];
+    const outputIdentity = lastOutput?._id ?? lastOutput;
+    if (
+      outputCount !== this.probedOutputCount ||
+      outputIdentity !== this.probedOutputIdentity ||
+      display !== this.probedDisplay
+    ) {
       this.probedOutputCount = outputCount;
+      this.probedOutputIdentity = outputIdentity;
+      this.probedDisplay = display;
       this.hasImage = display ? actions.getImage(display) !== null : false;
     }
 
