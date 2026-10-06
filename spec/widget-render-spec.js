@@ -96,6 +96,27 @@ describe("rendering a widget view", () => {
   });
 
   describe("updating", () => {
+    it("rebuilds a reused model id when the same manager resets its model generation", async () => {
+      const manager = fakeManager();
+      manager._modelGeneration = 0;
+      registry.claimModel("same-id", manager);
+      try {
+        component = new WidgetView(widgetRenderer({ model_id: "same-id" }).props);
+        await settle();
+        manager._modelGeneration++;
+        await component.update(widgetRenderer({ model_id: "same-id" }).props);
+        await settle();
+        etch.updateSync(component);
+
+        expect(manager.views.length).toBe(2);
+        expect(manager.views[0].removed).toBe(1);
+        expect(manager.views[1].removed).toBe(0);
+        expect(component.element.querySelector(".fake-widget")).toBe(manager.views[1].el);
+      } finally {
+        registry.releaseModel("same-id");
+      }
+    });
+
     it("builds nothing new for the same model and manager", async () => {
       // Without this guard the live view would be torn down and rebuilt on
       // every keystroke that moves the marker.
@@ -126,7 +147,7 @@ describe("rendering a widget view", () => {
     });
 
     it("rebuilds when the manager changes under the same id", async () => {
-      // A restart replaces the manager while model ids can repeat.
+      // A different kernel can own the same id after a document is rebound.
       const first = fakeManager();
       component = new WidgetView({ modelId: "m1", manager: first });
       await settle();
@@ -141,6 +162,17 @@ describe("rendering a widget view", () => {
   });
 
   describe("disposal", () => {
+    it("does not build a view when its manager resets while the model resolves", async () => {
+      const manager = fakeManager({ defer: true });
+      manager._modelGeneration = 0;
+      component = new WidgetView({ modelId: "m1", manager });
+      manager._modelGeneration++;
+      manager.release();
+      await settle();
+
+      expect(manager.views.length).toBe(0);
+    });
+
     it("disposes the view it holds", async () => {
       const manager = fakeManager();
       component = new WidgetView({ modelId: "m1", manager });

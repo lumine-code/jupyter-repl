@@ -279,6 +279,123 @@ describe("the widget manager", () => {
   });
 
   describe("a reset", () => {
+    for (const teardown of ["disconnect", "reset"]) {
+      it(`disposes models locally on ${teardown} without closing the kernel comm`, async () => {
+        const { Comm } = require("../lib/comm");
+        const send = jasmine.createSpy("send comm message").and.returnValue("message-id");
+        const comm = new Comm("live", "jupyter.widget", { send, unregister() {} });
+        const model = await manager.new_model({
+          model_id: "live",
+          model_name: "LabelModel",
+          model_module: "@jupyter-widgets/controls",
+          model_module_version: "2.0.0",
+          comm,
+        });
+        if (teardown === "disconnect") await manager.disconnect();
+        else {
+          transport.reset("Kernel restarted");
+          await manager._cleanup;
+        }
+
+        expect(model._closed).toBe(true);
+        expect(model.comm_live).toBe(false);
+        expect(manager.has_model("live")).toBe(false);
+        expect(send).not.toHaveBeenCalled();
+      });
+    }
+
+    for (const nextId of ["same-id", "new-id"]) {
+      it(`keeps ${nextId} when an old async model finishes after replacement comms open`, async () => {
+        const { CommRegistry } = require("../lib/comm");
+        const comms = new CommRegistry({ send: () => "message-id" });
+        comms.registerTarget("jupyter.widget", (comm, message) =>
+          manager.handleCommOpen(comm, message),
+        );
+        const loadClass = manager.loadClass.bind(manager);
+        let releaseOld;
+        let notifyStarted;
+        let firstModel = true;
+        const started = new Promise((resolve) => (notifyStarted = resolve));
+        spyOn(manager, "loadClass").and.callFake((...args) => {
+          if (args[0] === "IntSliderModel" && firstModel) {
+            firstModel = false;
+            notifyStarted();
+            return new Promise((resolve) => {
+              releaseOld = () => resolve(loadClass(...args));
+            });
+          }
+          return loadClass(...args);
+        });
+        const open = (id, value) => ({
+          header: { msg_type: "comm_open" },
+          metadata: { version: "2.1.0" },
+          content: {
+            comm_id: id,
+            target_name: "jupyter.widget",
+            data: {
+              state: {
+                _model_module: "@jupyter-widgets/controls",
+                _model_name: "IntSliderModel",
+                _model_module_version: "2.0.0",
+                value,
+              },
+            },
+          },
+        });
+        comms.handleIOPubMessage(open("same-id", 1));
+        await started;
+        const oldModel = manager.get_model("same-id");
+        const oldDispatch = comms._chain;
+
+        comms.clear("Kernel restarted");
+        transport.reset("Kernel restarted");
+        expect(manager.has_model("same-id")).toBe(false);
+        comms.handleIOPubMessage(open(nextId, 2));
+        await comms._chain;
+        const replacement = await manager.get_model(nextId);
+        expect(replacement.get("value")).toBe(2);
+
+        releaseOld();
+        const retired = await oldModel;
+        await oldDispatch;
+        await manager._cleanup;
+
+        expect(retired._closed).toBe(true);
+        expect(manager.has_model(nextId)).toBe(true);
+        expect(await manager.get_model(nextId)).toBe(replacement);
+        expect(replacement._closed).toBe(false);
+        expect(registry.managerForModelId(nextId)).toBe(manager);
+        comms.dispose();
+      });
+    }
+
+    it("awaits model view cleanup when disconnecting and detaches its table immediately", async () => {
+      const model = await manager.new_model({
+        model_id: "cleanup",
+        model_name: "LabelModel",
+        model_module: "@jupyter-widgets/controls",
+        model_module_version: "2.0.0",
+      });
+      let finishRemoval;
+      let notifyRemoval;
+      const removing = new Promise((resolve) => (notifyRemoval = resolve));
+      model.views.pending = Promise.resolve({
+        remove() {
+          notifyRemoval();
+          return new Promise((resolve) => (finishRemoval = resolve));
+        },
+      });
+      let settled = false;
+      const disposal = manager.disconnect().then(() => (settled = true));
+      expect(manager.has_model("cleanup")).toBe(false);
+      expect(manager.isLive).toBe(false);
+      await removing;
+      expect(settled).toBe(false);
+      finishRemoval();
+      await disposal;
+      expect(settled).toBe(true);
+    });
+
     it("drops every model the manager held", async () => {
       registry.claimModel("m1", manager);
 

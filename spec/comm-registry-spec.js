@@ -263,6 +263,103 @@ describe("CommRegistry", () => {
   });
 
   describe("reset", () => {
+    it("discards old queued opens while keeping targets ready for the new process", async () => {
+      const { registry } = build();
+      const opened = [];
+      registry.registerTarget("jupyter.widget", (comm) => opened.push(comm.comm_id));
+
+      registry.handleIOPubMessage(openMessage("old"));
+      registry.clear("Kernel restarted");
+      registry.handleIOPubMessage(openMessage("new"));
+      await settle();
+
+      expect(opened).toEqual(["new"]);
+      expect(registry.getComm("old")).toBeUndefined();
+      expect(registry.getComm("new")).toBeDefined();
+    });
+
+    it("closes a late async open without delaying or removing its replacement", async () => {
+      const { registry } = build();
+      const closed = [];
+      let releaseOpen;
+      let oldComm;
+      const opening = new Promise((resolve) => {
+        registry.registerTarget("jupyter.widget", async (comm, message) => {
+          if (!message.content.data.old) return;
+          oldComm = comm;
+          resolve();
+          await new Promise((release) => {
+            releaseOpen = release;
+          });
+          comm.on_close((event) => closed.push(event.reason));
+        });
+      });
+
+      registry.handleIOPubMessage(openMessage("same-id", "jupyter.widget", { old: true }));
+      await opening;
+      registry.clear("Kernel restarted");
+      registry.handleIOPubMessage(openMessage("same-id"));
+      await settle();
+      const replacement = registry.getComm("same-id");
+      expect(replacement).toBeDefined();
+      expect(replacement).not.toBe(oldComm);
+      expect(oldComm._closed).toBe(true);
+
+      releaseOpen();
+      await settle();
+      expect(closed).toEqual(["Kernel restarted"]);
+      expect(registry.getComm("same-id")).toBe(replacement);
+    });
+
+    it("keeps a replacement when an old async open rejects after reset", async () => {
+      const { registry } = build();
+      let rejectOpen;
+      const opening = new Promise((resolve) => {
+        registry.registerTarget("jupyter.widget", async (_comm, message) => {
+          if (!message.content.data.old) return;
+          resolve();
+          await new Promise((_resolve, reject) => {
+            rejectOpen = reject;
+          });
+        });
+      });
+
+      registry.handleIOPubMessage(openMessage("same-id", "jupyter.widget", { old: true }));
+      await opening;
+      registry.clear("Kernel restarted");
+      registry.handleIOPubMessage(openMessage("same-id"));
+      await settle();
+      const replacement = registry.getComm("same-id");
+
+      rejectOpen(new Error("The old widget failed to load"));
+      await settle();
+      expect(replacement).toBeDefined();
+      expect(registry.getComm("same-id")).toBe(replacement);
+    });
+
+    it("notifies an already-installed close handler once when its async open finishes", async () => {
+      const { registry } = build();
+      const closed = [];
+      let releaseOpen;
+      const opening = new Promise((resolve) => {
+        registry.registerTarget("jupyter.widget", async (comm) => {
+          comm.on_close((event) => closed.push(event.reason));
+          resolve();
+          await new Promise((release) => {
+            releaseOpen = release;
+          });
+        });
+      });
+
+      registry.handleIOPubMessage(openMessage("old"));
+      await opening;
+      registry.clear("Kernel restarted");
+      releaseOpen();
+      await settle();
+
+      expect(closed).toEqual(["Kernel restarted"]);
+    });
+
     it("drops comms and keeps target claims", async () => {
       // A restart replaces the process, not our interest in its targets: the
       // new process must find jupyter.widget already claimed.

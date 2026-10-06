@@ -81,9 +81,16 @@ function detachWidget(view) {
   }
 }
 
+function propsWithGeneration(props) {
+  return {
+    ...props,
+    modelGeneration: props.modelGeneration ?? props.manager?._modelGeneration ?? 0,
+  };
+}
+
 class WidgetView {
   constructor(props) {
-    this.props = props;
+    this.props = propsWithGeneration(props);
     this.view = null;
     this.error = null;
     this.destroyed = false;
@@ -128,7 +135,11 @@ class WidgetView {
     this.teardownView();
     this.error = null;
 
-    const { modelId, manager } = this.props;
+    const { modelId, manager, modelGeneration } = this.props;
+    const isCurrent = () =>
+      !this.destroyed &&
+      token === this.renderToken &&
+      (manager?._modelGeneration ?? 0) === modelGeneration;
     if (!modelId) {
       this.error = "This output names no widget.";
     } else if (!manager) {
@@ -145,19 +156,19 @@ class WidgetView {
     let view = null;
     try {
       const model = await manager.get_model(modelId);
-      if (this.destroyed || token !== this.renderToken) {
+      if (!isCurrent()) {
         return;
       }
       view = await manager.create_view(model);
     } catch (error) {
-      if (this.destroyed || token !== this.renderToken) {
+      if (!isCurrent()) {
         return;
       }
       this.view = null;
       this.error = error?.message || String(error);
     }
 
-    if (this.destroyed || token !== this.renderToken) {
+    if (!isCurrent()) {
       // Superseded or destroyed while the view was being built. It exists and
       // nothing will ever mount it, and the model holds it until told
       // otherwise — this is the one place a view is created and not adopted.
@@ -188,12 +199,17 @@ class WidgetView {
 
   update(props) {
     const previous = this.props;
-    this.props = props;
+    this.props = propsWithGeneration(props);
     // Same widget, same kernel: nothing to do. Without this the live view would
     // be torn down and rebuilt on every keystroke that moves the marker, since
     // updatePosition emits on the store like any other change. The manager is
-    // compared too — a restart replaces it while model ids can repeat.
-    if (props.modelId === previous.modelId && props.manager === previous.manager) {
+    // compared too, along with its generation: a reset keeps the manager but
+    // replaces its models, and the replacement may reuse a model id.
+    if (
+      this.props.modelId === previous.modelId &&
+      this.props.manager === previous.manager &&
+      this.props.modelGeneration === previous.modelGeneration
+    ) {
       return Promise.resolve();
     }
     // The history slider scrubbed to another output. That path renders with no
@@ -235,7 +251,12 @@ const widgetRenderer = (data, metadata, bundle) => {
   // lines and no window should read them until a widget is actually rendered.
   require("./widget-styles").ensureWidgetStyles();
   return (
-    <WidgetView modelId={modelId} manager={manager} fallback={bundle && bundle["text/plain"]} />
+    <WidgetView
+      modelId={modelId}
+      manager={manager}
+      modelGeneration={manager?._modelGeneration ?? 0}
+      fallback={bundle && bundle["text/plain"]}
+    />
   );
 };
 
