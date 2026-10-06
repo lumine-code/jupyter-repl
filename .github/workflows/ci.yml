@@ -34,15 +34,47 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      # Lint, formatting, and packing don't need the native `zeromq` binding
-      # (rebuilt for Electron inside the editor), so skip install scripts for a
-      # fast, reliable job.
+      - name: Use HTTPS for GitHub git dependencies
+        run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+      # The native smoke check uses zeromq's shipped Node-API prebuild, so no
+      # native install scripts or Electron rebuild are needed in this job.
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Lint
         run: npm run lint
       - name: Check formatting
         run: npm run format:check
+      - name: Check native ZeroMQ startup and socket cleanup
+        run: npm run test:zeromq
+
+  kernel-lifecycle:
+    name: Real kernel lifecycle on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Use HTTPS for GitHub git dependencies
+        run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+      - name: Install package dependencies
+        run: npm ci --ignore-scripts
+      - name: Install the real kernel lifecycle test dependency
+        run: python -m pip install "ipykernel==7.4.0"
+      - name: Exercise real kernel starts, restarts and request cleanup
+        timeout-minutes: 3
+        env:
+          LUMINE_TEST_TEMP_DIR: ${{ runner.temp }}
+        run: npm run test:kernel-lifecycle
 
   integration:
     # Run the Jasmine spec suite inside a real Lumine build. The specs use the
@@ -78,11 +110,6 @@ jobs:
           node-version-file: lumine/.nvmrc
           cache: npm
           cache-dependency-path: lumine/package-lock.json
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-      - name: Install the real kernel lifecycle test dependency
-        run: python -m pip install "ipykernel==7.4.0"
       - name: Install Linux build and headless-display dependencies
         run: |
           # A third-party repository on the runner image answering 403 must not
@@ -90,11 +117,6 @@ jobs:
           # install below stays strict, so a missing package still stops us.
           sudo apt-get update || true
           sudo apt-get install -y xvfb libx11-dev libxkbfile-dev libsecret-1-dev
-      # The Node lifecycle check uses zeromq's shipped Node-API prebuild;
-      # the editor rebuild happens separately below. No install scripts needed.
-      - name: Install package dependencies
-        working-directory: jupyter-repl
-        run: npm ci --ignore-scripts
       # Mirrors the editor's own CI: install without scripts (patch-package and
       # some native install scripts misbehave; native modules are rebuilt for
       # Electron below), then reproduce the pieces that matter. npm records the
@@ -103,6 +125,9 @@ jobs:
       # retries absorb flaky git-hosted fork downloads.
       - name: Use HTTPS for GitHub git dependencies
         run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+      - name: Install package dependencies
+        working-directory: jupyter-repl
+        run: npm ci --ignore-scripts
       - name: Install editor dependencies
         working-directory: lumine
         run: |
@@ -117,13 +142,6 @@ jobs:
       - name: Rebuild native modules for Electron
         working-directory: lumine
         run: npm run build
-      - name: Exercise real kernel starts, restarts and request cleanup
-        working-directory: jupyter-repl
-        timeout-minutes: 3
-        env:
-          LUMINE_RESOURCE_PATH: ${{ github.workspace }}/lumine
-          LUMINE_TEST_TEMP_DIR: ${{ runner.temp }}
-        run: npm run test:kernel-lifecycle
       - name: Run the Jasmine spec suite
         working-directory: lumine
         timeout-minutes: 20

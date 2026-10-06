@@ -11,12 +11,12 @@ const Module = require("node:module");
 const { execFileSync } = require("node:child_process");
 
 const resourcePath = process.env.LUMINE_RESOURCE_PATH;
-if (!resourcePath)
-  throw new Error("Set LUMINE_RESOURCE_PATH to the editor checkout for this test.");
 const python = process.env.LUMINE_TEST_PYTHON || "python";
 execFileSync(python, ["-c", "import ipykernel"], { stdio: "inherit", timeout: 10000 });
 const { Emitter, Disposable, CompositeDisposable } = require(
-  path.join(resourcePath, "node_modules/@lumine-code/event-kit"),
+  resourcePath
+    ? path.join(resourcePath, "node_modules/@lumine-code/event-kit")
+    : "@lumine-code/event-kit",
 );
 const esbuild = require("esbuild");
 const libRoot = path.resolve(__dirname, "../lib");
@@ -26,7 +26,8 @@ const temporaryParent = fs.realpathSync.native(
 const temporaryRoot = fs.mkdtempSync(path.join(temporaryParent, "lumine-kernel-ci-"));
 const runtimeDir = path.join(temporaryRoot, "runtime");
 fs.mkdirSync(runtimeDir);
-// Keep native IPC and Python runtime files inside the owned test directory.
+// Keep Python runtime files and child-process temp data in the owned directory.
+// The native loader owns a separate persistent Windows IPC cache.
 process.env.TEMP = temporaryRoot;
 process.env.TMP = temporaryRoot;
 process.env.JUPYTER_RUNTIME_DIR = runtimeDir;

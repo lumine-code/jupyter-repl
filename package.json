@@ -43,6 +43,7 @@
   ],
   "scripts": {
     "test": "lumine --test spec",
+    "test:zeromq": "node script/check-zeromq.js",
     "test:kernel-lifecycle": "node script/check-kernel-lifecycle.js",
     "build:vega": "node script/build-vega.js",
     "build:widgets": "node script/build-widgets.js",
@@ -340,6 +341,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@lumine-code/event-kit": "github:lumine-code/event-kit#cf575e66486d6aeaa1515167963aeb583146246d",
     "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
