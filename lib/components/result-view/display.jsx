@@ -8,6 +8,7 @@ const { htmlRenderer } = require("./html");
 const { latexRenderer } = require("./latex");
 const { widgetRenderer } = require("./widget");
 const { bokehRenderer, BOKEH_LOAD, BOKEH_EXEC, PANEL_LOAD, PANEL_EXEC } = require("./bokeh");
+const { SUPPORTED_MEDIA_TYPES, VEGA_MEDIA_TYPES, isTextOutputOnly } = require("../../output-media");
 
 /**
  * Every media type this package can render, mapped to the function that renders
@@ -21,14 +22,7 @@ const MEDIA_RENDERERS = {
   [BOKEH_EXEC]: bokehRenderer(BOKEH_EXEC),
   [PANEL_LOAD]: bokehRenderer(PANEL_LOAD),
   [PANEL_EXEC]: bokehRenderer(PANEL_EXEC),
-  "application/vnd.vega.v6.json": vegaRenderer("application/vnd.vega.v6.json"),
-  "application/vnd.vega.v6+json": vegaRenderer("application/vnd.vega.v6+json"),
-  "application/vnd.vega.v5.json": vegaRenderer("application/vnd.vega.v5.json"),
-  "application/vnd.vega.v5+json": vegaRenderer("application/vnd.vega.v5+json"),
-  "application/vnd.vegalite.v6.json": vegaRenderer("application/vnd.vegalite.v6.json"),
-  "application/vnd.vegalite.v6+json": vegaRenderer("application/vnd.vegalite.v6+json"),
-  "application/vnd.vegalite.v5.json": vegaRenderer("application/vnd.vegalite.v5.json"),
-  "application/vnd.vegalite.v5+json": vegaRenderer("application/vnd.vegalite.v5+json"),
+  ...Object.fromEntries(Object.keys(VEGA_MEDIA_TYPES).map((type) => [type, vegaRenderer(type)])),
   "application/vnd.plotly.v1+json": plotlyRenderer,
   "text/vnd.plotly.v1+html": plotlyHtmlRenderer,
   "application/json": media.Json,
@@ -43,19 +37,6 @@ const MEDIA_RENDERERS = {
   "image/png": media.image("image/png"),
   "text/plain": media.Plain,
 };
-
-const SUPPORTED_MEDIA_TYPES = Object.keys(MEDIA_RENDERERS);
-
-/**
- * True when the only representation this package could render is plain text,
- * which is what lets a short result be shown inline rather than in a block.
- */
-function isTextOutputOnly(data) {
-  const bundleMediaTypes = Object.keys(data).filter((mediaType) =>
-    SUPPORTED_MEDIA_TYPES.includes(mediaType),
-  );
-  return bundleMediaTypes.length === 1 && bundleMediaTypes[0] === "text/plain";
-}
 
 /** Render one output with the full media-type table. */
 function renderDisplay(output, options) {

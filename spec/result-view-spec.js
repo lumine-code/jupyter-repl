@@ -413,6 +413,8 @@ describe("measuring after attachment", () => {
       );
 
       expect(view.destroyed).toBe(true);
+      expect(markers.markers.size).toBe(0);
+      expect(markers.bubblesByRow.size).toBe(0);
       editor.destroy();
     } finally {
       global.ResizeObserver = previousResizeObserver;

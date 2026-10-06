@@ -22,6 +22,26 @@ describe("inline result scaling", () => {
   };
 
   describe("the marker store's row index", () => {
+    it("releases a bubble closed directly and tolerates later store teardown", async () => {
+      const ResultView = require("../lib/components/result-view");
+      const MarkerStore = require("../lib/store/markers");
+      await withStubbedResizeObserver(async () => {
+        const editor = await lumine.workspace.open();
+        const markers = new MarkerStore();
+        const view = new ResultView(markers, editor, 0, true);
+        view.outputStore.appendOutput({ output_type: "stream", name: "stdout", text: "large" });
+        const teardown = spyOn(view.component, "destroy").and.callThrough();
+
+        view.destroy();
+        expect(markers.markers.size).toBe(0);
+        expect(markers.bubblesByRow.size).toBe(0);
+        markers.clear();
+        view.destroy();
+        expect(teardown).toHaveBeenCalledTimes(1);
+        editor.destroy();
+      });
+    });
+
     it("clears a row without consulting the bubbles on other rows", async () => {
       const ResultView = require("../lib/components/result-view");
       await withStubbedResizeObserver(async () => {

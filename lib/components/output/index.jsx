@@ -8,49 +8,7 @@ const Traceback = require("../result-view/traceback");
 // hands in a media-type table and these functions pick from it, which is the
 // same choice expressed as data.
 
-/**
- * Media types in the order they are preferred when an output carries several
- * representations of the same value.
- */
-const MIME_PRIORITY = [
-  // ipywidgets. A live view of a kernel-side object, and the only entry that
-  // can decline: without a manager there is nothing to render, and the repr the
-  // kernel sent in the same bundle is what a stored notebook should show. Above
-  // the plot formats too — a figure widget emits one precisely because it wants
-  // to be driven from Python, and the static spec is the degraded form.
-  "application/vnd.jupyter.widget-view+json",
-  "application/vnd.bokehjs_load.v0+json",
-  "application/vnd.bokehjs_exec.v0+json",
-  "application/vnd.holoviews_load.v0+json",
-  "application/vnd.holoviews_exec.v0+json",
-  // Vega/Vega-Lite (interactive visualizations)
-  "application/vnd.vega.v6.json",
-  "application/vnd.vega.v6+json",
-  "application/vnd.vega.v5.json",
-  "application/vnd.vega.v5+json",
-  "application/vnd.vegalite.v6.json",
-  "application/vnd.vegalite.v6+json",
-  "application/vnd.vegalite.v5.json",
-  "application/vnd.vegalite.v5+json",
-  // Plotly
-  "application/vnd.plotly.v1+json",
-  "text/vnd.plotly.v1+html",
-  // Rich formats
-  "text/html",
-  "text/markdown",
-  "text/latex",
-  "image/svg+xml",
-  // Images
-  "image/webp",
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  // Structured data
-  "application/json",
-  "application/javascript",
-  // Plain text (fallback)
-  "text/plain",
-];
+const { MIME_PRIORITY } = require("../../output-media");
 
 const PRIORITIZED_MEDIA_TYPES = new Set(MIME_PRIORITY);
 

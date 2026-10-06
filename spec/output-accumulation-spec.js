@@ -31,6 +31,67 @@ function intoChunks(text, count) {
 }
 
 describe("stream output accumulation", () => {
+  for (const newRun of [false, true]) {
+    it(`owns stream records independently across stores${newRun ? " in a new run" : ""}`, () => {
+      const first = new OutputStore();
+      const second = new OutputStore();
+      if (newRun) {
+        first.startNewRun();
+        second.startNewRun();
+      }
+      const chunks = ["one ", "two ", "three"].map((text) =>
+        Object.freeze({ output_type: "stream", name: "stdout", text }),
+      );
+      for (const message of chunks) {
+        first.appendOutput(message);
+        second.appendOutput(message);
+      }
+
+      expect(first.outputs[0].text).toBe("one two three");
+      expect(second.outputs[0].text).toBe("one two three");
+      expect(first.outputs[0]).not.toBe(second.outputs[0]);
+      expect(chunks.map((message) => message.text)).toEqual(["one ", "two ", "three"]);
+      expect(chunks.every((message) => message._id === undefined)).toBe(true);
+
+      first.appendOutput({ output_type: "stream", name: "stdout", text: " four" });
+      expect(second.outputs[0].text).toBe("one two three");
+    });
+  }
+
+  it("preserves a copied stream's terminal cursor without changing its source", () => {
+    const source = [];
+    reduceOutputs(source, { output_type: "stream", name: "stdout", text: "tail\r" });
+    const store = new OutputStore();
+    store.appendOutput(source[0]);
+    store.appendOutput({ output_type: "stream", name: "stdout", text: "X" });
+
+    expect(store.outputs[0].text).toBe("Xail");
+    expect(source[0].text).toBe("tail");
+  });
+
+  it("keeps rich payload identity and source context on each store's own record", () => {
+    const OutputStore = require("../lib/store/output");
+    const { captureExecution, renderOptionsForOutput } = require("../lib/traceback-context");
+    const kernel = {};
+    const output = Object.freeze({
+      output_type: "display_data",
+      data: { "text/plain": "before" },
+    });
+    captureExecution(null, kernel, "value()", 0)(output);
+    const first = new OutputStore();
+    const second = new OutputStore();
+    first.appendOutput(output);
+    second.appendOutput(output);
+
+    expect(first.outputs[0]).not.toBe(output);
+    expect(first.outputs[0]).not.toBe(second.outputs[0]);
+    expect(first.outputs[0].data).toBe(output.data);
+    expect(renderOptionsForOutput(first.outputs[0])).toBe(renderOptionsForOutput(output));
+    expect(renderOptionsForOutput(second.outputs[0]).kernel).toBe(kernel);
+    output.data["text/plain"] = "after";
+    expect(first.outputs[0].data["text/plain"]).toBe("after");
+  });
+
   it("merges consecutive outputs from the same stream", () => {
     const outputs = accumulate(["one ", "two ", "three"]);
 

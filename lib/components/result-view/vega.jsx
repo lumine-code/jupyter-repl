@@ -2,16 +2,7 @@
 /** Vega and Vega-Lite rendering through the official, current runtime. */
 const etch = require("@lumine-code/etch");
 
-const MEDIA_TYPES = {
-  "application/vnd.vega.v6.json": { kind: "vega", version: "6" },
-  "application/vnd.vega.v6+json": { kind: "vega", version: "6" },
-  "application/vnd.vega.v5.json": { kind: "vega", version: "5" },
-  "application/vnd.vega.v5+json": { kind: "vega", version: "5" },
-  "application/vnd.vegalite.v6.json": { kind: "vega-lite", version: "6" },
-  "application/vnd.vegalite.v6+json": { kind: "vega-lite", version: "6" },
-  "application/vnd.vegalite.v5.json": { kind: "vega-lite", version: "5" },
-  "application/vnd.vegalite.v5+json": { kind: "vega-lite", version: "5" },
-};
+const { VEGA_MEDIA_TYPES: MEDIA_TYPES } = require("../../output-media");
 
 let embedPromise = null;
 

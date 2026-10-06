@@ -43,6 +43,14 @@ class Probe {
 const html = (output) => new Probe(output).element.innerHTML;
 
 describe("output rendering", () => {
+  it("classifies exactly the MIME types that have display renderers", () => {
+    const {
+      MEDIA_RENDERERS,
+      SUPPORTED_MEDIA_TYPES,
+    } = require("../lib/components/result-view/display");
+    expect([...SUPPORTED_MEDIA_TYPES].sort()).toEqual(Object.keys(MEDIA_RENDERERS).sort());
+  });
+
   it("renders a stream, keeping its ANSI colour", () => {
     const rendered = html({
       output_type: "stream",
