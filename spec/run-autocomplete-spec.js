@@ -133,6 +133,24 @@ describe("Run autocomplete cancellation boundary", () => {
     expect(calls.indexOf("cancel")).toBeLessThan(calls.indexOf("choose kernel"));
   });
 
+  it("analyzes notebook selections with the notebook's bound kernel", () => {
+    const current = adapter();
+    const store = require("../lib/store");
+    const bound = { language: "python" };
+    store.kernelMapping.set(current.getPath(), bound);
+    const find = spyOn(require("../lib/code-manager"), "findCodeBlock").and.callFake(() => {
+      // Hold launch after analysis so this case owns no executing kernel.
+      store.kernelMapping.delete(current.getPath());
+      return { code: "a1", row: 0 };
+    });
+    integration.activateAdapterIntegration();
+    integration.runAdapterTargets({ getActiveAdapter: () => current }, waitingManager(), {
+      scope: "editor",
+    });
+    expect(find).toHaveBeenCalled();
+    expect(find.calls.mostRecent().args[2].kernel).toBe(bound);
+  });
+
   it("cancels recalculate requests before waiting for kernel restart", async () => {
     let finishRestart;
     const kernel = {

@@ -1,11 +1,10 @@
-let findCodeBlockAtRow, getCommentStartString, store;
+let findCodeBlockAtRow, getCommentStartString;
+const pythonContext = { kernel: { language: "python" } };
 
 function refreshPackageModules() {
   // Earlier lifecycle suites unload the package and discard its module cache.
-  // The detector resolves the current store lazily, so its spies must use that
-  // same generation rather than the objects present when specs were loaded.
+  // Reacquire the compatibility facade from the current package generation.
   ({ findCodeBlockAtRow, getCommentStartString } = require("../lib/code-manager"));
-  store = require("../lib/store");
 }
 
 // Multiline triple-quoted strings hide their brackets from the line-based
@@ -29,59 +28,59 @@ describe("code block detection for multiline strings", () => {
 
   it("captures a bracket-wrapped multiline string from its opening line", async () => {
     await open("doc.x('''\n11\n''')\n");
-    const block = findCodeBlockAtRow(editor, 0);
+    const block = findCodeBlockAtRow(editor, 0, pythonContext);
     expect(block.code).toBe("doc.x('''\n11\n''')");
     expect(block.row).toBe(2);
   });
 
   it("captures it with CRLF line endings", async () => {
     await open("doc.x('''\r\n11\r\n''')\r\n");
-    const block = findCodeBlockAtRow(editor, 0);
+    const block = findCodeBlockAtRow(editor, 0, pythonContext);
     expect(block.row).toBe(2);
     expect(block.code.replace(/\r/g, "")).toBe("doc.x('''\n11\n''')");
   });
 
   it("captures it from the closing line", async () => {
     await open("doc.x('''\n11\n''')\n");
-    const block = findCodeBlockAtRow(editor, 2);
+    const block = findCodeBlockAtRow(editor, 2, pythonContext);
     expect(block.code).toBe("doc.x('''\n11\n''')");
   });
 
   it("captures a bare multiline string assignment", async () => {
     await open("x = '''\n11\n'''\n");
-    const block = findCodeBlockAtRow(editor, 0);
+    const block = findCodeBlockAtRow(editor, 0, pythonContext);
     expect(block.code).toBe("x = '''\n11\n'''");
   });
 
   it("captures a bare docstring from its opening and closing lines", async () => {
     await open("'''\ndoc\n'''\n");
-    expect(findCodeBlockAtRow(editor, 0).code).toBe("'''\ndoc\n'''");
-    expect(findCodeBlockAtRow(editor, 2).code).toBe("'''\ndoc\n'''");
+    expect(findCodeBlockAtRow(editor, 0, pythonContext).code).toBe("'''\ndoc\n'''");
+    expect(findCodeBlockAtRow(editor, 2, pythonContext).code).toBe("'''\ndoc\n'''");
   });
 
   it("captures a call whose closing bracket sits on its own line", async () => {
     await open("doc.x('''\n11\n'''\n)\n");
-    const block = findCodeBlockAtRow(editor, 0);
+    const block = findCodeBlockAtRow(editor, 0, pythonContext);
     expect(block.code).toBe("doc.x('''\n11\n'''\n)");
     expect(block.row).toBe(3);
   });
 
   it("runs a single line when the cursor is inside the string body", async () => {
     await open("doc.x('''\n11\n''')\n");
-    const block = findCodeBlockAtRow(editor, 1);
+    const block = findCodeBlockAtRow(editor, 1, pythonContext);
     expect(block.code).toBe("11");
   });
 
   it("leaves single-line triple-quoted strings as a single line", async () => {
     await open("doc.x('''abc''')\nprint(1)\n");
-    const block = findCodeBlockAtRow(editor, 0);
+    const block = findCodeBlockAtRow(editor, 0, pythonContext);
     expect(block.code).toBe("doc.x('''abc''')");
     expect(block.row).toBe(0);
   });
 
   it("uses double triple-quotes the same way", async () => {
     await open('doc.x("""\n11\n""")\n');
-    const block = findCodeBlockAtRow(editor, 0);
+    const block = findCodeBlockAtRow(editor, 0, pythonContext);
     expect(block.code).toBe('doc.x("""\n11\n""")');
   });
 
@@ -92,10 +91,7 @@ describe("code block detection for multiline strings", () => {
     editor.setGrammar(lumine.grammars.grammarForScopeName("source.python"));
     editor.setText("def f():\n    value = 1\noutside = 2\n");
     await editor.getBuffer().getLanguageMode().atTransactionEnd();
-    spyOnProperty(store, "kernel", "get").and.returnValue({
-      language: "python",
-    });
-    const block = findCodeBlockAtRow(editor, 0);
+    const block = findCodeBlockAtRow(editor, 0, pythonContext);
 
     expect(block.code.trimEnd()).toBe("def f():\n    value = 1");
     expect(block.row).toBe(1);
@@ -108,12 +104,9 @@ describe("code block detection for multiline strings", () => {
     editor.setGrammar(lumine.grammars.grammarForScopeName("source.python"));
     editor.setText("def f():\n    value = 1\noutside = 2\n");
     await editor.getBuffer().getLanguageMode().atTransactionEnd();
-    spyOnProperty(store, "kernel", "get").and.returnValue({
-      language: "python",
-    });
     spyOn(editor, "getSyntaxNodeAtBufferPosition").and.returnValue(null);
 
-    const block = findCodeBlockAtRow(editor, 0);
+    const block = findCodeBlockAtRow(editor, 0, pythonContext);
 
     expect(block.code.trimEnd()).toBe("def f():\n    value = 1");
     expect(block.row).toBe(1);
@@ -146,7 +139,6 @@ describe("Python compound blocks without syntax-tree or fold support", () => {
     spyOn(editor, "getGrammar").and.returnValue({ scopeName: "source.python", name: "Python" });
     spyOn(editor, "getSyntaxNodeAtBufferPosition").and.returnValue(null);
     spyOn(editor, "isFoldableAtBufferRow").and.returnValue(false);
-    spyOnProperty(store, "kernel", "get").and.returnValue({ language: "python" });
   });
 
   afterEach(() => editor.destroy());
@@ -157,7 +149,7 @@ describe("Python compound blocks without syntax-tree or fold support", () => {
     editor.setText(source + "\noutside()");
 
     for (const row of [0, 2, 4, 6]) {
-      const block = findCodeBlockAtRow(editor, row);
+      const block = findCodeBlockAtRow(editor, row, pythonContext);
       expect(block.code.trimEnd()).withContext(`header row ${row}`).toBe(source);
       expect(block.row).toBe(7);
     }
@@ -168,7 +160,7 @@ describe("Python compound blocks without syntax-tree or fold support", () => {
     editor.setText(source + "\noutside()");
 
     for (const row of [1, 3]) {
-      const block = findCodeBlockAtRow(editor, row);
+      const block = findCodeBlockAtRow(editor, row, pythonContext);
       expect(block.code.trimEnd()).toBe(source);
       expect(block.row).toBe(4);
     }
@@ -179,9 +171,34 @@ describe("Python compound blocks without syntax-tree or fold support", () => {
     editor.setText(source + "\noutside()");
 
     for (const row of [0, 2]) {
-      const block = findCodeBlockAtRow(editor, row);
+      const block = findCodeBlockAtRow(editor, row, pythonContext);
       expect(block.code.trimEnd()).toBe(source);
       expect(block.row).toBe(3);
     }
+  });
+
+  it("uses an explicit Python kernel without resolving the active context", () => {
+    const resolve = spyOn(require("../lib/execution-context"), "kernelForEditor").and.throwError(
+      "the caller already captured its kernel",
+    );
+    editor.setText("if ready:\n    run()\nelse:\n    wait()\noutside()");
+
+    const block = findCodeBlockAtRow(editor, 0, pythonContext);
+
+    expect(block.code.trimEnd()).toBe("if ready:\n    run()\nelse:\n    wait()");
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it("retains an explicitly absent kernel instead of borrowing another editor's", () => {
+    const resolve = spyOn(require("../lib/execution-context"), "kernelForEditor").and.returnValue({
+      language: "python",
+    });
+    editor.setText("if ready:\n    run()\nelse:\n    wait()");
+
+    const block = findCodeBlockAtRow(editor, 0, { kernel: null });
+
+    expect(block.code).toBe("if ready:");
+    expect(block.row).toBe(0);
+    expect(resolve).not.toHaveBeenCalled();
   });
 });
