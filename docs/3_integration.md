@@ -56,6 +56,8 @@ The service object must expose `getActiveAdapter()` or `handlesItem(item)` plus 
 
 `finishTargetExecution` receives `{ kernel, success, status, lastExecutionTime }`, where `status` is one of `"ok"`, `"error"`, `"failed"`, `"cancelled"`, or `"skipped"`. Its `lastExecutionTime` is the duration of that target's own execution — not the kernel's shared field, which on a shared kernel can name another client's cell.
 
+jupyter-repl captures the document owner and integration generation before asynchronous kernel selection or execution. Replacing a view of that document can refresh the adapter and editor without switching the owner. Closing the document or deactivating the package invalidates its pending work, removes subscriptions, and suppresses delayed output and completion callbacks.
+
 ## Kernel API
 
 The `jupyter.kernel` service allows other packages to interact with Jupyter kernels: execute code, get completions, inspect objects, and monitor kernel state.

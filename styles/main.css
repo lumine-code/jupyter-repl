@@ -47,7 +47,7 @@
   --jp-ui-font-color1: var(--syntax-text-color);
   --jp-ui-font-color2: var(--text-color-subtle);
   --jp-content-font-color1: var(--syntax-text-color);
-  --jp-ui-font-size1: var(--font-size);
+  --jp-ui-font-size1: var(--ui-font-size);
 
   /* Text on top of a brand-coloured surface. ipywidgets uses both spellings. */
   --jp-inverse-ui-font-color0: var(--text-color-selected);
@@ -245,7 +245,7 @@
   }
 
   :not(.select-list) > .output-markdown {
-    font-family: var(--font-family);
+    font-family: var(--ui-font-family);
 
     code {
       color: var(--jupyter-repl-inline-color);
@@ -311,7 +311,7 @@
   .inline-container {
     color: var(--jupyter-repl-inline-color);
     background: var(--jupyter-repl-inline-background);
-    border-radius: var(--component-border-radius);
+    border-radius: var(--ui-border-radius);
     box-shadow: 0 0 3px 0 rgba(0, 0, 0, 0.3);
   }
 
@@ -353,7 +353,7 @@
   }
 
   .multiline-container .jupyter_cell_display {
-    padding: var(--component-padding);
+    padding: var(--ui-spacing);
 
     /* Style fix for plotly toolbar */
     .cell_display {
@@ -397,7 +397,7 @@
     flex-direction: column;
     border-left: solid 1px var(--base-border-color);
     border-bottom: solid 1px var(--base-border-color);
-    border-bottom-left-radius: var(--component-border-radius);
+    border-bottom-left-radius: var(--ui-border-radius);
   }
 
   /* One border around the column, divided between the buttons. */
@@ -505,7 +505,7 @@
     .multiline-container {
       width: 100%;
       overflow: auto;
-      padding: var(--component-padding);
+      padding: var(--ui-spacing);
 
       /* Style fix for plotly toolbar */
       .modebar-group {
@@ -536,13 +536,13 @@
     flex-direction: column;
 
     .slider {
-      padding: calc(var(--component-padding) / 2);
+      padding: calc(var(--ui-spacing) / 2);
 
       /* Prev / counter / next on one row: buttons at the edges, counter centered. */
       .current-output {
         display: flex;
         align-items: center;
-        gap: var(--component-padding);
+        gap: var(--ui-spacing);
 
         > span:not(.btn) {
           flex: 1;
@@ -618,7 +618,7 @@
 
   &.input-view {
     .label {
-      padding-bottom: var(--component-padding);
+      padding-bottom: var(--ui-spacing);
     }
 
     &.password {
