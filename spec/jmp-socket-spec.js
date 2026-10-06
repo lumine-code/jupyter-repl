@@ -16,6 +16,13 @@ function bareSocket() {
   socket._socketType = "dealer";
   socket._receiveLoop = null;
   socket._events = null;
+  socket._closePromise = null;
+  socket._unloadClosePromise = null;
+  socket._closeForUnload = false;
+  socket._nativeClosed = false;
+  socket._observerReleaseTimer = null;
+  socket._closedResourcesPromise = null;
+  socket._resolveClosedResources = null;
   socket._closed = false;
   socket._connectionState = "disconnected";
   socket._connectedAddresses = new Set();
@@ -276,6 +283,134 @@ describe("jmp socket teardown", () => {
 });
 
 describe("jmp observer lifecycle at close", () => {
+  function retiringSocket() {
+    const socket = bareSocket();
+    socket._events = {
+      closed: false,
+      close: jasmine.createSpy("close observer").and.callFake(() => {
+        socket._events.closed = true;
+      }),
+    };
+    socket._socket = {
+      closed: false,
+      linger: 1000,
+      close: jasmine.createSpy("close native socket").and.callFake(() => {
+        socket._socket.closed = true;
+      }),
+    };
+    return socket;
+  }
+
+  it("escalates a pending normal close to synchronous unload without changing its promise", async () => {
+    const socket = retiringSocket();
+    const observer = socket._events;
+    const native = socket._socket;
+    let releaseSend;
+    native.send = () => new Promise((resolve) => (releaseSend = resolve));
+    const resources = socket.closedResources;
+    const sending = socket.send("pending");
+    await Promise.resolve();
+    const ordinary = socket.close();
+    let ordinarySettled = false;
+    ordinary.then(() => (ordinarySettled = true));
+    expect(socket.close()).toBe(ordinary);
+    expect(native.close).not.toHaveBeenCalled();
+
+    const unloading = socket.close(true, true);
+    expect(unloading).not.toBe(ordinary);
+    expect(observer.close).toHaveBeenCalledTimes(1);
+    expect(native.close).toHaveBeenCalledTimes(1);
+    expect(native.linger).toBe(0);
+    expect(socket._observerReleaseTimer).toBeNull();
+    await unloading;
+    await resources;
+    expect(ordinarySettled).toBe(false);
+    expect(socket.closedResources).toBe(resources);
+    expect(socket.close()).toBe(ordinary);
+    expect(socket.close(true)).toBe(unloading);
+
+    releaseSend();
+    await sending;
+    await ordinary;
+    window.advanceClock(Socket.OBSERVER_RELEASE_DELAY_MS + 1);
+    expect(observer.close).toHaveBeenCalledTimes(1);
+    expect(native.close).toHaveBeenCalledTimes(1);
+    expect(socket._observerReleaseTimer).toBeNull();
+  });
+
+  it("releases a deferred observer on unload after normal native close", async () => {
+    const socket = retiringSocket();
+    const observer = socket._events;
+    const native = socket._socket;
+    const resources = socket.closedResources;
+    let resourcesSettled = false;
+    resources.then(() => (resourcesSettled = true));
+    await socket.close();
+    expect(native.close).toHaveBeenCalledTimes(1);
+    expect(observer.close).not.toHaveBeenCalled();
+    expect(resourcesSettled).toBe(false);
+    expect(socket._observerReleaseTimer).not.toBeNull();
+
+    await socket.close(true);
+    await resources;
+    expect(socket._observerReleaseTimer).toBeNull();
+    window.advanceClock(Socket.OBSERVER_RELEASE_DELAY_MS + 1);
+    expect(observer.close).toHaveBeenCalledTimes(1);
+    expect(native.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("completes resource retirement only after the normal observer safety window", async () => {
+    const socket = retiringSocket();
+    const observer = socket._events;
+    const resources = socket.closedResources;
+    let resourcesSettled = false;
+    resources.then(() => (resourcesSettled = true));
+    await socket.close();
+    expect(resourcesSettled).toBe(false);
+    window.advanceClock(Socket.OBSERVER_RELEASE_DELAY_MS - 1);
+    await Promise.resolve();
+    expect(resourcesSettled).toBe(false);
+    window.advanceClock(1);
+    await resources;
+    expect(observer.close).toHaveBeenCalledTimes(1);
+    expect(socket._events).toBeNull();
+    expect(socket._observerReleaseTimer).toBeNull();
+  });
+
+  it("does not close an observer again after its native self-close", async () => {
+    const socket = retiringSocket();
+    const observer = socket._events;
+    socket._socket.close.and.callFake(() => {
+      socket._socket.closed = true;
+      observer.closed = true;
+    });
+    const resources = socket.closedResources;
+    await socket.close();
+    await resources;
+    expect(observer.close).not.toHaveBeenCalled();
+    expect(socket._observerReleaseTimer).toBeNull();
+    socket.close(true);
+    expect(observer.close).not.toHaveBeenCalled();
+  });
+
+  it("awaits native close without a monitor and schedules no observer callback", async () => {
+    const socket = retiringSocket();
+    socket._events = null;
+    let releaseSend;
+    socket._inFlightSend = new Promise((resolve) => (releaseSend = resolve));
+    const resources = socket.closedResources;
+    let resourcesSettled = false;
+    resources.then(() => (resourcesSettled = true));
+    const ordinary = socket.close();
+    await Promise.resolve();
+    expect(resourcesSettled).toBe(false);
+    releaseSend();
+    await ordinary;
+    await resources;
+    expect(socket._observerReleaseTimer ?? null).toBeNull();
+    expect(socket.closedResources).toBe(resources);
+  });
+
   // The observer is self-closing: closing the monitored socket makes libzmq
   // emit MONITOR_STOPPED and the native handler closes the observer. Closing
   // it by hand on the normal path corrupts libzmq on Windows — one kernel
