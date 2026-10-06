@@ -1,6 +1,5 @@
 const { Emitter, CompositeDisposable } = require("lumine");
-const JupyterProvider = require("../lib/plugin-api/jupyter-provider");
-const store = require("../lib/store");
+let JupyterProvider, store;
 
 // `jupyter.kernel` is the seam the panels move across when they become their
 // own packages, so it has to answer the questions a panel actually asks. Two
@@ -274,6 +273,8 @@ describe("jupyter.kernel service", () => {
   let previousKernels;
 
   beforeEach(() => {
+    JupyterProvider = require("../lib/plugin-api/jupyter-provider");
+    store = require("../lib/store");
     emitter = new Emitter();
     provider = new JupyterProvider(emitter);
     previousKernels = store.runningKernels;
@@ -382,6 +383,45 @@ describe("jupyter.kernel service", () => {
     expect(one.shutDown).toBe(true);
     expect(one.destroyed).toBe(true);
     expect(two.destroyed).toBe(true);
+  });
+
+  it("reads the injected store and cells through their current accessors", () => {
+    const first = fakeInternalKernel("Python 3");
+    const second = fakeInternalKernel("R");
+    const editor = {};
+    let injectedStore = { kernel: first, editor, runningKernels: [first] };
+    let cells = {
+      getCurrentCell: jasmine.createSpy("current cell").and.returnValue({ row: 4 }),
+    };
+    const injected = new JupyterProvider(emitter, {
+      getStore: () => injectedStore,
+      getCellsService: () => cells,
+      getAdapterServices: () => [],
+    });
+
+    expect(injected.getActiveKernel()).toBe(first.getPluginWrapper());
+    expect(injected.getCellRange()).toEqual({ row: 4 });
+    expect(cells.getCurrentCell).toHaveBeenCalledWith(editor);
+
+    injectedStore = { kernel: second, editor: null, runningKernels: [second] };
+    cells = null;
+    expect(injected.getActiveKernel()).toBe(second.getPluginWrapper());
+    expect(injected.getRunningKernels()).toEqual([second.getPluginWrapper()]);
+    expect(injected.getCellRange()).toBeNull();
+  });
+
+  it("retains the legacy adapter accessor constructor", () => {
+    const adapters = [{}];
+    const editor = {};
+    spyOn(lumine.workspace, "getFocusedTextEditor").and.returnValue(null);
+    const focused = spyOn(
+      require("../lib/adapter-integration"),
+      "getAdapterFocusedEditor",
+    ).and.returnValue(editor);
+    const legacy = new JupyterProvider(emitter, () => adapters);
+
+    expect(legacy.getFocusedEditor()).toBe(editor);
+    expect(focused).toHaveBeenCalledWith(adapters);
   });
 });
 
