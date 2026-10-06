@@ -3,6 +3,7 @@ const etch = require("@lumine-code/etch");
 const { renderDisplay } = require("./display");
 const { renderStatus } = require("./status");
 const actions = require("./output-actions");
+const OutputScroll = require("./output-scroll");
 
 const SCROLL_HEIGHT = 600;
 
@@ -44,6 +45,7 @@ class ResultViewComponent {
     this.probedOutputCount = -1;
     this.wheelHandler = null;
     this.wheelElement = null;
+    this.outputScroll = new OutputScroll();
 
     etch.initialize(this);
 
@@ -334,6 +336,7 @@ class ResultViewComponent {
     const gutterRight = display ? display.offsetWidth - display.clientWidth : 0;
     const gutterBottom = display ? display.offsetHeight - display.clientHeight : 0;
 
+    this.outputScroll.attach(display);
     this.scrollToBottom(display, scrollHeight, clientHeight, isPlain);
     this.syncWheelHandler(isPlain);
 
@@ -392,16 +395,10 @@ class ResultViewComponent {
   }
 
   scrollToBottom(display, scrollHeight, clientHeight, isPlain) {
-    if (
-      !display ||
-      !this.isScroller ||
-      isPlain ||
-      lumine.config.get("jupyter-repl.autoScroll") === false
-    ) {
+    if (!display || !this.isScroller || isPlain) {
       return;
     }
-    const maxScrollTop = scrollHeight - clientHeight;
-    display.scrollTop = maxScrollTop > 0 ? maxScrollTop : 0;
+    this.outputScroll.scrollToBottom(scrollHeight, clientHeight);
   }
 
   update(props) {
@@ -415,6 +412,7 @@ class ResultViewComponent {
     // A bubble closed mid-drag would otherwise leave its window listeners
     // behind, still writing to a component nobody can see.
     this.endResize();
+    this.outputScroll.destroy();
     if (this.wheelElement && this.wheelHandler) {
       this.wheelElement.removeEventListener("wheel", this.wheelHandler);
       this.wheelElement = null;

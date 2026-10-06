@@ -608,11 +608,19 @@ describe("output scroll list", () => {
     spyOn(lumine.config, "get").and.callFake((keyPath, ...args) =>
       keyPath === "jupyter-repl.autoScroll" ? false : getConfig(keyPath, ...args),
     );
-    const list = Object.create(ScrollList.prototype);
-    list.element = { scrollHeight: 1000, clientHeight: 200, scrollTop: 100 };
-    list.scrollToBottom();
+    const list = new ScrollList({ outputs: [] });
+    try {
+      Object.defineProperties(list.element, {
+        scrollHeight: { configurable: true, value: 1000 },
+        clientHeight: { configurable: true, value: 200 },
+        scrollTop: { configurable: true, value: 100, writable: true },
+      });
+      list.scrollToBottom();
 
-    expect(list.element.scrollTop).toBe(100);
+      expect(list.element.scrollTop).toBe(100);
+    } finally {
+      list.destroy();
+    }
   });
 
   it("renders one item per output", () => {

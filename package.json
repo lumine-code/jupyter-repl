@@ -139,9 +139,9 @@
     },
     "showInspectorResultsInAutocomplete": {
       "title": "Enable autocomplete description",
-      "description": "If enabled, jupyter-repl will try to show the results from kernel inspection in each autocomplete suggestion's description. May slow down the autocompletion performance. **Note**: Even if you disable this, you would still get autocomplete suggestions.",
+      "description": "Show kernel inspection details for the selected autocomplete suggestion. This requests documentation from the current idle kernel and may take longer with a remote kernel. Suggestions remain available when disabled.",
       "type": "boolean",
-      "default": false
+      "default": true
     },
     "autocompleteSuggestionPriority": {
       "title": "Autocomplete suggestion priority",
@@ -201,7 +201,7 @@
     },
     "autoScroll": {
       "title": "Enable autoscroll",
-      "description": "If enabled, jupyter-repl will automatically scroll to the bottom of the result view.",
+      "description": "Follow new output while the result view is at the bottom. Scrolling up pauses following until you return to the bottom.",
       "type": "boolean",
       "default": true
     },

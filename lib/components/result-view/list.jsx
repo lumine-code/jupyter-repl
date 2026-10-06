@@ -2,12 +2,15 @@
 const etch = require("@lumine-code/etch");
 const { renderDisplay } = require("./display");
 const { outputFontSize } = require("./output-actions");
+const OutputScroll = require("./output-scroll");
 
 /** Every output of a run, in order, scrolled to the newest. */
 class ScrollList {
   constructor({ outputs }) {
     this.outputs = outputs || [];
+    this.outputScroll = new OutputScroll();
     etch.initialize(this);
+    this.outputScroll.attach(this.element);
   }
 
   render() {
@@ -36,9 +39,7 @@ class ScrollList {
   }
 
   scrollToBottom() {
-    if (lumine.config.get("jupyter-repl.autoScroll") === false) return;
-    const maxScrollTop = this.element.scrollHeight - this.element.clientHeight;
-    this.element.scrollTop = maxScrollTop > 0 ? maxScrollTop : 0;
+    this.outputScroll.scrollToBottom(this.element.scrollHeight, this.element.clientHeight);
   }
 
   update({ outputs }) {
@@ -47,6 +48,7 @@ class ScrollList {
   }
 
   destroy() {
+    this.outputScroll.destroy();
     // destroySync, not destroy: etch defers an ordinary destroy to the next
     // animation frame, and by then the caller has already torn down what owned
     // this. If that frame never arrives — package deactivation, window close —
