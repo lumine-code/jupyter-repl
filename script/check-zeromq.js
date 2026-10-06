@@ -6,10 +6,28 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const net = require("node:net");
 const { spawnSync } = require("node:child_process");
 
-const PROBES = ["require-exit", "constructor-close", "tcp-roundtrip"];
+const PROBES = [
+  "require-exit",
+  "constructor-close",
+  "tcp-roundtrip",
+  "unload-during-send",
+  "unload-during-observer",
+];
 const PROBE_TIMEOUT_MS = 15000;
+
+async function closedTcpEndpoint() {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen({ host: "127.0.0.1", port: 0, exclusive: true }, resolve);
+  });
+  const endpoint = `tcp://127.0.0.1:${server.address().port}`;
+  await new Promise((resolve) => server.close(resolve));
+  return endpoint;
+}
 
 async function probe(name) {
   const environment = Object.fromEntries(
@@ -29,6 +47,7 @@ async function probe(name) {
   assertEnvironmentRestored();
   let sockets = 0;
   let roundtrips = 0;
+  let unload = null;
 
   if (name === "constructor-close") {
     for (let round = 0; round < 3; round++) {
@@ -74,12 +93,87 @@ async function probe(name) {
         await new Promise((resolve) => setTimeout(resolve, 650));
       }
     }
+  } else if (name === "unload-during-send" || name === "unload-during-observer") {
+    const { Socket } = require("../lib/jmp");
+    const endpoint = await closedTcpEndpoint();
+    const socket = new Socket("dealer", "sha256", "", { sendTimeout: 2500 });
+    sockets++;
+    let sending = Promise.resolve();
+    let sendSettled = false;
+    let sendRejected = null;
+    const observer = () => socket._events;
+    const snapshot = (monitor) => ({
+      nativeClosed: socket._socket.closed,
+      observerClosed: monitor?.closed ?? null,
+      observerTimerPending: socket._observerReleaseTimer != null,
+      pendingSend: Boolean(socket._inFlightSend),
+    });
+    try {
+      // immediate prevents a disconnected DEALER from accepting the payload
+      // into its native queue, leaving send pending until close cancels it.
+      if (name === "unload-during-send") socket._socket.immediate = true;
+      socket.connect(endpoint);
+      const monitor = observer();
+      if (name === "unload-during-send") {
+        sending = socket.send("pending").then(
+          () => {
+            sendSettled = true;
+          },
+          (error) => {
+            sendSettled = true;
+            sendRejected = error.code || error.message;
+          },
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      if (name === "unload-during-send") {
+        assert.equal(sendSettled, false, "The native send must be pending before close");
+      }
+      const ordinary = socket.close(false, true);
+      assert.equal(socket.close(), ordinary, "Normal close must preserve its promise identity");
+      const beforeForce = snapshot(monitor);
+      if (name === "unload-during-send") {
+        assert.equal(beforeForce.nativeClosed, false, "Normal close must await the send");
+      } else {
+        assert.equal(beforeForce.nativeClosed, true, "Normal native close must finish");
+      }
+      // A fast native monitor may already have self-closed on another OS.
+      // Both states must permit forced unload, without opening more sockets.
+      const forcing = socket.close(true);
+      const afterForce = snapshot(monitor);
+      assert.equal(afterForce.nativeClosed, true, "Unload must close the native socket");
+      assert(!monitor || monitor.closed, "Unload must release the native observer");
+      assert.equal(socket._observerReleaseTimer, null, "Unload must cancel observer callbacks");
+      assert.equal(
+        socket.close(),
+        ordinary,
+        "Unload must retain the original normal-close promise",
+      );
+      await forcing;
+      await socket.closedResources;
+      await sending;
+      await ordinary;
+      assert.equal(socket._observerReleaseTimer, null);
+      unload = { beforeForce, afterForce, sendRejected };
+    } finally {
+      await socket.close(true, true);
+      await socket.closedResources;
+      await sending;
+    }
   } else {
     assert.equal(name, "require-exit", "Unknown native probe");
   }
 
   assertEnvironmentRestored();
-  console.log(JSON.stringify({ probe: name, pid: process.pid, sockets, roundtrips }));
+  console.log(
+    JSON.stringify({
+      probe: name,
+      pid: process.pid,
+      sockets,
+      roundtrips,
+      ...(unload ? { unload } : {}),
+    }),
+  );
   // Natural process exit is part of the check: libzmq's context cleanup can
   // abort even after a require-only probe has successfully printed its result.
 }

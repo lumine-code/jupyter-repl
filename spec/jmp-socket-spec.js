@@ -19,6 +19,7 @@ function bareSocket() {
   socket._closePromise = null;
   socket._unloadClosePromise = null;
   socket._closeForUnload = false;
+  socket._discardPending = false;
   socket._nativeClosed = false;
   socket._observerReleaseTimer = null;
   socket._closedResourcesPromise = null;
@@ -357,6 +358,37 @@ describe("jmp observer lifecycle at close", () => {
     window.advanceClock(Socket.OBSERVER_RELEASE_DELAY_MS + 1);
     expect(observer.close).toHaveBeenCalledTimes(1);
     expect(native.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves pending queue discard when unload escalates without repeating the flag", async () => {
+    const socket = retiringSocket();
+    const native = socket._socket;
+    let releaseSend;
+    let linger = 1000;
+    const writes = [];
+    Object.defineProperty(native, "linger", {
+      get: () => linger,
+      set(value) {
+        linger = value;
+        writes.push(value);
+      },
+    });
+    native.send = () => new Promise((resolve) => (releaseSend = resolve));
+    const sending = socket.send("pending");
+    await Promise.resolve();
+    const ordinary = socket.close(false, true);
+    expect(linger).toBe(1000);
+
+    await socket.close(true);
+    await socket.closedResources;
+    expect(linger).toBe(0);
+    expect(writes).toEqual([0]);
+    releaseSend();
+    await sending;
+    await ordinary;
+    expect(writes).toEqual([0]);
+    expect(native.close).toHaveBeenCalledTimes(1);
+    expect(socket._observerReleaseTimer).toBeNull();
   });
 
   it("completes resource retirement only after the normal observer safety window", async () => {
