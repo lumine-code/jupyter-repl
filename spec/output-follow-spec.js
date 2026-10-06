@@ -94,6 +94,50 @@ for (const surface of ["result bubble", "dock output"]) {
       expect(scroller.scrollTop).toBe(200);
     });
 
+    it("keeps following when an asynchronous result grows before a queued follow scroll arrives", () => {
+      setAutoScroll(true);
+      afterRender();
+      expect(scroller.scrollTop).toBe(100);
+
+      // An embedded widget or iframe grows outside the output patch, before
+      // the browser delivers the scroll event queued by that patch.
+      scroller.scrollHeight = 300;
+      scroller.dispatchEvent(new Event("scroll"));
+      renderOutput(400);
+
+      expect(scroller.scrollTop).toBe(300);
+    });
+
+    it("recognizes the latest offset when several follow writes share one scroll event", () => {
+      setAutoScroll(true);
+      afterRender();
+      renderOutput(300);
+      renderOutput(400);
+      expect(scroller.scrollTop).toBe(300);
+
+      scroller.scrollHeight = 500;
+      scroller.dispatchEvent(new Event("scroll"));
+      renderOutput(600);
+
+      expect(scroller.scrollTop).toBe(500);
+    });
+
+    it("pauses for a user scroll before the queued follow event and resumes at the bottom", () => {
+      setAutoScroll(true);
+      afterRender();
+      scroller.scrollHeight = 300;
+
+      // The queued event now observes the user's offset rather than the
+      // commanded one, so it must pause even though a follow write is pending.
+      scrollTo(50);
+      renderOutput(400);
+      expect(scroller.scrollTop).toBe(50);
+
+      scrollTo(300);
+      renderOutput(500);
+      expect(scroller.scrollTop).toBe(400);
+    });
+
     it("preserves the scroll position when autoscroll is disabled", () => {
       setAutoScroll(false);
       scrollTo(100);
