@@ -200,11 +200,10 @@ class WidgetView {
   update(props) {
     const previous = this.props;
     this.props = propsWithGeneration(props);
-    // Same widget, same kernel: nothing to do. Without this the live view would
-    // be torn down and rebuilt on every keystroke that moves the marker, since
-    // updatePosition emits on the store like any other change. The manager is
-    // compared too, along with its generation: a reset keeps the manager but
-    // replaces its models, and the replacement may reuse a model id.
+    // Same widget, same kernel: nothing to do. Moving a marker or resizing
+    // the editor repaints the result through its layout, so retain the live
+    // view. Compare the manager and its generation as well: a reset keeps
+    // the manager but replaces its models, which may reuse a model id.
     if (
       this.props.modelId === previous.modelId &&
       this.props.manager === previous.manager &&

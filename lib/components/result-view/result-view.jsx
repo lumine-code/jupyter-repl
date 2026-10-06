@@ -4,6 +4,7 @@ const { renderDisplay } = require("./display");
 const { renderStatus } = require("./status");
 const actions = require("./output-actions");
 const OutputScroll = require("./output-scroll");
+const OutputLayout = require("./output-layout");
 
 const SCROLL_HEIGHT = 600;
 
@@ -28,6 +29,10 @@ const MIN_RESIZE_HEIGHT = 32;
 class ResultViewComponent {
   constructor(props) {
     this.props = props;
+    this.destroyed = false;
+    this._ownsLayout = !props.layout;
+    this.layout = props.layout || new OutputLayout(props.store);
+    this.layout.setStore(props.store);
     this.expanded = false;
     this.hasImage = false;
     this.showExpandButton = false;
@@ -49,7 +54,8 @@ class ResultViewComponent {
 
     etch.initialize(this);
 
-    this.storeSubscription = this.props.store.onDidUpdate(() => etch.update(this));
+    this.watchStore();
+    this.watchLayout();
     this.afterRender();
   }
 
@@ -57,10 +63,24 @@ class ResultViewComponent {
     return this.props.store;
   }
 
+  watchStore() {
+    this.storeSubscription?.dispose();
+    this.storeSubscription = this.store.onDidUpdate(() => {
+      if (!this.destroyed) etch.update(this);
+    });
+  }
+
+  watchLayout() {
+    this.layoutSubscription?.dispose();
+    this.layoutSubscription = this.layout.onDidUpdate(() => {
+      if (!this.destroyed) etch.update(this);
+    });
+  }
+
   // The bubble sits on a code line, so it is positioned against the metrics the
-  // store records for that line rather than by the surrounding layout.
+  // layout records for that line rather than by the surrounding layout.
   inlineStyle() {
-    const { position } = this.store;
+    const { position } = this.layout;
     return {
       marginLeft: `${position.lineLength + position.charWidth}px`,
       // Stop the box from inheriting the editor's (possibly large) line-height,
@@ -151,16 +171,16 @@ class ResultViewComponent {
     event.stopPropagation();
 
     const editor = this.props.editor;
-    // Read live. The store's editorWidth is only refreshed when the marker
-    // moves, so it is stale after a pane resize — and a clamp is only worth
+    // Read live. The shared metrics refresh runs after core measures a pane
+    // resize, but the drag can start before that pass — a clamp is only worth
     // having if it is the width the editor has now.
     if (editor && !editor.isDestroyed?.()) {
-      this.store.updatePosition({
+      this.layout.updatePosition({
         editorWidth: editor.element.getWidth(),
         charWidth: editor.getDefaultCharWidth(),
       });
     }
-    const { editorWidth, charWidth } = this.store.position;
+    const { editorWidth, charWidth } = this.layout.position;
 
     this.resizeOrigin = {
       x: event.clientX,
@@ -238,7 +258,8 @@ class ResultViewComponent {
   };
 
   render() {
-    const { outputs, status, isPlain, position } = this.store;
+    const { outputs, status } = this.store;
+    const { isPlain, position } = this.layout;
     const inlineStyle = this.inlineStyle();
 
     if (outputs.length === 0 || !this.props.showResult) {
@@ -320,7 +341,7 @@ class ResultViewComponent {
 
   afterRender() {
     const display = this.refs.display;
-    const isPlain = this.store.isPlain;
+    const isPlain = this.layout.isPlain;
 
     // Every metric is read before anything writes: scrollToBottom sets
     // scrollTop, and reading scrollHeight after that write forces a synchronous
@@ -402,13 +423,34 @@ class ResultViewComponent {
   }
 
   update(props) {
+    if (this.destroyed) return Promise.resolve();
     if (props) {
-      this.props = props;
+      const store = this.store;
+      const layout = this.layout;
+      const owned = this._ownsLayout;
+      this.props = { ...this.props, ...props };
+      const nextLayout = this.props.layout || (owned ? layout : new OutputLayout(this.store));
+      this._ownsLayout = !this.props.layout;
+      if (this.store !== store) {
+        this.probedOutputCount = -1;
+        this.watchStore();
+      }
+      if (nextLayout !== layout) {
+        this.layoutSubscription.dispose();
+        if (owned) layout.destroy();
+        this.layout = nextLayout;
+        this.layout.setStore(this.store);
+        this.watchLayout();
+      } else {
+        this.layout.setStore(this.store);
+      }
     }
     return etch.update(this);
   }
 
   destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
     // A bubble closed mid-drag would otherwise leave its window listeners
     // behind, still writing to a component nobody can see.
     this.endResize();
@@ -419,6 +461,8 @@ class ResultViewComponent {
       this.wheelHandler = null;
     }
     this.storeSubscription.dispose();
+    this.layoutSubscription.dispose();
+    if (this._ownsLayout) this.layout.destroy();
     // destroySync, not destroy: etch defers an ordinary destroy to the next
     // animation frame, and by then the caller has already torn down what owned
     // this. If that frame never arrives — package deactivation, window close —

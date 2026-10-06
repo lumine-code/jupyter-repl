@@ -13,15 +13,9 @@ const actions = require("../lib/components/result-view/output-actions");
 // constructor calls it the same way.
 
 function blockStore() {
-  // Left at the default zero metrics, which is what a result renders as before
-  // anything measures it: `isPlain` is false, so the block branch renders.
+  // The component's default layout has no editor measurements, so it keeps
+  // this result in block form until its own metrics arrive.
   return new OutputStore();
-}
-
-function inlineStore() {
-  const store = new OutputStore();
-  store.updatePosition({ editorWidth: 800, lineLength: 0, charWidth: 8, lineHeight: 16 });
-  return store;
 }
 
 function stream(text) {
@@ -91,6 +85,28 @@ describe("the result bubble", () => {
     expect(component.element.textContent).toContain("42");
   });
 
+  it("refreshes image actions when a replacement store has the same output count", async () => {
+    const image = new OutputStore();
+    image.appendOutput({
+      output_type: "display_data",
+      data: { "image/png": "AAAA" },
+    });
+    const text = new OutputStore();
+    text.appendOutput(stream("plain text"));
+    component = build(image);
+    component.afterRender();
+    expect(component.hasImage).toBe(true);
+
+    component.update({ store: text });
+    etch.updateSync(component);
+    component.afterRender();
+    expect(component.hasImage).toBe(false);
+    component.update({ store: image });
+    etch.updateSync(component);
+    component.afterRender();
+    expect(component.hasImage).toBe(true);
+  });
+
   it("gives a block result hover chrome and an inline result none", () => {
     // The chrome is positioned out of the layout — the old toolbar is gone, so
     // nothing reserves space beside the content. Only what is about the box
@@ -111,12 +127,18 @@ describe("the result bubble", () => {
 
     component.destroy();
 
-    const inline = inlineStore();
+    const inline = new OutputStore();
     inline.appendOutput(stream("42"));
     component = build(inline);
+    component.layout.updatePosition({
+      editorWidth: 800,
+      lineLength: 0,
+      charWidth: 8,
+      lineHeight: 16,
+    });
     etch.updateSync(component);
 
-    expect(inline.isPlain).toBe(true);
+    expect(component.layout.isPlain).toBe(true);
     expect(component.element.className).toContain("inline-container");
     expect(component.element.querySelector(".result-actions")).toBeNull();
     expect(component.element.querySelector(".result-resize")).toBeNull();

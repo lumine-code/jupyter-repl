@@ -95,12 +95,17 @@ describe("the execution lifecycle of a result store", () => {
 
   it("renders each stage without consulting any kernel", () => {
     const store = new OutputStore();
-    store.updatePosition({ editorWidth: 800, lineLength: 0, charWidth: 8, lineHeight: 16 });
     const component = new ResultViewComponent({
       store,
       editor: null,
       destroy: () => {},
       showResult: true,
+    });
+    component.layout.updatePosition({
+      editorWidth: 800,
+      lineLength: 0,
+      charWidth: 8,
+      lineHeight: 16,
     });
 
     expect(component.element.classList.contains("queued")).toBe(true);
