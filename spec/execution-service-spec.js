@@ -284,6 +284,49 @@ describe("the explicit jupyter.execution service", () => {
     expect(context.markers).toBe(store.markersMapping.get(editor.id));
     expect(bundle.row).toBe(1);
   });
+
+  it("settles a notebook receipt when a provider fails while resolving a captured target", async () => {
+    const item = { isDestroyed: () => false };
+    const notebookPath = "C:/work/failing-target-provider.ipynb";
+    const owner = {
+      id: "failing-target",
+      getPath: () => notebookPath,
+      isDestroyed: () => false,
+      onDidDestroy: () => ({ dispose() {} }),
+      onDidChangePath: () => ({ dispose() {} }),
+    };
+    const target = { id: "target", editor, source: "first()", type: "code", executable: true };
+    const adapter = {
+      getPaneItem: () => item,
+      getKernelOwner: () => owner,
+      getPath: () => notebookPath,
+      getTitle: () => "Failing target provider",
+      getMetadata: () => ({}),
+      getKernelLanguage: () => "python",
+      getKernelGrammar: () => editor.getGrammar(),
+      getActiveTargetId: () => target.id,
+      getKernelTarget: () => target,
+      getRunTarget() {
+        throw new Error("target resolution failed");
+      },
+    };
+    adapters.push({ getAdapterForItem: (candidate) => (candidate === item ? adapter : null) });
+    const integration = require("../lib/adapter-integration");
+    integration.activateAdapterIntegration();
+    store.kernelMapping.set(notebookPath, fakeKernel);
+    try {
+      const receipt = await execution.execute({ item, owner, targets: [target] });
+      let outcome = null;
+      receipt.done.then((value) => {
+        outcome = value;
+      });
+      await flush();
+      expect(outcome).toEqual(jasmine.objectContaining({ status: "error" }));
+    } finally {
+      store.kernelMapping.delete(notebookPath);
+      integration.disposeAdapterIntegration();
+    }
+  });
 });
 
 describe("the optional jupyter.cells consumption", () => {
