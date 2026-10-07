@@ -1,6 +1,6 @@
 # jupyter.execution
 
-Executes captured source blocks or notebook targets in their explicit context.
+Executes captured source blocks, notebook targets, or code in an explicit session.
 
 |             |                                                               |
 | ----------- | ------------------------------------------------------------- |
@@ -56,7 +56,15 @@ type ExecutionReceipt = {
   done: Promise<ExecutionOutcome>;
 };
 
-type ExecutionRequest = {
+type SessionExecutionRequest = {
+  session: Session;
+  generation: number;
+  code: string;
+  owner?: object;
+  signal?: AbortSignal;
+};
+
+type SurfaceExecutionRequest = {
   item?: object;
   editor?: TextEditor;
   grammar?: Grammar; // captured embedded grammar, independently of the base editor grammar
@@ -71,12 +79,14 @@ type ExecutionRequest = {
   autocompleteCancelled?: boolean;
 };
 
+type ExecutionRequest = SessionExecutionRequest | SurfaceExecutionRequest;
+
 type JupyterExecution = {
   execute(request: ExecutionRequest): Promise<ExecutionReceipt>;
 };
 ```
 
-`Target` is defined by [`jupyter.adapter`](jupyter.adapter.md). Source execution supplies `editor` and `blocks`, normally also `item: editor`. Notebook execution supplies its explicit `item`, shared `owner` and captured `targets`. An item with no matching adapter is refused; the runtime never falls through to a newly active editor or notebook.
+`Session` is defined by [`jupyter.kernel`](jupyter.kernel.md), and `Target` by [`jupyter.adapter`](jupyter.adapter.md). Editorless execution supplies a live `session`, its captured `generation`, and `code`; it needs no editor and never chooses a replacement session. Source execution supplies `editor` and `blocks`, normally also `item: editor`. Notebook execution supplies its explicit `item`, shared `owner` and captured `targets`. An item with no matching adapter is refused; the runtime never falls through to a newly active editor or notebook.
 
 ## Minimal example
 
@@ -104,6 +114,12 @@ module.exports = {
     const receipt = await this.execution.execute({ item: editor, editor, blocks });
     return receipt.done;
   },
+
+  async runPrompt(session, code, signal) {
+    const generation = session.generation;
+    const receipt = await this.execution.execute({ session, generation, code, signal });
+    return receipt.done;
+  },
 };
 ```
 
@@ -112,6 +128,8 @@ module.exports = {
 Acceptance and completion are separate. `execute()` resolves a receipt when the invocation has been accepted or refused; kernel selection and execution can still be pending. `receipt.done` settles once with the terminal outcome, including cancellation, provider retirement and unavailable context. UI commands can stop at acceptance; automation and dependent operations await completion.
 
 Completion preserves the public request's terminal status and identity, execution count and duration. An uncertain execution remains `unknown`, an unavailable session remains `unavailable`, and cancellation remains `cancelled`; these outcomes stop the remaining batch without changing their meaning. Batch results carry bounded plain request metadata. A duplicate invocation while the same kernel's batch is in flight reports `skipped` and sends no duplicate work.
+
+Editorless code uses the same user-request coordinator and dock output pipeline as other executions. The caller captures the session, generation, and code before awaiting service availability. The runtime refuses a retired, unregistered, or changed session before submission. Once accepted code has been sent, connection replacement preserves its typed terminal outcome, including `unknown`; it does not replay the code or substitute the newly active session. An AbortSignal cancels observation and unsent queued work without interrupting the shared kernel.
 
 A block's `row` is the original buffer row anchoring its inline result, usually the last meaningful source row. Use `jupyter.cells.getExecutionBlocks()` to preserve typed Markdown/raw cells and selected magic headers. Raw blocks do not allocate a kernel request. Markdown source blocks render locally; leading Markdown appears before a mixed run requests a kernel, and code failures stop the remaining sequence.
 

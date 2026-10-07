@@ -9,6 +9,8 @@ const FAMILY = [
   "jupyter-variables",
   "jupyter-explorer",
   "jupyter-watches",
+  "jupyter-prompt",
+  "jupyter-monitor",
 ];
 
 async function flush() {
@@ -89,7 +91,7 @@ function kernel(grammar) {
   return new Kernel(new Transport());
 }
 
-describe("seven-package Jupyter lifecycle", () => {
+describe("nine-package Jupyter lifecycle", () => {
   let kernels, edges;
 
   beforeEach(async () => {
@@ -133,8 +135,16 @@ describe("seven-package Jupyter lifecycle", () => {
     return value.getPluginWrapper();
   }
 
-  for (const order of [FAMILY, [...FAMILY.slice(1), FAMILY[0]]]) {
-    it(`connects all seven packages with ${order[0]} activated first`, async () => {
+  for (const order of [
+    FAMILY,
+    [...FAMILY.slice(1), FAMILY[0]],
+    [
+      "jupyter-prompt",
+      "jupyter-monitor",
+      ...FAMILY.filter((name) => !["jupyter-prompt", "jupyter-monitor"].includes(name)),
+    ],
+  ]) {
+    it(`connects all nine packages with ${order[0]} activated first`, async () => {
       await activateFamily(order);
       const provider = main("jupyter-repl").provideJupyterKernel();
       const output = main("jupyter-repl").provideJupyterOutput();
@@ -150,8 +160,87 @@ describe("seven-package Jupyter lifecycle", () => {
       expect(peerModule("jupyter-cells", "services").getExecution()).toBe(execution);
       expect(peerModule("jupyter-cells", "services").getKernel()).toBe(provider);
       expect(peerModule("jupyter-cells", "services").getOutput()).toBe(output);
+      expect(main("jupyter-prompt").getKernelProvider()).toBe(provider);
+      expect(main("jupyter-prompt").getExecutionService()).toBe(execution);
+      expect(main("jupyter-prompt").getPromptPanel()).toBeNull();
+      expect(main("jupyter-monitor").deserializeMonitorPane().component.provider).toBe(provider);
     });
   }
+
+  async function promptPanel() {
+    lumine.commands.dispatch(lumine.views.getView(lumine.workspace), "jupyter-prompt:toggle-focus");
+    await flush();
+    return main("jupyter-prompt").getPromptPanel();
+  }
+
+  it("runs standalone prompt code on its captured session through shared dock output", async () => {
+    await activateFamily();
+    const editor = await sourceEditor();
+    const value = makeKernel();
+    registerEditor(value, editor);
+    const panel = await promptPanel();
+    const running = panel.run("print('prompt')");
+    await flush();
+    const request = value.transport.requests.find((record) => record.code === "print('prompt')");
+    expect(request).toBeTruthy();
+    const otherEditor = await sourceEditor();
+    const other = makeKernel();
+    registerEditor(other, otherEditor);
+    value.transport.finish(request, [{ output_type: "stream", name: "stdout", text: "prompt\n" }]);
+    await running;
+    expect(panel.history[0].status).toBe("ok");
+    expect(value.outputStore.outputs.at(-1).text).toBe("prompt\n");
+    expect(other.transport.requests.some((record) => record.code === "print('prompt')")).toBe(
+      false,
+    );
+  });
+
+  it("retires prompt observation on unload while the runtime and monitor stay available", async () => {
+    await activateFamily();
+    const editor = await sourceEditor();
+    const value = makeKernel();
+    const session = registerEditor(value, editor);
+    const monitor = main("jupyter-monitor").deserializeMonitorPane();
+    const panel = await promptPanel();
+    const running = panel.run("never_finishes()");
+    await flush();
+    const request = value.transport.requests.find((record) => record.code === "never_finishes()");
+    expect(request).toBeTruthy();
+    await lumine.packages.unloadPackage("jupyter-prompt");
+    await running;
+    expect(panel.destroyed).toBe(true);
+    expect(panel.history[0].status).toBe("cancelled");
+    expect(session.isDestroyed()).toBe(false);
+    expect(monitor.component.provider.getRunningKernels()).toContain(session);
+    value.transport.finish(request, [{ output_type: "stream", name: "stdout", text: "late\n" }]);
+    await flush();
+    expect(value.outputStore.outputs.some((output) => output.text === "late\n")).toBe(false);
+    await lumine.packages.activatePackage("jupyter-prompt");
+    expect(main("jupyter-prompt").getKernelProvider()).toBe(
+      main("jupyter-repl").provideJupyterKernel(),
+    );
+    expect(main("jupyter-prompt").getPromptPanel()).toBeNull();
+  });
+
+  it("unloads and restores the standalone monitor without retiring shared sessions", async () => {
+    await activateFamily();
+    const editor = await sourceEditor();
+    const session = registerEditor(makeKernel(), editor);
+    const provider = main("jupyter-repl").provideJupyterKernel();
+    const monitor = main("jupyter-monitor").deserializeMonitorPane();
+    await lumine.workspace.open(monitor);
+    expect(monitor.component.provider.getRunningKernels()).toContain(session);
+    await lumine.packages.unloadPackage("jupyter-monitor");
+    expect(monitor.destroyed).toBe(true);
+    expect(session.isDestroyed()).toBe(false);
+    expect(main("jupyter-prompt").getKernelProvider()).toBe(provider);
+    await lumine.packages.activatePackage("jupyter-monitor");
+    await flush();
+    const restored = main("jupyter-monitor").deserializeMonitorPane();
+    expect(restored).not.toBe(monitor);
+    expect(restored.component.provider).toBe(provider);
+    expect(restored.component.provider.getRunningKernels()).toContain(session);
+  });
 
   it("resolves an inactive panel expression to its own session", async () => {
     await activateFamily();
@@ -261,6 +350,8 @@ describe("seven-package Jupyter lifecycle", () => {
     const cells = peerModule("jupyter-cells", "services");
     const firstExecution = cells.getExecution();
     const firstOutput = peerModule("jupyter-view", "output-renderer").get();
+    const prompt = main("jupyter-prompt");
+    const monitor = main("jupyter-monitor").deserializeMonitorPane();
     const retired = makeKernel();
     const retiredSession = retired.getPluginWrapper();
     require("../lib/store").commitNotebookKernel(
@@ -274,12 +365,19 @@ describe("seven-package Jupyter lifecycle", () => {
     expect(cells.getExecution()).toBeNull();
     expect(main("jupyter-view").executionService).toBeNull();
     expect(peerModule("jupyter-view", "output-renderer").get()).toBeNull();
+    expect(prompt.getKernelProvider()).toBeNull();
+    expect(prompt.getExecutionService()).toBeNull();
+    expect(monitor.component.provider.getRunningKernels()).toEqual([]);
+    expect(monitor.destroyed).not.toBe(true);
     await lumine.packages.activatePackage(path.resolve(__dirname, ".."));
     await flush();
     expect(cells.getExecution()).toBeTruthy();
     expect(cells.getExecution() !== firstExecution).toBe(true);
     expect(main("jupyter-view").executionService).toBe(cells.getExecution());
     expect(peerModule("jupyter-view", "output-renderer").get() !== firstOutput).toBe(true);
+    expect(prompt.getExecutionService()).toBe(cells.getExecution());
+    expect(prompt.getKernelProvider()).toBe(main("jupyter-repl").provideJupyterKernel());
+    expect(monitor.component.provider).toBe(prompt.getKernelProvider());
     const fresh = makeKernel();
     expect(fresh.getPluginWrapper().id).not.toBe(retiredSession.id);
     const service = main("jupyter-view").provideJupyterAdapter();
@@ -352,5 +450,22 @@ describe("seven-package Jupyter lifecycle", () => {
             : peerModule(name, "output-renderer").get();
       expect(actual).withContext(name).toBe(output);
     }
+    const provider = main("jupyter-repl").provideJupyterKernel();
+    const execution = main("jupyter-repl").provideJupyterExecution();
+    const prompt = main("jupyter-prompt");
+    const oldKernel = prompt.consumeJupyterKernel(provider);
+    const currentKernel = prompt.consumeJupyterKernel(provider);
+    const oldExecution = prompt.consumeJupyterExecution(execution);
+    const currentExecution = prompt.consumeJupyterExecution(execution);
+    const monitor = main("jupyter-monitor");
+    const oldMonitor = monitor.consumeJupyterKernel(provider);
+    const currentMonitor = monitor.consumeJupyterKernel(provider);
+    edges.push(currentKernel, currentExecution, currentMonitor);
+    oldKernel.dispose();
+    oldExecution.dispose();
+    oldMonitor.dispose();
+    expect(prompt.getKernelProvider()).toBe(provider);
+    expect(prompt.getExecutionService()).toBe(execution);
+    expect(monitor.deserializeMonitorPane().component.provider).toBe(provider);
   });
 });
