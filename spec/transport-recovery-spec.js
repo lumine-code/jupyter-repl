@@ -139,6 +139,33 @@ describe("the local shell request coordinator", () => {
     expect(kernel._activeShellRequest).toBe("execute_1");
   });
 
+  it("removes a disposed queued observation before it can reach the socket", async () => {
+    request(kernel, "execute_request", "active", () => {}, false);
+    request(kernel, "execute_request", "cancelled", () => {}, false);
+    const observation = kernel._shellRequests().observation("cancelled");
+    expect(observation.cancelQueued()).toBe(true);
+    expect(kernel.executionCallbacks.cancelled).toBeUndefined();
+    kernel.onShellMessage(reply("active"));
+    kernel.onIOMessage(status("active", "idle"));
+    await settleMicrotasks();
+    expect(kernel.shellSocket.sent.length).toBe(1);
+    expect(kernel._shellQueue).toEqual([]);
+  });
+
+  it("drops a sent observer while keeping the ledger until both terminal halves", async () => {
+    const seen = [];
+    request(kernel, "complete_request", "active", (message) => seen.push(message));
+    const entry = kernel.executionCallbacks.active;
+    kernel._shellRequests().observation("active").dispose();
+    expect(kernel.executionCallbacks.active).toBe(entry);
+    kernel.onShellMessage(reply("active", "complete_request"));
+    expect(kernel.executionCallbacks.active).toBe(entry);
+    kernel.onIOMessage(status("active", "idle", "complete_request"));
+    await settleMicrotasks();
+    expect(seen).toEqual([]);
+    expect(kernel.executionCallbacks.active).toBeUndefined();
+  });
+
   it("supersedes queued autocomplete requests before they reach ZMQ", () => {
     request(kernel, "complete_request", "complete_1");
     const second = [];
@@ -583,12 +610,13 @@ describe("the local shell request coordinator", () => {
     kernel.restart = async () => true;
     const facade = new Kernel(kernel);
     const api = new JupyterKernel(facade);
-    const execution = api.execute("side_effect()");
+    const execution = api.request({ type: "execute", purpose: "user", code: "side_effect()" });
+    await Promise.resolve();
 
     await facade.restart();
-    const result = await execution;
+    const result = await execution.done;
 
-    expect(result.status).toBe("error");
+    expect(result.status).toBe("unknown");
     expect(result.error.ename).toBe("ExecutionOutcomeUnknown");
   });
 

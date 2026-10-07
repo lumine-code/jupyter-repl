@@ -89,7 +89,7 @@ describe("real JupyterKernel wrapper teardown", () => {
 // a stream output holds its content in `text` and an error output in
 // ename/evalue/traceback, so everything printed and every traceback went
 // missing, while the execution_count control message was pushed as output.
-describe("JupyterKernel#execute", () => {
+describe("Jupyter session execution requests", () => {
   const JupyterKernel = require("../lib/plugin-api/jupyter-kernel");
 
   let internal, wrapper, emit;
@@ -113,7 +113,9 @@ describe("JupyterKernel#execute", () => {
   });
 
   it("keeps what the code printed", async () => {
-    const answer = wrapper.execute("print('hello')");
+    const request = wrapper.request({ type: "execute", purpose: "user", code: "print('hello')" });
+    const answer = request.done;
+    await Promise.resolve();
     emit({ data: 1, stream: "execution_count" });
     emit(STREAM);
     emit({ data: "ok", stream: "status" });
@@ -126,7 +128,13 @@ describe("JupyterKernel#execute", () => {
   });
 
   it("keeps a rich result alongside a stream", async () => {
-    const answer = wrapper.execute("print('hello'); 42");
+    const request = wrapper.request({
+      type: "execute",
+      purpose: "user",
+      code: "print('hello'); 42",
+    });
+    const answer = request.done;
+    await Promise.resolve();
     emit(STREAM);
     emit(RESULT);
     emit({ data: "ok", stream: "status" });
@@ -136,7 +144,13 @@ describe("JupyterKernel#execute", () => {
   });
 
   it("keeps the traceback, and reports the error on its own", async () => {
-    const answer = wrapper.execute("raise ValueError('no')");
+    const request = wrapper.request({
+      type: "execute",
+      purpose: "user",
+      code: "raise ValueError('no')",
+    });
+    const answer = request.done;
+    await Promise.resolve();
     emit(ERROR);
     emit({ data: "error", stream: "status" });
     emit({ output_type: "status", execution_state: "idle" });
@@ -152,7 +166,9 @@ describe("JupyterKernel#execute", () => {
   });
 
   it("does not mistake the execution count for output", async () => {
-    const answer = wrapper.execute("1");
+    const request = wrapper.request({ type: "execute", purpose: "user", code: "1" });
+    const answer = request.done;
+    await Promise.resolve();
     emit({ data: 7, stream: "execution_count" });
     emit({ data: "ok", stream: "status" });
     emit({ output_type: "status", execution_state: "idle" });
@@ -164,7 +180,13 @@ describe("JupyterKernel#execute", () => {
 
   it("collects late IOPub output when the shell reply arrives first", async () => {
     let settled = false;
-    const answer = wrapper.execute("print('hello'); 42");
+    const request = wrapper.request({
+      type: "execute",
+      purpose: "user",
+      code: "print('hello'); 42",
+    });
+    const answer = request.done;
+    await Promise.resolve();
     answer.then(() => {
       settled = true;
     });
@@ -184,7 +206,13 @@ describe("JupyterKernel#execute", () => {
   });
 
   it("keeps an error that arrives after its shell reply", async () => {
-    const answer = wrapper.execute("raise ValueError('no')");
+    const request = wrapper.request({
+      type: "execute",
+      purpose: "user",
+      code: "raise ValueError('no')",
+    });
+    const answer = request.done;
+    await Promise.resolve();
     emit({ data: "error", stream: "status" });
     emit(ERROR);
     emit({ output_type: "status", execution_state: "idle" });
@@ -194,7 +222,9 @@ describe("JupyterKernel#execute", () => {
   });
 
   it("also settles when the IOPub idle arrives before the reply", async () => {
-    const answer = wrapper.execute("1");
+    const request = wrapper.request({ type: "execute", purpose: "user", code: "1" });
+    const answer = request.done;
+    await Promise.resolve();
     emit(RESULT);
     emit({ output_type: "status", execution_state: "idle" });
     emit({ data: "ok", stream: "status" });
@@ -206,9 +236,15 @@ describe("JupyterKernel#execute", () => {
     spyOn(internal, "execute").and.throwError("middleware failed");
     spyOn(window, "clearTimeout").and.callThrough();
 
-    await expectAsync(wrapper.execute("1", { timeoutMs: 5000 })).toBeRejectedWithError(
-      "middleware failed",
-    );
+    const request = wrapper.request({
+      type: "execute",
+      purpose: "user",
+      code: "1",
+      timeoutMs: 5000,
+    });
+    const result = await request.done;
+    expect(result.status).toBe("error");
+    expect(result.error.evalue).toBe("middleware failed");
 
     expect(window.clearTimeout).toHaveBeenCalled();
   });
@@ -219,7 +255,14 @@ describe("JupyterKernel#execute", () => {
     // Without a timeout the promise stays pending for the life of the window,
     // which is what `while True:` in a cell used to do to every caller.
     it("gives up, keeping whatever arrived", async () => {
-      const answer = wrapper.execute("while True: pass", { timeoutMs: 20 });
+      const request = wrapper.request({
+        type: "execute",
+        purpose: "user",
+        code: "while True: pass",
+        timeoutMs: 20,
+      });
+      const answer = request.done;
+      await Promise.resolve();
       emit(STREAM);
 
       const { status, outputs } = await answer;
@@ -228,7 +271,14 @@ describe("JupyterKernel#execute", () => {
     });
 
     it("does not give up on a kernel that answers in time", async () => {
-      const answer = wrapper.execute("1", { timeoutMs: 5000 });
+      const request = wrapper.request({
+        type: "execute",
+        purpose: "user",
+        code: "1",
+        timeoutMs: 5000,
+      });
+      const answer = request.done;
+      await Promise.resolve();
       emit({ data: "ok", stream: "status" });
       emit({ output_type: "status", execution_state: "idle" });
 
@@ -239,7 +289,14 @@ describe("JupyterKernel#execute", () => {
     // here — but nothing will read this array again. The runaway loop a
     // timeout exists for would fill it until the kernel was restarted.
     it("stops collecting output once it has given up", async () => {
-      const answer = wrapper.execute("while True: print(1)", { timeoutMs: 20 });
+      const request = wrapper.request({
+        type: "execute",
+        purpose: "user",
+        code: "while True: print(1)",
+        timeoutMs: 20,
+      });
+      const answer = request.done;
+      await Promise.resolve();
       emit(STREAM);
       const { outputs } = await answer;
       expect(outputs.length).toBe(1);
@@ -254,7 +311,14 @@ describe("JupyterKernel#execute", () => {
     // A late reply must not resolve a promise that already settled as a
     // timeout, nor undo the guard above.
     it("ignores a reply that arrives after it gave up", async () => {
-      const answer = wrapper.execute("slow()", { timeoutMs: 20 });
+      const request = wrapper.request({
+        type: "execute",
+        purpose: "user",
+        code: "slow()",
+        timeoutMs: 20,
+      });
+      const answer = request.done;
+      await Promise.resolve();
       const settled = await answer;
       expect(settled.status).toBe("timeout");
 
@@ -384,45 +448,6 @@ describe("jupyter.kernel service", () => {
     expect(one.destroyed).toBe(true);
     expect(two.destroyed).toBe(true);
   });
-
-  it("reads the injected store and cells through their current accessors", () => {
-    const first = fakeInternalKernel("Python 3");
-    const second = fakeInternalKernel("R");
-    const editor = {};
-    let injectedStore = { kernel: first, editor, runningKernels: [first] };
-    let cells = {
-      getCurrentCell: jasmine.createSpy("current cell").and.returnValue({ row: 4 }),
-    };
-    const injected = new JupyterProvider(emitter, {
-      getStore: () => injectedStore,
-      getCellsService: () => cells,
-      getAdapterServices: () => [],
-    });
-
-    expect(injected.getActiveKernel()).toBe(first.getPluginWrapper());
-    expect(injected.getCellRange()).toEqual({ row: 4 });
-    expect(cells.getCurrentCell).toHaveBeenCalledWith(editor);
-
-    injectedStore = { kernel: second, editor: null, runningKernels: [second] };
-    cells = null;
-    expect(injected.getActiveKernel()).toBe(second.getPluginWrapper());
-    expect(injected.getRunningKernels()).toEqual([second.getPluginWrapper()]);
-    expect(injected.getCellRange()).toBeNull();
-  });
-
-  it("retains the legacy adapter accessor constructor", () => {
-    const adapters = [{}];
-    const editor = {};
-    spyOn(lumine.workspace, "getFocusedTextEditor").and.returnValue(null);
-    const focused = spyOn(
-      require("../lib/adapter-integration"),
-      "getAdapterFocusedEditor",
-    ).and.returnValue(editor);
-    const legacy = new JupyterProvider(emitter, () => adapters);
-
-    expect(legacy.getFocusedEditor()).toBe(editor);
-    expect(focused).toHaveBeenCalledWith(adapters);
-  });
 });
 
 describe("introspection through the plugin API", () => {
@@ -445,29 +470,46 @@ describe("introspection through the plugin API", () => {
 
   it("resolves a completion that is never answered", async () => {
     const kernel = new JupyterKernel(silentKernel());
-    const pending = kernel.complete("np.a", { timeoutMs: 50 });
+    const pending = kernel.request({
+      type: "complete",
+      purpose: "query",
+      code: "np.a",
+      timeoutMs: 50,
+    }).done;
+    await Promise.resolve();
 
     await advanceTo(50);
 
-    await expectAsync(pending).toBeResolvedTo({ status: "timeout", matches: [] });
+    expect((await pending).status).toBe("timeout");
+    expect((await pending).data).toEqual({ matches: [] });
   });
 
   it("resolves an inspection that is never answered", async () => {
     const kernel = new JupyterKernel(silentKernel());
-    const pending = kernel.inspect("np.array", 8, { timeoutMs: 50 });
+    const pending = kernel.request({
+      type: "inspect",
+      purpose: "query",
+      code: "np.array",
+      cursorPos: 8,
+      timeoutMs: 50,
+    }).done;
+    await Promise.resolve();
 
     await advanceTo(50);
 
-    await expectAsync(pending).toBeResolvedTo({ status: "timeout", data: {}, found: false });
+    expect((await pending).status).toBe("timeout");
+    expect((await pending).data).toEqual({ data: {}, found: false });
   });
 
   it("defaults to a timeout even when none is asked for", async () => {
     const kernel = new JupyterKernel(silentKernel());
-    const pending = kernel.complete("np.a");
+    const pending = kernel.request({ type: "complete", purpose: "query", code: "np.a" }).done;
+    await Promise.resolve();
 
     await advanceTo(JupyterKernel.INTROSPECT_TIMEOUT_MS);
 
-    await expectAsync(pending).toBeResolvedTo({ status: "timeout", matches: [] });
+    expect((await pending).status).toBe("timeout");
+    expect((await pending).data).toEqual({ matches: [] });
   });
 
   it("hands back the kernel's own answer when it arrives first", async () => {
@@ -475,7 +517,9 @@ describe("introspection through the plugin API", () => {
       complete: (code, callback) => callback({ matches: ["np.array"] }),
     });
 
-    await expectAsync(kernel.complete("np.a")).toBeResolvedTo({ matches: ["np.array"] });
+    const result = await kernel.request({ type: "complete", purpose: "query", code: "np.a" }).done;
+    expect(result.status).toBe("ok");
+    expect(result.data).toEqual({ matches: ["np.array"] });
   });
 
   it("ignores an answer that arrives after the timeout", async () => {
@@ -485,12 +529,19 @@ describe("introspection through the plugin API", () => {
         answer = callback;
       },
     });
-    const pending = kernel.complete("np.a", { timeoutMs: 50 });
+    const pending = kernel.request({
+      type: "complete",
+      purpose: "query",
+      code: "np.a",
+      timeoutMs: 50,
+    }).done;
+    await Promise.resolve();
 
     await advanceTo(50);
     answer({ matches: ["too late"] });
 
-    await expectAsync(pending).toBeResolvedTo({ status: "timeout", matches: [] });
+    expect((await pending).status).toBe("timeout");
+    expect((await pending).data).toEqual({ matches: [] });
   });
 
   it("waits indefinitely when the timeout is turned off", async () => {
@@ -498,9 +549,11 @@ describe("introspection through the plugin API", () => {
     let settled = false;
     const kernel = new JupyterKernel(silentKernel());
 
-    kernel.complete("np.a", { timeoutMs: 0 }).then(() => {
-      settled = true;
-    });
+    kernel
+      .request({ type: "complete", purpose: "query", code: "np.a", timeoutMs: 0 })
+      .done.then(() => {
+        settled = true;
+      });
     await advanceTo(JupyterKernel.INTROSPECT_TIMEOUT_MS * 10);
 
     expect(settled).toBe(false);

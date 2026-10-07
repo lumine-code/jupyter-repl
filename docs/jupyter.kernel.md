@@ -1,19 +1,15 @@
 # jupyter.kernel
 
-Reads the running Jupyter kernels: which one is active, which exist, when that changes, and what each can be asked.
+Owns the running Jupyter sessions and exposes requests with explicit observation lifetimes.
 
-|             |                                                               |
-| ----------- | ------------------------------------------------------------- |
-| Version     | `1.0.0`                                                       |
-| Provided by | `provideJupyterKernel()` returning the kernel provider        |
-| Consumed by | `consumeJupyterKernel(kernel)`                                |
-| Owner       | [`jupyter-repl`](https://github.com/lumine-code/jupyter-repl) |
-
-This is the extension point for anything that follows the REPL's kernels — a status indicator, a variable inspector, a package that runs its own code against the same session.
+|             |                                                         |
+| ----------- | ------------------------------------------------------- |
+| Version     | `1.0.0` provided, `^1.0.0` consumed                     |
+| Provided by | `provideJupyterKernel()` returning the session provider |
+| Consumed by | `consumeJupyterKernel(provider)`                        |
+| Owner       | `jupyter-repl`                                          |
 
 ## Registration
-
-In your `package.json`:
 
 ```json
 {
@@ -25,136 +21,103 @@ In your `package.json`:
 }
 ```
 
-Service consumption is passive: declaring this service never activates jupyter-repl. The provider is available when jupyter-repl is enabled and bootstrapped; a consumer can await `lumine.packages.requestService("jupyter.kernel", "^1.0.0")` to check whether a compatible provider is currently published, then use the handle supplied to its consumer method.
+Consumption is passive. The provider is published synchronously during the package bootstrap; consumers can check availability with `lumine.packages.requestService("jupyter.kernel", "^1.0.0")`. They retain the handle passed to their consumer method and release it when that service edge is revoked.
 
 ## Contract
 
 ```ts
-type JupyterProvider = {
-  getActiveKernel(): JupyterKernel | null;
-  getRunningKernels(): JupyterKernel[];
-  getFilesForKernel(kernel: JupyterKernel): string[];
-  getCellRange(): Range | null;
-  getFocusedEditor(): TextEditor | null;
-  getExpressionAtCursor(editor?: TextEditor): string;
-  onDidChangeKernel(callback: (kernel: JupyterKernel | null) => void): Disposable;
-  observeActiveKernel(callback: (kernel: JupyterKernel | null) => void): Disposable;
-  onDidAddKernel(callback: (kernel: JupyterKernel) => void): Disposable;
-  onDidRemoveKernel(callback: (kernel: JupyterKernel) => void): Disposable;
+type SessionProvider = {
+  getActiveKernel(): Session | null;
+  getKernelForEditor(editor: TextEditor): Session | null;
+  getKernelForItem(item: object): Session | null;
+  getRunningKernels(): Session[];
+  getFilesForKernel(session: Session): string[];
+  observeActiveKernel(callback: (session: Session | null) => void): Disposable;
+  onDidChangeKernel(callback: (session: Session | null) => void): Disposable;
+  onDidAddKernel(callback: (session: Session) => void): Disposable;
+  onDidRemoveKernel(callback: (session: Session) => void): Disposable;
   onDidChangeKernels(callback: () => void): Disposable;
   shutdownAllKernels(): Disposable;
 };
-```
 
-Required members:
+type RequestDescriptor = {
+  type: "execute" | "inspect" | "complete";
+  purpose: "user" | "query";
+  code: string;
+  cursorPos?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+};
 
-| Member                          | Description                                                                  |
-| ------------------------------- | ---------------------------------------------------------------------------- |
-| `getActiveKernel()`             | The kernel for the active editor, or `null` when none is running.            |
-| `getRunningKernels()`           | Every kernel in this window, in the order they started.                      |
-| `onDidChangeKernel(callback)`   | Fires when the active kernel changes, including to `null`.                   |
-| `observeActiveKernel(callback)` | Calls back with the current active kernel immediately, then on every change. |
-| `onDidChangeKernels(callback)`  | Fires when the set of kernels changes, or the files any of them is bound to. |
+type RequestOutcome = {
+  status: "ok" | "error" | "timeout" | "cancelled" | "unavailable" | "unknown";
+  outputs: NotebookOutput[];
+  executionCount: number | null;
+  durationMs: number | null;
+  error?: { ename: string; evalue: string; traceback: string[] };
+  data?: object;
+};
 
-Optional members:
-
-| Member                        | Description                                                                     |
-| ----------------------------- | ------------------------------------------------------------------------------- |
-| `getFilesForKernel(kernel)`   | The files a kernel serves. An unsaved editor appears as `Unsaved Editor <id>`.  |
-| `getCellRange()`              | The buffer range of the cell containing the cursor, or `null` outside any cell. |
-| `getFocusedEditor()`          | The editor a code-reading command should act on, including a notebook's cell.   |
-| `getExpressionAtCursor()`     | The expression under the cursor, as this package parses one. `""` when none.    |
-| `onDidAddKernel(callback)`    | Fires when a kernel starts.                                                     |
-| `onDidRemoveKernel(callback)` | Fires when a kernel goes away.                                                  |
-| `shutdownAllKernels()`        | Shuts down every kernel. For a consumer that owns the window, not for a panel.  |
-
-Each kernel is a `JupyterKernel`:
-
-The id is an opaque UUID-backed identity shared by every consumer, including MCP tools. It stays stable for the live kernel facade and is never reused for a new kernel after package reload or in another editor window. Compare IDs as complete strings; do not parse a sequence number or substitute a kernelspec display name.
-
-```ts
-type JupyterKernel = {
-  // identity
+type RequestHandle = {
   readonly id: string;
+  readonly generation: number;
+  readonly status: "queued" | "running" | RequestOutcome["status"];
+  readonly executionCount: number | null;
+  readonly durationMs: number | null;
+  readonly done: Promise<RequestOutcome>;
+  onDidOutput(callback: (output: NotebookOutput | OutputControl) => void): Disposable;
+  onDidChange(
+    callback: (state: {
+      status: RequestHandle["status"];
+      executionCount: number | null;
+      durationMs: number | null;
+    }) => void,
+  ): Disposable;
+  dispose(): void;
+};
+
+type Session = {
+  readonly id: string;
+  readonly generation: number;
+  readonly destroyed: boolean;
+  readonly connectionState:
+    "loading" | "ready" | "recovering" | "unresponsive" | "restarting" | "shutting-down" | "dead";
+  readonly executionState: string;
+  readonly executionCount: number;
+  readonly lastExecutionTime: string;
+  readonly executionStartTime: number | null;
   readonly displayName: string;
   readonly language: string;
   readonly languageInfo: object | null;
   readonly grammar: Grammar;
   readonly kernelSpec: object;
-  getConnectionFile(): string;
-
-  // running code
-  execute(
-    code: string,
-    options?: { timeoutMs?: number },
-  ): Promise<{
-    status: "ok" | "error" | "timeout";
-    outputs: object[];
-    executionCount: number | null;
-    error?: { ename: string; evalue: string; traceback: string[] };
-  }>;
-  executeWithCallback(code: string, onResults: (result: object) => void): void;
-  executeWatch(code: string, onResults: (result: object) => void): void;
-  complete(code: string, options?: { timeoutMs?: number }): Promise<object>;
-  inspect(
-    code: string,
-    cursorPos: number,
-    options?: { timeoutMs?: number },
-  ): Promise<{
-    data: object;
-    found: boolean;
-    status?: "error" | "timeout";
-    ename?: string;
-    evalue?: string;
-  }>;
-
-  // state — kernel-wide: every field follows the kernel process across all of
-  // its clients, so a cell run from a `jupyter console` attached to the same
-  // kernel moves them exactly like one run from this editor
-  readonly executionState: string;
-  readonly executionCount: number;
-  readonly lastExecutionTime: string;
-  readonly executionStartTime: number | null;
+  isDestroyed(): boolean;
+  request(descriptor: RequestDescriptor): RequestHandle;
+  onDidChangeGeneration(callback: (generation: number) => void): Disposable;
+  onDidChangeConnectionState(callback: (state: Session["connectionState"]) => void): Disposable;
   onDidChangeExecutionState(callback: (state: string) => void): Disposable;
   onDidChangeStatus(callback: () => void): Disposable;
   onDidBecomeIdle(callback: () => void): Disposable;
   onDidDestroy(callback: () => void): Disposable;
-
-  // control
   interrupt(): void;
-  restart(onRestarted?: () => void): Promise<boolean>;
-  shutdown(): Promise<void>; // shuts down AND releases: the kernel leaves the running list
-  addMiddleware(middleware: object): void;
+  restart(): Promise<boolean>;
+  shutdown(): Promise<void>;
+  disconnect(): void;
+  getConnectionFile(): string | null;
 };
 ```
 
-`id` is stable for the life of the kernel and unique within the window. Name a kernel by it rather than by `displayName`, which two Python 3 kernels share, or by `getConnectionFile()`, which throws for a kernel reached over a websocket.
+All listed members are required. A session is a stable public handle; it exposes no transport, internal kernel, middleware chain or mutable request registry. Its opaque UUID identity remains readable after destruction. Generation identifies the connection/process lifetime that produced a request or source receipt and changes when that lifetime retires. Compare complete identities; display names and execution counts alone are not identities.
 
-`languageInfo` is the last complete `language_info` object reported by `kernel_info_reply`. `language` uses its `name` when available and falls back to the kernelspec while the process has not replied yet, so consumers see the language that actually started rather than stale discovery metadata.
+`request()` returns immediately and sends on the next microtask, allowing subscriptions to observe even a synchronous answer. Both subscription methods report future changes without replaying old events. `done` resolves once for runtime failures as well as success; invalid descriptor types, purposes or source values throw a `TypeError` before any request is sent.
 
-`execute`'s `outputs` are **notebook-format outputs** — `stream`, `execute_result`, `display_data`, `error` — in the order they arrived, ready for `jupyter.output`'s `getOutputPlainText` or its renderers. A failed execution also reports `error` separately, lifted from the `error` output.
+An execute request settles after its shell reply and trailing IOPub idle, in either order. Its output events carry notebook-format `stream`, `execute_result`, `display_data` and `error` records, plus `clear_output` and `update_display_data` controls. Execution count and lifecycle status arrive through `onDidChange`; they are never output records. `done.outputs` is the current notebook-format bundle after stream aggregation, clears and display updates. Each observer owns its records; reducing a bundle does not mutate the incoming message or another consumer's store.
 
-**`execute` normally settles after both the kernel's reply and its trailing IOPub idle.** The two channels can arrive in either order; waiting for both keeps outputs and execution counts that reach the client after the reply. Code that never finishes — a `while True:`, a blocked socket — leaves the promise pending for the life of the window unless you pass `timeoutMs`, which resolves with `status: "timeout"` and whatever outputs arrived. The kernel goes on running either way: stopping it is `interrupt()`, and that is a decision for the caller, since a long execution may be doing exactly what the user asked for. A transport recovery failure also settles the promise with `status: "error"` as described below.
+A complete request puts its kernel reply in `outcome.data`, including `matches`, `cursor_start` and `cursor_end` when supplied. An inspect request uses `outcome.data = { data: MimeBundle, found: boolean, ...replyFields }`. Timeouts and unavailable sessions carry empty fallback payloads: `{ matches: [] }` for complete and `{ data: {}, found: false }` for inspect. `cursorPos` selects the inspected position and defaults to the end of the submitted code.
 
-Transport recovery failures use the same result channel as kernel errors; these methods do not reject their promises. `execute` returns the name in `error.ename`, includes a notebook `error` in `outputs`, and supplies an empty `traceback`; `executeWithCallback` receives that error followed by its terminal status. `complete` and `inspect` resolve with `status: "error"`, `ename`, and `evalue`, while preserving their normal empty fallback shape.
+`purpose: "user"` records ordinary execution history. `purpose: "query"` is for watches and inspection helpers: it does not record execution history, allows no stdin prompt and suppresses the idle refetch loop caused by the query itself. The session-wide state and execution count still describe the shared kernel process; a request's own count and duration describe only that request. Other clients attached to the kernel also change the session state.
 
-| Error                     | Meaning                                                                                                                                                    |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ExecutionCancelled`      | The request was still in the client queue and was certainly not sent.                                                                                      |
-| `ExecutionOutcomeUnknown` | An execution was sent but never acknowledged before the connection was quarantined. It may have run, so do not automatically retry code with side effects. |
-| `KernelUnresponsive`      | The transport is recovering or quarantined and rejected a new request without sending it. Restart or shut down the kernel before issuing more work.        |
-
-**`complete` and `inspect` time out by default**, unlike `execute`, and the asymmetry is deliberate: a long execution may be doing exactly what the user asked, but a kernel answers an introspection request in milliseconds or not at all. They give up after 10 seconds and resolve with `status: "timeout"` — an empty `matches` for `complete`, `found: false` for `inspect` — so a caller that never checks `status` reads a timeout as "nothing found" rather than throwing. Pass `timeoutMs: 0` to wait indefinitely. `inspect` also carries `status: "error"` with `ename`/`evalue` when the kernel went away mid-request, which is the only thing distinguishing that from a kernel that looked and knew nothing.
-
-**A middleware that implements `shutdown` must return the promise of the shutdown it performs** — the editor destroys the kernel, SIGKILL included, the moment that promise settles, so a middleware returning `undefined` turns every graceful shutdown back into a kill.
-
-**`shutdown` both asks and releases**, and its promise settles once the kernel is actually gone. Await it if you are about to start another kernel in its place; a local kernel is given a couple of seconds to run its own teardown — `atexit` handlers, flushed buffers, released handles — and killed if it overruns.
-
-`executeWatch` is the one to reach for when a panel asks the kernel a question rather than running the user's code: it takes no execution number and does not move the status bar's counter or timer.
-
-`onDidBecomeIdle` fires when the kernel finishes a cell — any client's, not only this editor's. Bursts are debounced into one call, and the idles produced by `executeWatch` refetches themselves are skipped, so refetching on this signal cannot feed back into itself.
-
-`executionState` includes the process states reported by Jupyter and three client-side transport states. `queued` means this client accepted an execution but the kernel has not acknowledged it yet; it may still be waiting in the client-side single-flight queue. `recovering` means the kernel stayed idle and silent long enough for the client to probe the connection; `unresponsive` means recovery failed and the connection is quarantined until a manual restart or shutdown. New work must not be sent in either recovery state, and `unresponsive` never returns to `idle` merely because a late message arrives.
+User execution has no default timeout. Complete, inspect and query execution default to 10 seconds; `timeoutMs: 0` waits indefinitely. A timeout stops this caller's observation and accumulation, clears its subscriptions and timers, and releases callback references. It never interrupts already sent code.
 
 ## Minimal example
 
@@ -163,52 +126,54 @@ const { CompositeDisposable, Disposable } = require("lumine");
 
 module.exports = {
   consumeJupyterKernel(provider) {
-    const disposables = new CompositeDisposable();
-    this.follow(provider.getActiveKernel());
-    disposables.add(
-      provider.onDidChangeKernel((kernel) => this.follow(kernel)),
-      new Disposable(() => this.follow(null)),
-    );
-    return disposables;
+    this.provider = provider;
+    this.requests = new Set();
+    return new Disposable(() => {
+      for (const request of this.requests) request.dispose();
+      this.requests.clear();
+      this.provider = null;
+    });
   },
 
-  follow(kernel) {
-    this.kernelSubscription?.dispose();
-    this.kernelSubscription = kernel?.onDidBecomeIdle(() => this.refresh(kernel));
-    this.refresh(kernel);
+  async run(code) {
+    const session = this.provider?.getActiveKernel();
+    if (!session) return;
+    const request = session.request({ type: "execute", purpose: "user", code });
+    this.requests.add(request);
+    const subscriptions = new CompositeDisposable(
+      request.onDidOutput((output) => this.appendOutput(output)),
+      request.onDidChange((state) => this.updateState(state)),
+    );
+    try {
+      const outcome = await request.done;
+      if (session.generation === request.generation && !session.isDestroyed()) {
+        this.finish(outcome);
+      }
+    } finally {
+      subscriptions.dispose();
+      request.dispose();
+      this.requests.delete(request);
+    }
   },
 };
 ```
 
 ## Behavior
 
-The provider is **created lazily on first request** — the kernel plugin API is not loaded until something asks for it — so consuming the service has a small one-off cost and no effect on startup.
+`getActiveKernel()` follows the active center document, including notebook adapters and pane items that declare `getJupyterKernel()`. Those items may also declare `onDidChangeJupyterKernel(callback)`. Explicit editor/item lookup returns that document's session independently of whichever document is active later. A fileless text editor appears as `Unsaved Editor <id>` in the provider's file list. Source parsing, cell selection and focused editor lookup belong to `jupyter.context` and `jupyter.cells`.
 
-`getActiveKernel()` is scoped to the active editor, not to the window. Switching tabs can change the answer without any kernel starting or stopping, and it answers `null` rather than throwing when nothing is running.
+`observeActiveKernel()` immediately reports the current session, then changes; the `onDid...` methods never replay. `onDidChangeKernels()` reports membership and binding changes. `onDidBecomeIdle()` follows work completed by any kernel client, coalesces bursts, and skips refetches produced by queries themselves.
 
-None of the `onDid…` methods replay on subscribe. Read the current value first, as the example does.
+Connection lifecycle is separate from the execution state of the shared process. A recovering or unresponsive connection refuses new requests with `unavailable`; late messages cannot release its quarantine. Recovery never resends user code. A sent execution with an unconfirmed outcome returns `unknown` and an `ExecutionOutcomeUnknown` error; retrying it could repeat side effects. A queued execution known not to have been sent returns `cancelled` with `ExecutionCancelled`.
 
-A kernel is handed out as a wrapper, and the wrapper for a given kernel is stable, so it can be compared by identity. Every method on it throws once its kernel has been destroyed; subscribe to `onDidDestroy` if you hold one across time.
-
-`getCellRange()` reads from the cell model the jupyter-cells package provides, so it answers `null` when that package is not installed even though the file has `# %%` markers.
-
-`getFocusedEditor()` prefers the focused editor over the active pane item, so it finds the cell editors a notebook renders — the workspace does not report those. `getExpressionAtCursor()` defaults to it, which is why a panel gets the same answer the REPL itself would give instead of parsing the buffer again.
-
-## Pane items with a kernel of their own
-
-A panel that shows the output of one particular kernel is not necessarily looking at the active editor's. Such a pane item may say so, and the provider will report it as the active kernel while the item is the active **center** item:
-
-| Member                               | Description                                                                                                  |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `getJupyterKernel()`                 | The kernel this item is showing, or `null`. Required to opt in.                                              |
-| `onDidChangeJupyterKernel(callback)` | Fires when that answer changes. Optional, but without it a change goes unnoticed until the active item does. |
-
-This is asked of the item rather than matched against a list of URIs, so a panel in another package participates without `jupyter-repl` knowing it exists. Return the kernel exactly as the service handed it over; an item in a dock is never the active center item, so a dock-only panel has no reason to implement this.
+`shutdown()` both asks the process to stop and releases the session, and its promise settles after graceful shutdown or the bounded force-close fallback. `disconnect()` releases the client connection. Kernel resources belong to the runtime; closing a consumer panel is not a reason to shut down or disconnect a session.
 
 ## Teardown
 
-Return a `Disposable` that unsubscribes and drops your reference. The kernels belong to `jupyter-repl` — do not shut one down because your own panel is closing; the user may still be using it.
+The consumer owns every request it creates and every subscription it adds. Return a disposable that drops the provider edge, disposes those requests and removes the subscriptions. `request.dispose()` and its AbortSignal settle observation with `cancelled`. A request still waiting in the local queue is removed before sending; an already sent request continues running and its protocol ledger remains until its terminal messages retire it. Only explicit `session.interrupt()` interrupts the kernel.
+
+Restart, transport retirement and destruction invalidate pending observations and increment the session generation. Capture the session, request generation, target identity and source snapshot before asynchronous work; use those captured values to reject stale UI updates. Session retirement returns no-op subscriptions and refuses later work with `unavailable`.
 
 ## Versioning
 
-`1.0.0` provided, `^1.0.0` consumed. A change that breaks this shape gets a new service name rather than a new major version, and both sides move in the same release.
+`1.0.0` provided, `^1.0.0` consumed. This unreleased service is replaced together with all consumers when its contract changes; there are no legacy execution callbacks, compatibility aliases or parallel API versions.
