@@ -134,7 +134,9 @@ describe("remote query status ownership", () => {
     kernel = new Kernel(transport);
     session = kernel.getPluginWrapper();
     store = { kernel, subscriptions: new CompositeDisposable() };
-    autocomplete = require("../lib/services/provided/autocomplete").provideAutocomplete(store);
+    autocomplete = require("../lib/services/provided/autocomplete").provideAutocomplete(store, {
+      getKernelForEditor: () => store.kernel?.getPluginWrapper() || null,
+    });
   });
   afterEach(async () => {
     store.subscriptions.dispose();

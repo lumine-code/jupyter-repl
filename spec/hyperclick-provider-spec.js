@@ -20,6 +20,7 @@ describe("kernel source navigation through hyperclick", () => {
     target.setText("# module\ndef target():\n    return 1\n");
     kernel = {
       language: "python",
+      grammar: editor.getGrammar(),
       executionState: "idle",
       destroyed: false,
       transport: { lifecycle: "ready", _connectionGeneration: 1, _destroyed: false },
@@ -30,10 +31,16 @@ describe("kernel source navigation through hyperclick", () => {
     session = wrapSession(kernel);
     store = {
       globalMode: false,
+      getEmbeddedGrammar: (requestedEditor) => requestedEditor.getGrammar(),
       runningKernels: [kernel],
       kernelMapping: new Map([[`Unsaved Editor ${editor.id}`, kernel]]),
     };
-    context = { getStore: () => store, getAdapterServices: () => [], getIPythonSource: () => null };
+    context = { getAdapterServices: () => [], getIPythonSource: () => null };
+    const registry = new (require("../lib/plugin-api/jupyter-provider"))(new Emitter(), {
+      getStore: () => store,
+      getAdapterServices: () => context.getAdapterServices(),
+    });
+    context.getKernelForEditor = (requestedEditor) => registry.getKernelForEditor(requestedEditor);
     // Resolve this Package generation after bootstrap/lifecycle specs.
     query = spyOn(require("../lib/runtime-source"), "queryRuntimeSource").and.resolveTo(source());
     spyOn(fs, "stat").and.resolveTo({ isFile: () => true });
@@ -76,7 +83,11 @@ describe("kernel source navigation through hyperclick", () => {
   it("keeps the language-matched global kernel without changing the active editor", async () => {
     store.globalMode = true;
     store.kernelMapping.clear();
-    const unrelated = { language: "javascript", executionState: "idle" };
+    const unrelated = {
+      language: "javascript",
+      grammar: { name: "JavaScript", scopeName: "source.js" },
+      executionState: "idle",
+    };
     store.runningKernels = [unrelated, kernel];
     expect(await provider.getSuggestionForWord(editor, "alias", range())).toBeTruthy();
     expect(query.calls.argsFor(0)[0]).toBe(session);
@@ -231,6 +242,11 @@ describe("kernel source navigation through hyperclick", () => {
       getElement: () => ({ contains: (element) => element === lumine.views.getView(editor) }),
       resolveSourceFrame: jasmine.createSpy("resolve source").and.returnValue({ open }),
     };
+    const item = {
+      element: { contains: (element) => element === editor.element },
+      isDestroyed: () => false,
+    };
+    spyOn(lumine.workspace, "getPaneItems").and.returnValue([item]);
     context.getAdapterServices = () => [{ getAdapterForItem: () => adapter }];
     provider.dispose();
     provider = require("../lib/services/provided/hyperclick").createHyperclickProvider(context);

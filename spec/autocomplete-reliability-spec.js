@@ -29,7 +29,9 @@ describe("kernel autocomplete request lifetime", () => {
       },
     };
     wrapSession(store.kernel);
-    provider = provideAutocomplete(store);
+    provider = provideAutocomplete(store, {
+      getKernelForEditor: () => store.kernel?.getPluginWrapper() || null,
+    });
   });
 
   afterEach(() => store.subscriptions.dispose());
@@ -96,7 +98,11 @@ describe("kernel autocomplete request lifetime", () => {
   });
 
   it("tolerates an inspection reply with no documentation", async () => {
-    const pending = provider.getSuggestionDetailsOnSelect({ text: "print", replacedText: "print" });
+    const completing = suggestions();
+    await Promise.resolve();
+    replies.at(-1)({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
+    const [suggestion] = await completing;
+    const pending = provider.getSuggestionDetailsOnSelect(suggestion);
     await Promise.resolve();
     replies.at(-1)({ found: true });
     await expectAsync(pending).toBeResolvedTo(null);

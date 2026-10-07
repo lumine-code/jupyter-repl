@@ -126,7 +126,9 @@ describe("completion deadlines when a kernel becomes unavailable", () => {
       getCursorBufferPosition: () => ({ row: 0, column: 2 }),
     };
     wrapSession(kernel);
-    provider = require("../lib/services/provided/autocomplete").provideAutocomplete(store);
+    provider = require("../lib/services/provided/autocomplete").provideAutocomplete(store, {
+      getKernelForEditor: () => store.kernel?.getPluginWrapper() || null,
+    });
   });
   afterEach(() => {
     store.subscriptions.dispose();
@@ -138,8 +140,12 @@ describe("completion deadlines when a kernel becomes unavailable", () => {
     provider.getSuggestions({ editor, bufferPosition: { row: 0, column: 2 }, prefix: "a1" });
 
   it("settles completion and inspection immediately when the kernel is removed", async () => {
+    kernel.complete = (_code, reply) =>
+      reply({ matches: ["a100"], cursor_start: 0, cursor_end: 2 });
+    const [suggestion] = await completion();
+    kernel.complete = () => {};
     const pending = completion();
-    const detail = provider.getSuggestionDetailsOnSelect({ replacedText: "a1" });
+    const detail = provider.getSuggestionDetailsOnSelect(suggestion);
     store.kernel = null;
     events.emit("kernel", null);
     await expectAsync(pending).toBeResolvedTo(null);
