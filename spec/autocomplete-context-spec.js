@@ -194,7 +194,7 @@ describe("source assistance in the addressed editor's session", () => {
 
   it("resolves hyperclick source through the same public panel ownership lookup", async () => {
     const query = spyOn(require("../lib/runtime-source"), "queryRuntimeSource").and.resolveTo({
-      filename: "C:/work/panel.py",
+      filename: path.join(__dirname, "panel.py"),
       line: 1,
       source: "",
     });
