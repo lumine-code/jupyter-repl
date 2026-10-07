@@ -1,6 +1,6 @@
 const { Emitter, Disposable } = require("lumine");
 const etch = require("@lumine-code/etch");
-const { createKernelTools, MONITOR_URI } = require("../lib/ui/kernel-tools");
+let createKernelTools, MONITOR_URI;
 
 function fakeProvider(kernels = []) {
   const emitter = new Emitter();
@@ -20,6 +20,7 @@ function fakeProvider(kernels = []) {
 describe("owned kernel UI bootstrap and persistence", () => {
   let tools, provider, ensureEtch;
   beforeEach(() => {
+    ({ createKernelTools, MONITOR_URI } = require("../lib/ui/kernel-tools"));
     provider = fakeProvider();
     ensureEtch = jasmine
       .createSpy("ensure Etch")
@@ -90,9 +91,10 @@ describe("owned kernel UI bootstrap and persistence", () => {
 });
 
 describe("UI ownership of kernel input", () => {
-  const InputView = require("../lib/input-view");
   let tools, provider, emitter, views;
   beforeEach(async () => {
+    ({ createKernelTools } = require("../lib/ui/kernel-tools"));
+    const InputView = require("../lib/input-view");
     views = [];
     emitter = new Emitter();
     const session = {

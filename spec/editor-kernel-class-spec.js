@@ -17,16 +17,18 @@ describe("the jupyter-kernel editor class", () => {
   let directory;
   let previousEditor;
   let editors;
+  let kernels;
 
   beforeEach(async () => {
     editors = [];
-    store = require("../lib/store");
-    previousEditor = store.editor;
+    kernels = [];
     directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "jupyter-repl-class-")));
 
     const activation = lumine.packages.activatePackage(PACKAGE_PATH);
     lumine.commands.dispatch(lumine.views.getView(lumine.workspace), "jupyter-repl:debug-toggle");
     await activation;
+    store = require("../lib/store");
+    previousEditor = store.editor;
     Kernel = require("../lib/kernel");
   }, 30000);
 
@@ -34,6 +36,7 @@ describe("the jupyter-kernel editor class", () => {
     for (const editor of editors) {
       editor.destroy();
     }
+    for (const kernel of kernels) kernel.destroy();
     store.runningKernels = [];
     store.kernelMapping.clear();
     if (previousEditor && !previousEditor.isDestroyed()) {
@@ -53,8 +56,15 @@ describe("the jupyter-kernel editor class", () => {
   // `getFilesForKernel` narrows on `instanceof Kernel` before reading the
   // grammar off it, so a plain object would take the multi-language branch.
   function startKernelFor(filePath) {
-    const kernel = Object.create(Kernel.prototype);
-    kernel.transport = { grammar: { name: "Python" } };
+    const KernelTransport = require("../lib/kernel-transport");
+    const transport = new KernelTransport(
+      { name: "python3", language: "python", display_name: "Python" },
+      { name: "Python" },
+    );
+    transport.setLifecycle("ready");
+    transport.setExecutionState("idle");
+    const kernel = new Kernel(transport);
+    kernels.push(kernel);
     store.runningKernels.push(kernel);
     store.kernelMapping.set(filePath, kernel);
     return kernel;
