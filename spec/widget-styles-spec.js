@@ -150,4 +150,111 @@ describe("the widget stylesheets", () => {
       expect(injected).not.toContain("--jp-layout-color1:");
     });
   });
+
+  describe("theme color pairs in rendered controls", () => {
+    let host;
+    let bridge;
+    let palette;
+
+    function channels(value) {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext("2d");
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      return Array.from(context.getImageData(0, 0, 1, 1).data);
+    }
+
+    beforeEach(() => {
+      ensureWidgetStyles();
+      bridge = lumine.styles.addStyleSheet(fs.readFileSync(STYLESHEET, "utf8"), { priority: 0 });
+      host = document.createElement("div");
+      host.className = "jupyter-repl";
+      jasmine.attachToDOM(host);
+    });
+
+    afterEach(() => {
+      host.remove();
+      bridge.dispose();
+      palette?.dispose();
+      palette = null;
+      lumine.config.set("theme.accentSource", "theme");
+      lumine.themes.systemAccentColor = null;
+      lumine.themes.applyAccentColor();
+    });
+
+    it("keeps strong and muted widget text on the syntax palette in mixed UI and syntax themes", () => {
+      host.innerHTML =
+        '<div class="jupyter-widget-taginput">Tags</div><div class="jupyter-widget-Collapse-header">Header</div>';
+      for (const [ui, syntax, background, muted] of [
+        ["white", "rgb(16, 32, 48)", "white", [112, 121, 131, 255]],
+        ["black", "rgb(240, 240, 240)", "rgb(16, 32, 48)", [150, 157, 163, 255]],
+      ]) {
+        palette = lumine.styles.addStyleSheet(
+          `:root { --text-color: ${ui}; --text-color-subtle: ${ui}; --syntax-text-color: ${syntax}; --syntax-background-color: ${background}; }`,
+          { priority: 2 },
+        );
+        expect(getComputedStyle(host.firstElementChild).color).toBe(syntax);
+        expect(channels(getComputedStyle(host.lastElementChild).color)).toEqual(muted);
+        palette.dispose();
+        palette = null;
+      }
+    });
+
+    it("pairs status button and tag text with their fills independently of system accents", async () => {
+      palette = lumine.styles.addStyleSheet(
+        `:root {
+          --background-color-success: rgb(232, 249, 165);
+          --background-color-info: rgb(184, 215, 250);
+          --background-color-warning: rgb(249, 237, 172);
+          --background-color-error: rgb(54, 34, 17);
+          --text-color-success: rgb(1, 2, 3);
+          --text-color-info: rgb(2, 3, 4);
+          --text-color-warning: rgb(3, 4, 5);
+          --text-color-error: rgb(4, 5, 6);
+          --text-color-on-success: rgb(20, 30, 40);
+          --text-color-on-info: rgb(30, 40, 50);
+          --text-color-on-warning: rgb(40, 50, 60);
+          --text-color-on-error: rgb(210, 220, 230);
+        }`,
+        { priority: 2 },
+      );
+      spyOn(lumine.themes.applicationDelegate, "invokeApp").and.returnValue(
+        Promise.resolve("#123456"),
+      );
+      lumine.config.set("theme.accentSource", "system");
+      await lumine.themes.refreshSystemAccentColor();
+
+      for (const [kind, foreground, background, activeForeground, activeBackground] of [
+        ["success", "rgb(20, 30, 40)", "rgb(232, 249, 165)", [0, 0, 0, 255], [186, 199, 132, 255]],
+        ["info", "rgb(30, 40, 50)", "rgb(184, 215, 250)", [0, 0, 0, 255], [147, 172, 200, 255]],
+        ["warning", "rgb(40, 50, 60)", "rgb(249, 237, 172)", [0, 0, 0, 255], [199, 190, 138, 255]],
+        [
+          "danger",
+          "rgb(210, 220, 230)",
+          "rgb(54, 34, 17)",
+          [255, 255, 255, 255],
+          [43, 27, 14, 255],
+        ],
+      ]) {
+        for (const className of ["jupyter-button", "jupyter-widget-tag"]) {
+          const item = document.createElement(className === "jupyter-button" ? "button" : "div");
+          item.className = `${className} mod-${kind}`;
+          item.textContent = kind;
+          host.appendChild(item);
+          expect(getComputedStyle(item).color).withContext(item.className).toBe(foreground);
+          expect(getComputedStyle(item).backgroundColor).toBe(background);
+          if (item.tagName === "BUTTON") {
+            item.focus();
+            expect(getComputedStyle(item).color).toBe(foreground);
+            expect(getComputedStyle(item).backgroundColor).toBe(background);
+          }
+          item.classList.add("mod-active");
+          expect(channels(getComputedStyle(item).color)).toEqual(activeForeground);
+          expect(channels(getComputedStyle(item).backgroundColor)).toEqual(activeBackground);
+          item.remove();
+        }
+      }
+    });
+  });
 });
