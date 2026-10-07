@@ -185,6 +185,8 @@ Connection lifecycle is separate from the execution state of the shared process.
 
 `onDidRequestInput()` exposes a kernel input request without constructing a dialog. The UI owns the view and listens to the token's `onDidClose()` signal; `reply()` answers once and refuses a late answer after the execution, generation or session has retired. Input requests close on trailing idle, restart and destruction. The REPL's UI controller creates its dialog on demand and disposes the dialog independently of the transport.
 
+Remote query statuses are identified by their exact request and client IDs. Their own busy/idle and execution counter traffic do not cancel completion or trigger watch refetches; user work and other clients' work remain visible. Disposing an observation retains only its transport ownership metadata until reply and trailing idle. A remote connection keeps at most 64 such query identities and refuses further queries while that limit is full; reset and disconnect release them.
+
 ## Teardown
 
 The consumer owns every request it creates and every subscription it adds. Return a disposable that drops the provider edge, disposes those requests and removes the subscriptions. `request.dispose()` and its AbortSignal settle observation with `cancelled`. A request still waiting in the local queue is removed before sending; an already sent request continues running and its protocol ledger remains until its terminal messages retire it. Only explicit `session.interrupt()` interrupts the kernel.
