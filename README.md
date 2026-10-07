@@ -10,11 +10,11 @@ Supports Python, R, JavaScript, and other languages with rich output including p
 - **Rich media output**: renders Plotly, Vega, Bokeh and Panel charts, images, audio, video, HTTP(S) frames, safe HTML, Markdown, and LaTeX inline.
 - **Jupyter widgets**: renders core `ipywidgets`, `interact`, output widgets and ipympl against the kernel, with custom anywidget modules in isolated frames.
 - **Kernel intelligence**: autocomplete, object introspection, Python runtime source navigation through hyperclick, and a shared namespace with one kernel per language across files.
-- **Kernel management**: starts local kernels, connects to remote gateways, and manages all sessions from a kernel monitor.
+- **Kernel management**: starts local kernels, connects to remote gateways, and interrupts, restarts or shuts them down.
 - **Notebook adapters**: drives external notebook cells, such as jupyter-view's, through the `jupyter.adapter` service.
 - **MCP automation**: exposes explicit kernel and notebook execution with live UI results, source revision guards, bounded progress observation, and operation receipts that prevent duplicate runs.
 - **Typed source cells**: renders literal Markdown locally, skips raw cells, and preserves cell magic headers when running selected body fragments.
-- **Interactive prompt and console**: run one-off code with session history, or attach a console in an embedded or system terminal.
+- **Jupyter console**: attach a console in an embedded or system terminal.
 
 ## Installation
 
@@ -33,8 +33,6 @@ Commands available in `lumine-workspace`:
 - `jupyter-repl:recalculate-all-above-inline`: clear results, restart kernel, run all above inline,
 - `jupyter-repl:clear-results`: clear output results,
 - `jupyter-repl:clear-and-restart`: clear results and restart kernel,
-- `jupyter-repl:toggle-prompt-focus`: focus the prompt or return to the editor,
-- `jupyter-repl:toggle-kernel-monitor-focus`: focus the kernel monitor or return to the editor,
 - `jupyter-repl:toggle-output-area`: toggle output area mode,
 - `jupyter-repl:toggle-kernel-commands`: toggle the active kernel's command picker,
 - `jupyter-repl:start-local-kernel`: start a local kernel,
@@ -68,19 +66,6 @@ Commands available in `.jupyter-repl.kernel-picker`:
 - `jupyter-repl:insert-kernel-comment`: insert or update the kernel magic comment on the first line,
 - `jupyter-repl:refresh-kernel-list`: rescan kernel specs and reload the list.
 
-Commands available in `.jupyter-repl-prompt`:
-
-- `jupyter-repl:run-prompt`: run the typed code,
-- `jupyter-repl:run-history-entry`: run the selected history entry,
-- `jupyter-repl:recall-history-entry`: recall an entry for editing.
-
-Commands available in `.jupyter-repl-kernel-monitor .monitor-wrapper`:
-
-- `jupyter-repl:monitor-open-files`: open the selected session's files,
-- `jupyter-repl:monitor-interrupt-kernel`: interrupt the selected session,
-- `jupyter-repl:monitor-restart-kernel`: restart the selected session,
-- `jupyter-repl:monitor-shutdown-kernel`: shut down the selected session.
-
 ## Documentation
 
 Rendered in the editor under Settings, and readable here:
@@ -94,7 +79,7 @@ Rendered in the editor under Settings, and readable here:
 
 ## Services
 
-- `background-tips.provider`: provided to explain execution, the prompt and kernel monitoring in an empty workspace.
+- `background-tips.provider`: provided to explain interactive execution in an empty workspace.
 - [`jupyter.context`](docs/jupyter.context.md): provided to resolve the invocation editor, source expression and cell range.
 - [`jupyter.kernel`](docs/jupyter.kernel.md): provided to let other packages execute code, request completions and introspection, and follow kernel state.
 - [`jupyter.output`](docs/jupyter.output.md): provided to let other packages render Jupyter output bundles with this package's renderers.

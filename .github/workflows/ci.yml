@@ -44,6 +44,8 @@ jobs:
         run: npm run lint
       - name: Check formatting
         run: npm run format:check
+      - name: Check package contents
+        run: npm pack --dry-run
       - name: Check native ZeroMQ startup and socket cleanup
         run: npm run test:zeromq
 

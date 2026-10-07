@@ -135,17 +135,6 @@
               "command": "jupyter-repl:clear-and-restart"
             },
             {
-              "type": "separator"
-            },
-            {
-              "label": "Focus Prompt",
-              "command": "jupyter-repl:toggle-prompt-focus"
-            },
-            {
-              "label": "Focus Kernel Monitor",
-              "command": "jupyter-repl:toggle-kernel-monitor-focus"
-            },
-            {
               "label": "Toggle Output Area",
               "command": "jupyter-repl:toggle-output-area"
             },

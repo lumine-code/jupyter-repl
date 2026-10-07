@@ -10,12 +10,11 @@
   "keywords": [
     "kernel",
     "ipython",
-    "prompt",
-    "monitor",
-    "notebook",
-    "ipynb",
     "python",
-    "go-to-definition"
+    "go-to-definition",
+    "interactive",
+    "notebook",
+    "ipynb"
   ],
   "version": "1.0.0",
   "license": "MIT",
@@ -27,6 +26,8 @@
     "jupyter-cells",
     "jupyter-explorer",
     "jupyter-inspector",
+    "jupyter-monitor",
+    "jupyter-prompt",
     "jupyter-variables",
     "jupyter-view",
     "jupyter-watches",
@@ -39,8 +40,7 @@
     "language-text"
   ],
   "deserializers": {
-    "jupyter-repl/OutputPane": "deserializeOutputPane",
-    "jupyter-repl/KernelMonitorPane": "deserializeKernelMonitorPane"
+    "jupyter-repl/OutputPane": "deserializeOutputPane"
   },
   "main": "./lib/main",
   "files": [
