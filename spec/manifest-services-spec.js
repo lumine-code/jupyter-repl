@@ -1,6 +1,6 @@
 const path = require("path");
 const manifest = require(path.join(__dirname, "..", "package.json"));
-const main = require(path.join(__dirname, "..", manifest.main));
+let main = require(path.join(__dirname, "..", manifest.main));
 
 // A service whose method has been renamed away is not an error anywhere: the
 // editor logs a warning nobody reads and the other side simply never connects.
@@ -164,7 +164,11 @@ describe("what activation is allowed to load", () => {
 });
 
 describe("the jupyter.output surface", () => {
-  const service = main.provideJupyterOutput();
+  let service;
+  beforeEach(() => {
+    main = require(path.join(__dirname, "..", manifest.main));
+    service = main.provideJupyterOutput();
+  });
 
   it("exposes everything the contract documents", () => {
     const documented = [
@@ -181,14 +185,14 @@ describe("the jupyter.output surface", () => {
       "escapeCarriageReturn",
       "truncateOutput",
       "sanitizeHtml",
-      "OutputStore",
       "reduceOutputs",
+      "reduceOutputEvents",
+      "importOutputs",
+      "markdownToOutput",
       "normalizeOutput",
       "msgSpecToNotebookFormat",
       "getOutputPlainText",
       "OUTPUT_TYPES",
-      "History",
-      "ScrollList",
       "getImage",
       "getAllText",
       "hasCopyableContent",

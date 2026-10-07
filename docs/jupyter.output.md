@@ -50,16 +50,14 @@ type JupyterOutputService = {
   sanitizeHtml(html: string): string;
 
   // data
-  OutputStore: new (maxOutputs?: number) => OutputStore;
   reduceOutputs(outputs: Output[], output: Output): Output[];
+  reduceOutputEvents(events: Output[]): Output[];
+  importOutputs(editor: TextEditor, bundle: { outputs: Output[]; row: number }): void;
+  markdownToOutput(source: string | string[]): Output;
   normalizeOutput(output: Output): Output;
   msgSpecToNotebookFormat(message: object): Output;
   getOutputPlainText(outputs: Output[]): string;
   OUTPUT_TYPES: string[];
-
-  // components — etch component classes, usable as JSX tags
-  History: EtchComponentClass; // { store: OutputStore } — scrub past values
-  ScrollList: EtchComponentClass; // { outputs: Output[] } — a run's outputs, scrolled
 
   // actions — `outputs`, where accepted, supplies the bundle's own text for
   // renders whose DOM has none to select (LaTeX becomes SVG paths)
@@ -75,11 +73,11 @@ type JupyterOutputService = {
 
 An `Output` is a Jupyter notebook-format output (`output_type` of `execute_result`, `display_data`, `stream`, or `error`); `msgSpecToNotebookFormat` converts a raw iopub message into one. A `RendererTable` maps media types to render functions — `MEDIA_RENDERERS` is the full table, `pickRenderers` subsets it.
 
-`OutputStore` owns output records, execution status and count, the selected history index, and run boundaries. `onDidUpdate` observes changes to that data. Geometry and the choice between inline and block display belong to each view, so resizing one view does not change shared output state or notify other data consumers.
+Consumers own plain output records and history independently of renderer availability. `reduceOutputEvents` replays a single run, merging streams, applying display updates and honoring deferred clear messages. Rendering-service replacement preserves those records, expressions and history; consumers only rebuild their views. Geometry and display mode belong to each view.
 
 A render function is `(data, metadata, bundle?, options?) => VNode | null`. It receives the representation matched for its own media type, that type's metadata, the whole bundle and optional rendering context. **Returning `null` declines the media type**: `renderRichMedia` moves on to the next representation rather than rendering an empty output. That is what lets a media type sit high in the priority order without having to render every bundle carrying it — an ipywidget view is preferred over the plain-text repr the kernel sends alongside it, but only when there is a live model to render, and otherwise the repr is shown.
 
-`RenderingOptions` may carry `kernel`, the kernel that produced this output, and `resolveTracebackFrame(frame)`. The latter returns `{ title?: string, open(): void | Promise<void> }` for a verified source destination or `null` when it cannot resolve one. A frame has a one-based `line`, optional `filename` or `executionCount`, and zero-based `column` and end-exclusive `endColumn` when a SyntaxError underline is available. Consumers must resolve execution counts against captured execution identities and source snapshots, never against cell indices or whichever kernel is active. The renderer registers verified location spans with jupyter-repl's hyperclick provider; hold Alt, hover and Alt-click through `hyperclick` to navigate. Plain clicks retain normal text selection. The entire traceback is a hyperclick boundary, so an unresolved frame cannot fall back to a word in an editor behind the output. Cached suggestions become invalid when their rendered output, source, kernel generation or provider changes. See [Tracebacks](tracebacks.md).
+`RenderingOptions` may carry `kernel`, the public Session that produced this output, and `resolveTracebackFrame(frame)`. The latter returns `{ title?: string, open(): void | Promise<void> }` for a verified source destination or `null` when it cannot resolve one. A frame has a one-based `line`, optional `filename` or `executionCount`, and zero-based `column` and end-exclusive `endColumn` when a SyntaxError underline is available. Consumers must resolve execution counts against captured execution identities and source snapshots, never against cell indices or whichever kernel is active. The renderer registers verified location spans with jupyter-repl's hyperclick provider; hold Alt, hover and Alt-click through `hyperclick` to navigate. Plain clicks retain normal text selection. The entire traceback is a hyperclick boundary, so an unresolved frame cannot fall back to a word in an editor behind the output. Cached suggestions become invalid when their rendered output, source, kernel generation or provider changes. See [Tracebacks](tracebacks.md).
 
 ## Minimal example
 
