@@ -199,6 +199,31 @@ describe("owned Jupyter requests", () => {
     ]);
   });
 
+  it("streams without retaining another output history when collection is disabled", async () => {
+    const request = session.request({
+      type: "execute",
+      purpose: "user",
+      code: "stream_forever()",
+      collectOutputs: false,
+    });
+    let observed = 0;
+    request.onDidOutput(() => {
+      observed++;
+    });
+    await Promise.resolve();
+    const record = transport.requests[0];
+    for (let index = 0; index < 1000; index++)
+      transport.reply(record, "stream", { name: "stdout", text: "x".repeat(1000) });
+    transport.reply(record, "error", { ename: "Interrupted", evalue: "Stopped", traceback: [] });
+    transport.reply(record, "execute_reply", { status: "error" }, "shell");
+    transport.reply(record, "status", { execution_state: "idle" });
+    const outcome = await request.done;
+    expect(observed).toBe(1001);
+    expect(outcome.outputs).toEqual([]);
+    expect(outcome.status).toBe("error");
+    expect(outcome.error.ename).toBe("Interrupted");
+  });
+
   it("changes generation, retires old work and refuses an unavailable connection", async () => {
     const request = session.request({ type: "complete", purpose: "query", code: "value" });
     const generations = [];

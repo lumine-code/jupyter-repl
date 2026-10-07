@@ -47,6 +47,7 @@ type RequestDescriptor = {
   cursorPos?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
+  collectOutputs?: boolean;
 };
 
 type RequestOutcome = {
@@ -124,6 +125,8 @@ All listed members are required. A session is a stable public handle; it exposes
 `request()` returns immediately and sends on the next microtask, allowing subscriptions to observe even a synchronous answer. Both subscription methods report future changes without replaying old events. `done` resolves once for runtime failures as well as success; invalid descriptor types, purposes or source values throw a `TypeError` before any request is sent.
 
 An execute request settles after its shell reply and trailing IOPub idle, in either order. Its output events carry notebook-format `stream`, `execute_result`, `display_data` and `error` records, plus `clear_output` and `update_display_data` controls. Execution count and lifecycle status arrive through `onDidChange`; they are never output records. `done.outputs` is the current notebook-format bundle after stream aggregation, clears and display updates. Each observer owns its records; reducing a bundle does not mutate the incoming message or another consumer's store.
+
+`collectOutputs` defaults to `true`. A caller that already owns a streaming output store can set it to `false`; events, error details, count and terminal status still arrive, while `done.outputs` remains empty. This avoids retaining a second unbounded copy of a long-running stream in the request itself.
 
 A complete request puts its kernel reply in `outcome.data`, including `matches`, `cursor_start` and `cursor_end` when supplied. An inspect request uses `outcome.data = { data: MimeBundle, found: boolean, ...replyFields }`. Timeouts and unavailable sessions carry empty fallback payloads: `{ matches: [] }` for complete and `{ data: {}, found: false }` for inspect. `cursorPos` selects the inspected position and defaults to the end of the submitted code.
 
