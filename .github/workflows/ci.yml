@@ -93,18 +93,6 @@ jobs:
         with:
           repository: lumine-code/lumine
           path: lumine
-      - uses: actions/checkout@v6
-        with:
-          repository: lumine-code/language-ipython
-          path: language-ipython
-      - uses: actions/checkout@v6
-        with:
-          repository: lumine-code/jupyter-cells
-          path: jupyter-cells
-      - uses: actions/checkout@v6
-        with:
-          repository: lumine-code/hyperclick
-          path: hyperclick
       - uses: actions/setup-node@v6
         with:
           node-version-file: lumine/.nvmrc
@@ -142,12 +130,10 @@ jobs:
       - name: Rebuild native modules for Electron
         working-directory: lumine
         run: npm run build
+      - name: Install ecosystem integration peers in an isolated home
+        working-directory: lumine
+        run: node script/install-spec-packages.js --package ../jupyter-repl --home "${{ runner.temp }}/jupyter-spec-home" --github-env "$GITHUB_ENV"
       - name: Run the Jasmine spec suite
         working-directory: lumine
         timeout-minutes: 20
-        run: |
-          mkdir -p "$HOME/.lumine/packages-dev"
-          ln -s "$GITHUB_WORKSPACE/language-ipython" "$HOME/.lumine/packages-dev/language-ipython"
-          ln -s "$GITHUB_WORKSPACE/jupyter-cells" "$HOME/.lumine/packages-dev/jupyter-cells"
-          ln -s "$GITHUB_WORKSPACE/hyperclick" "$HOME/.lumine/packages-dev/hyperclick"
-          xvfb-run --auto-servernum npm start -- --test ../jupyter-repl/spec
+        run: xvfb-run --auto-servernum npm start -- --test ../jupyter-repl/spec
