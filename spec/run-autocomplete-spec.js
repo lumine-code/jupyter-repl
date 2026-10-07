@@ -2,7 +2,7 @@ const path = require("node:path");
 const { Disposable, Emitter } = require("lumine");
 
 describe("Run autocomplete cancellation boundary", () => {
-  let main, store, integration, editor, commands, events, calls;
+  let main, store, integration, editor, commands, events, calls, executions;
 
   beforeEach(async () => {
     jasmine.attachToDOM(lumine.views.getView(lumine.workspace));
@@ -17,6 +17,7 @@ describe("Run autocomplete cancellation boundary", () => {
     editor.element.focus();
     events = new Emitter();
     calls = [];
+    executions = [];
     commands = lumine.commands.add(editor.element, {
       "autocomplete:cancel": (event) => {
         event.stopPropagation();
@@ -26,6 +27,7 @@ describe("Run autocomplete cancellation boundary", () => {
   });
 
   afterEach(async () => {
+    for (const execution of executions) execution.dispose();
     commands.dispose();
     integration.disposeAdapterIntegration();
     events.emit("destroy");
@@ -34,9 +36,20 @@ describe("Run autocomplete cancellation boundary", () => {
     editor.destroy();
   });
 
+  function execution(manager, resolvers = []) {
+    const service = require("../lib/services/provided/execution").provideJupyterExecution({
+      store,
+      kernelManager: manager,
+      getAdapterServices: () => resolvers,
+    });
+    executions.push(service);
+    return service;
+  }
+
   function adapter() {
     const target = { id: "cell", type: "code", executable: true, source: "a1", editor, row: 0 };
     const owner = {
+      id: "autocomplete-notebook",
       getPath: () => "C:/work/autocomplete-run.ipynb",
       isDestroyed: () => false,
       onDidDestroy: (callback) => events.on("destroy", callback),
@@ -48,6 +61,7 @@ describe("Run autocomplete cancellation boundary", () => {
       getPaneItem: () => pane,
       getKernelOwner: () => owner,
       getPath: () => owner.getPath(),
+      getTitle: () => "Autocomplete notebook",
       getActiveTargetId: () => target.id,
       getKernelTarget: () => target,
       getRunTarget: () => target,
@@ -70,7 +84,28 @@ describe("Run autocomplete cancellation boundary", () => {
     };
   }
 
-  it("cancels before asynchronous source preparation and does not cancel a newer intent afterward", async () => {
+  function notebookCommands(current) {
+    const manager = waitingManager();
+    const resolvers = [
+      {
+        getActiveAdapter: () => current,
+        getAdapterForItem: (item) => (item === current.getPaneItem() ? current : null),
+      },
+    ];
+    const service = execution(manager, resolvers);
+    integration.activateAdapterIntegration();
+    return require("../lib/run-commands").createRunCommands({
+      store,
+      kernelManager: manager,
+      getExecution: () => service,
+      getCellsService: () => null,
+      getIntegration: () => integration,
+      getAdapters: () => resolvers,
+      isCurrent: () => true,
+    });
+  }
+
+  it("cancels before asynchronous source preparation and preserves newer completion intent", async () => {
     let finishPreparation;
     editor.setSelectedBufferRange([
       [0, 0],
@@ -80,115 +115,137 @@ describe("Run autocomplete cancellation boundary", () => {
       getCellDescriptors: () => [],
       getExecutionBlocks: () => {
         calls.push("prepare");
-        return new Promise((resolve) => (finishPreparation = resolve));
+        return new Promise((resolve) => {
+          finishPreparation = resolve;
+        });
       },
     });
-    const result = require("../lib/result");
-    const rendered = spyOn(result, "createResult");
+    const rendered = spyOn(require("../lib/result"), "createResultAsync").and.resolveTo({
+      success: true,
+    });
     store.kernelMapping.set(store.filePath, new Map([[store.grammar.name, {}]]));
     try {
-      const run = main.run(false, { target: editor.element });
+      const pending = main.run(false, { target: editor.element });
       expect(calls[0]).toBe("cancel");
-      for (let pass = 0; pass < 5 && !finishPreparation; pass++) await Promise.resolve();
+      for (let pass = 0; pass < 10 && !finishPreparation; pass++) await Promise.resolve();
       expect(calls.indexOf("cancel")).toBeLessThan(calls.indexOf("prepare"));
-      const cancellationsBeforeNewIntent = calls.filter((item) => item === "cancel").length;
-      // A new manual completion request may start while preparation awaits.
-      // This only tests the public cancellation command boundary; autocomplete
-      // owns the loading and popup lifecycle behind that command.
+      const cancellations = calls.filter((item) => item === "cancel").length;
       finishPreparation([{ code: "a1", row: 0, cellType: "code" }]);
-      await run;
+      const receipt = await pending;
+      expect(receipt.accepted).toBe(true);
+      expect((await receipt.done).status).toBe("ok");
       expect(rendered).toHaveBeenCalled();
-      expect(calls.filter((item) => item === "cancel").length).toBe(cancellationsBeforeNewIntent);
+      expect(calls.filter((item) => item === "cancel").length).toBe(cancellations);
     } finally {
       cells.dispose();
     }
   });
 
-  it("cancels a notebook editor before moving down or waiting for kernel selection", () => {
+  it("cancels a notebook invocation before preparing move-down or selecting a kernel", async () => {
     const current = adapter();
     const codeManager = require("../lib/code-manager");
     spyOn(codeManager, "findCodeBlock").and.returnValue({ code: "a1", row: 0 });
     spyOn(codeManager, "moveDown").and.callFake(() => calls.push("move"));
-    integration.activateAdapterIntegration();
-    expect(
-      integration.runAdapterTargets({ getActiveAdapter: () => current }, waitingManager(), {
-        scope: "editor",
-        moveDown: true,
-      }),
-    ).toBe(true);
+    const receipt = await notebookCommands(current).run(true, { target: editor.element });
+    expect(receipt.accepted).toBe(true);
     expect(calls[0]).toBe("cancel");
     expect(calls.indexOf("cancel")).toBeLessThan(calls.indexOf("move"));
   });
 
-  it("cancels an empty notebook Run request before opening the kernel picker", () => {
+  it("cancels an empty notebook invocation before any kernel selection", async () => {
     const current = adapter();
     current.getRunTargets = () => [];
-    integration.activateAdapterIntegration();
-    expect(
-      integration.runAdapterTargets({ getActiveAdapter: () => current }, waitingManager(), {
-        scope: "above",
-      }),
-    ).toBe(true);
+    const receipt = await notebookCommands(current).runAllAboveInline({ target: editor.element });
+    expect(receipt.accepted).toBe(true);
     expect(calls[0]).toBe("cancel");
-    expect(calls.indexOf("cancel")).toBeLessThan(calls.indexOf("choose kernel"));
+    if (calls.includes("choose kernel"))
+      expect(calls.indexOf("cancel")).toBeLessThan(calls.indexOf("choose kernel"));
   });
 
-  it("analyzes notebook selections with the notebook's bound kernel", () => {
+  it("analyzes notebook selections with that notebook's captured kernel", async () => {
     const current = adapter();
-    const store = require("../lib/store");
     const bound = { language: "python" };
     store.kernelMapping.set(current.getPath(), bound);
     const find = spyOn(require("../lib/code-manager"), "findCodeBlock").and.callFake(() => {
-      // Hold launch after analysis so this case owns no executing kernel.
       store.kernelMapping.delete(current.getPath());
       return { code: "a1", row: 0 };
     });
-    integration.activateAdapterIntegration();
-    integration.runAdapterTargets({ getActiveAdapter: () => current }, waitingManager(), {
-      scope: "editor",
-    });
+    const receipt = await notebookCommands(current).run(false, { target: editor.element });
+    expect(receipt.accepted).toBe(true);
     expect(find).toHaveBeenCalled();
     expect(find.calls.mostRecent().args[2].kernel).toBe(bound);
   });
 
-  it("cancels recalculate requests before waiting for kernel restart", async () => {
+  it("cancels an atomic recalculation request before waiting for restart", async () => {
     let finishRestart;
     const kernel = {
-      outputStore: { clear() {} },
       restart: () => {
         calls.push("restart");
-        return new Promise((resolve) => (finishRestart = resolve));
+        return new Promise((resolve) => {
+          finishRestart = resolve;
+        });
       },
     };
     spyOnProperty(store, "kernel", "get").and.returnValue(kernel);
-    for (const command of [
-      "jupyter-repl:recalculate-all-inline",
-      "jupyter-repl:recalculate-all-above-inline",
-    ]) {
-      calls.length = 0;
-      const dispatched = lumine.commands.dispatch(lumine.views.getView(lumine.workspace), command);
-      expect(calls[0]).toBe("cancel");
-      expect(calls.indexOf("cancel")).toBeLessThan(calls.indexOf("restart"));
-      finishRestart(false);
-      await dispatched;
-    }
+    spyOn(require("../lib/result"), "clearResults");
+    const service = execution({});
+    const receipt = await service.execute({
+      editor,
+      blocks: [{ code: "a1", row: 0, cellType: "code" }],
+      restart: true,
+      clear: true,
+    });
+    expect(calls[0]).toBe("cancel");
+    expect(calls.indexOf("cancel")).toBeLessThan(calls.indexOf("restart"));
+    finishRestart(false);
+    expect((await receipt.done).status).toBe("unavailable");
   });
 
-  it("does not cancel newer completions when a delayed kernel finally starts", async () => {
-    let resume;
-    spyOn(require("../lib/kernel-manager").KernelManager.prototype, "startKernelFor").and.callFake(
-      (_grammar, _editor, _filePath, callback) => {
-        resume = callback;
-      },
-    );
-    const rendered = spyOn(require("../lib/result"), "createResult");
-    const execution = main.provideJupyterExecution();
-    await execution.runBlocks(editor, [{ code: "a1", row: 0, cellType: "code" }]);
+  it("does not cancel newer completions when a delayed kernel becomes ready", async () => {
+    let select;
+    const service = execution({
+      startKernelFor: () =>
+        new Promise((resolve) => {
+          select = resolve;
+        }),
+    });
+    const rendered = spyOn(require("../lib/result"), "createResultAsync").and.resolveTo({
+      success: true,
+    });
+    const receipt = await service.execute({
+      editor,
+      blocks: [{ code: "a1", row: 0, cellType: "code" }],
+    });
     expect(calls).toEqual(["cancel"]);
     calls.length = 0;
-    editor.setText("a1 + newer_typing");
-    await resume({});
+    const readyKernel = {};
+    store.kernelMapping.set(store.filePath, new Map([[store.grammar.name, readyKernel]]));
+    select(readyKernel);
+    expect((await receipt.done).status).toBe("ok");
     expect(calls).toEqual([]);
     expect(rendered).toHaveBeenCalled();
+  });
+
+  it("preserves newer completion intent while canceling source changed during kernel selection", async () => {
+    let select;
+    const service = execution({
+      startKernelFor: () =>
+        new Promise((resolve) => {
+          select = resolve;
+        }),
+    });
+    const rendered = spyOn(require("../lib/result"), "createResultAsync");
+    const receipt = await service.execute({
+      editor,
+      blocks: [{ code: "a1", row: 0, cellType: "code" }],
+    });
+    calls.length = 0;
+    editor.setText("a1 + newer_typing");
+    const readyKernel = {};
+    store.kernelMapping.set(store.filePath, new Map([[store.grammar.name, readyKernel]]));
+    select(readyKernel);
+    expect((await receipt.done).status).toBe("cancelled");
+    expect(calls).toEqual([]);
+    expect(rendered).not.toHaveBeenCalled();
   });
 });

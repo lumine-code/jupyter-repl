@@ -1,20 +1,22 @@
-const path = require("path");
+const path = require("node:path");
+const { Emitter } = require("lumine");
 const manifest = require(path.join(__dirname, "..", "package.json"));
-let main = require(path.join(__dirname, "..", manifest.main));
-let result = require("../lib/result");
-let store = require("../lib/store");
+let main, result, store;
 
-// The jupyter.execution service is the seam the cell layer moved across:
-// jupyter-cells computes {code, row, cellType} blocks and this side runs them.
-// These pin the dispatch rules the contract documents, and the fallbacks the
-// optional jupyter.cells consumption leaves behind.
-describe("the jupyter.execution service", () => {
-  let editor;
-  let execution;
-  let fakeKernel;
-  let filePath;
-  let previousEditor;
-  let previousActivePaneItem;
+const block = (code = "first()", row = 0, cellType = "code") => ({ code, row, cellType });
+const flush = async () => {
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+};
+
+describe("the explicit jupyter.execution service", () => {
+  let editor,
+    execution,
+    fakeKernel,
+    filePath,
+    previousEditor,
+    previousActivePaneItem,
+    manager,
+    adapters;
 
   beforeEach(async () => {
     main = require(path.join(__dirname, "..", manifest.main));
@@ -22,159 +24,265 @@ describe("the jupyter.execution service", () => {
     store = require("../lib/store");
     previousEditor = store.editor;
     previousActivePaneItem = store.activePaneItem;
-
     editor = await lumine.workspace.open();
     editor.setText("first()\nsecond()\nthird()");
     store.updateEditor(editor);
     store.updateActivePaneItem(editor);
     filePath = store.filePath;
-
-    fakeKernel = {
-      executions: [],
-      setLastOutputStore() {},
-      execute(code, callback) {
-        this.executions.push({ code, callback });
-      },
-    };
+    fakeKernel = {};
     store.kernelMapping.set(filePath, new Map([[store.grammar.name, fakeKernel]]));
-    execution = main.provideJupyterExecution();
+    manager = { startKernelFor: jasmine.createSpy("start kernel").and.resolveTo(null) };
+    adapters = [];
+    execution = require("../lib/services/provided/execution").provideJupyterExecution({
+      store,
+      kernelManager: manager,
+      getAdapterServices: () => adapters,
+    });
   });
 
   afterEach(() => {
+    execution.dispose();
     store.markers?.clear();
     store.markersMapping.delete(editor.id);
     store.kernelMapping.delete(filePath);
     store.updateEditor(previousEditor);
     store.updateActivePaneItem(previousActivePaneItem);
-    editor.destroy();
+    if (!editor.isDestroyed()) editor.destroy();
   });
 
-  it("dispatches one block through the single-result path", async () => {
-    const single = spyOn(result, "createResult");
+  it("accepts a single block before its execution completes", async () => {
+    let complete;
+    const single = spyOn(result, "createResultAsync").and.returnValue(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
     const batch = spyOn(result, "createResultBatch");
-
-    const accepted = await execution.runBlocks(editor, [
-      { code: "first()", row: 0, cellType: "code" },
-    ]);
-
-    expect(accepted).toBe(true);
-    expect(single).toHaveBeenCalled();
+    const receipt = await execution.execute({ item: editor, editor, blocks: [block()] });
+    expect(receipt.accepted).toBe(true);
+    let settled = false;
+    receipt.done.then(() => {
+      settled = true;
+    });
+    await flush();
+    expect(settled).toBe(false);
+    expect(single.calls.mostRecent().args[0].editor).toBe(editor);
+    expect(single.calls.mostRecent().args[1].code).toBe("first()");
     expect(batch).not.toHaveBeenCalled();
-    const [context, block] = single.calls.mostRecent().args;
-    expect(context.editor).toBe(editor);
-    expect(block.code).toBe("first()");
+    complete({ success: true });
+    expect((await receipt.done).status).toBe("ok");
   });
 
-  it("dispatches several blocks through the batch path", async () => {
-    const batch = spyOn(result, "createResultBatch").and.returnValue(Promise.resolve(true));
-
-    const accepted = await execution.runBlocks(editor, [
-      { code: "first()", row: 0, cellType: "code" },
-      { code: "second()", row: 1, cellType: "code" },
-    ]);
-
-    expect(accepted).toBe(true);
+  it("reports batch completion independently from acceptance", async () => {
+    const batch = spyOn(result, "createResultBatch").and.resolveTo(false);
+    const receipt = await execution.execute({ editor, blocks: [block(), block("second()", 1)] });
+    expect(receipt.accepted).toBe(true);
+    expect((await receipt.done).status).toBe("error");
     expect(batch.calls.mostRecent().args[1].length).toBe(2);
   });
 
-  it("declines silently when there is nothing to run", async () => {
-    const single = spyOn(result, "createResult");
-
-    expect(await execution.runBlocks(editor, [])).toBe(false);
-    expect(await execution.runBlocks(null, [{ code: "x", row: 0, cellType: "code" }])).toBe(false);
+  it("refuses incomplete invocations without redirecting to the active editor", async () => {
+    const single = spyOn(result, "createResultAsync");
+    for (const request of [
+      { editor, blocks: [] },
+      { blocks: [block()] },
+      { item: {}, editor, blocks: [block()] },
+    ]) {
+      const receipt = await execution.execute(request);
+      expect(receipt.accepted).toBe(false);
+      expect((await receipt.done).status).toBe("unavailable");
+    }
     expect(single).not.toHaveBeenCalled();
-    expect(lumine.notifications.getNotifications().length).toBe(0);
   });
 
-  it("renders Markdown without a kernel or kernel picker", async () => {
+  it("renders Markdown without selecting a kernel", async () => {
     store.kernelMapping.delete(filePath);
-    const start = spyOn(require("../lib/kernel-manager").KernelManager.prototype, "startKernelFor");
-    const render = spyOn(result, "createResult");
-    expect(
-      await execution.runBlocks(editor, [{ code: "# Heading", row: 0, cellType: "markdown" }]),
-    ).toBe(true);
-    expect(start).not.toHaveBeenCalled();
+    const render = spyOn(result, "createResultAsync").and.resolveTo({ success: true });
+    const receipt = await execution.execute({
+      editor,
+      blocks: [block("# Heading", 0, "markdown")],
+    });
+    expect(receipt.accepted).toBe(true);
+    expect((await receipt.done).status).toBe("ok");
+    expect(manager.startKernelFor).not.toHaveBeenCalled();
     expect(render.calls.mostRecent().args[0].kernel).toBeNull();
     expect(render.calls.mostRecent().args[1].code).toBe("# Heading");
   });
 
-  it("skips raw before allocating results or choosing a kernel", async () => {
+  it("skips raw source before allocating output or choosing a kernel", async () => {
     store.kernelMapping.delete(filePath);
     const markerCount = store.markersMapping.size;
-    const start = spyOn(require("../lib/kernel-manager").KernelManager.prototype, "startKernelFor");
-    const render = spyOn(result, "createResult");
+    const render = spyOn(result, "createResultAsync");
     const batch = spyOn(result, "createResultBatch");
-    expect(
-      await execution.runBlocks(editor, [{ code: "dangerous()", row: 0, cellType: "raw" }]),
-    ).toBe(true);
-    expect(start).not.toHaveBeenCalled();
+    const receipt = await execution.execute({ editor, blocks: [block("dangerous()", 0, "raw")] });
+    expect(receipt.accepted).toBe(true);
+    expect((await receipt.done).status).toBe("ok");
+    expect(manager.startKernelFor).not.toHaveBeenCalled();
     expect(render).not.toHaveBeenCalled();
     expect(batch).not.toHaveBeenCalled();
     expect(store.markersMapping.size).toBe(markerCount);
   });
 
-  it("renders leading Markdown before kernel selection and resumes the remaining order", async () => {
+  it("renders leading Markdown before the picker and retains the captured remaining order", async () => {
     store.kernelMapping.delete(filePath);
-    let resume;
-    const render = spyOn(result, "createResult");
-    const batch = spyOn(result, "createResultBatch").and.returnValue(Promise.resolve(true));
-    const start = spyOn(
-      require("../lib/kernel-manager").KernelManager.prototype,
-      "startKernelFor",
-    ).and.callFake((_grammar, _editor, _path, callback) => {
-      resume = callback;
+    let select;
+    manager.startKernelFor.and.returnValue(
+      new Promise((resolve) => {
+        select = resolve;
+      }),
+    );
+    const render = spyOn(result, "createResultAsync").and.resolveTo({ success: true });
+    const batch = spyOn(result, "createResultBatch").and.resolveTo(true);
+    const receipt = await execution.execute({
+      editor,
+      blocks: [
+        block("# Before", 0, "markdown"),
+        block("ignored()", 1, "raw"),
+        block("run()", 2),
+        block("# After", 3, "markdown"),
+      ],
     });
-    expect(
-      await execution.runBlocks(editor, [
-        { code: "# Before", row: 0, cellType: "markdown" },
-        { code: "ignored()", row: 1, cellType: "raw" },
-        { code: "run()", row: 2, cellType: "code" },
-        { code: "# After", row: 3, cellType: "markdown" },
-      ]),
-    ).toBe(true);
+    await flush();
+    expect(receipt.accepted).toBe(true);
     expect(render.calls.count()).toBe(1);
     expect(render.calls.mostRecent().args[1].code).toBe("# Before");
-    expect(start).toHaveBeenCalled();
+    expect(manager.startKernelFor).toHaveBeenCalled();
     expect(batch).not.toHaveBeenCalled();
-    await resume(fakeKernel);
-    expect(batch.calls.mostRecent().args[1].map((block) => block.code)).toEqual([
+    store.kernelMapping.set(filePath, new Map([[editor.getGrammar().name, fakeKernel]]));
+    select(fakeKernel);
+    expect((await receipt.done).status).toBe("ok");
+    expect(batch.calls.mostRecent().args[1].map((entry) => entry.code)).toEqual([
       "run()",
       "# After",
     ]);
   });
 
-  it("renders imported outputs through the editor's own marker store", () => {
-    const importSpy = spyOn(result, "importResult");
-
-    execution.importOutputs(editor, { outputs: [{ output_type: "stream" }], row: 1 });
-
-    const [context, bundle] = importSpy.calls.mostRecent().args;
-    expect(context.editor).toBe(editor);
-    expect(context.markers).toBe(store.markersMapping.get(editor.id));
-    expect(bundle.row).toBe(1);
+  it("settles a canceled picker even though the invocation was accepted", async () => {
+    store.kernelMapping.delete(filePath);
+    const receipt = await execution.execute({ editor, blocks: [block()] });
+    expect(receipt.accepted).toBe(true);
+    expect((await receipt.done).status).toBe("cancelled");
   });
 
-  it("does not dispatch a delayed run after its editor is closed", async () => {
+  it("settles owner closure before a pending picker answers and suppresses late dispatch", async () => {
     store.kernelMapping.delete(filePath);
-    let resume;
-    spyOn(require("../lib/kernel-manager").KernelManager.prototype, "startKernelFor").and.callFake(
-      (_grammar, _editor, _path, callback) => {
-        resume = callback;
-      },
+    let select;
+    manager.startKernelFor.and.returnValue(
+      new Promise((resolve) => {
+        select = resolve;
+      }),
     );
-    const render = spyOn(result, "createResult");
-    await execution.runBlocks(editor, [{ code: "first()", row: 0, cellType: "code" }]);
+    const render = spyOn(result, "createResultAsync");
+    const receipt = await execution.execute({ editor, blocks: [block()] });
     editor.destroy();
-
-    expect(await resume(fakeKernel)).toBe(false);
+    expect((await receipt.done).status).toBe("cancelled");
+    select(fakeKernel);
+    await flush();
     expect(render).not.toHaveBeenCalled();
   });
 
-  it("restarts through the current kernel, or calls straight back without one", () => {
-    const onRestarted = jasmine.createSpy("onRestarted");
+  it("settles aborted observation and ignores a delayed kernel", async () => {
     store.kernelMapping.delete(filePath);
-    execution.restartKernel(onRestarted);
-    expect(onRestarted).toHaveBeenCalled();
+    let select;
+    manager.startKernelFor.and.returnValue(
+      new Promise((resolve) => {
+        select = resolve;
+      }),
+    );
+    const render = spyOn(result, "createResultAsync");
+    const controller = new AbortController();
+    const receipt = await execution.execute({
+      editor,
+      blocks: [block()],
+      signal: controller.signal,
+    });
+    controller.abort();
+    expect((await receipt.done).status).toBe("cancelled");
+    select(fakeKernel);
+    await flush();
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("retires pending receipts and refuses work after provider teardown", async () => {
+    store.kernelMapping.delete(filePath);
+    manager.startKernelFor.and.returnValue(new Promise(() => {}));
+    const receipt = await execution.execute({ editor, blocks: [block()] });
+    execution.dispose();
+    expect((await receipt.done).status).toBe("unavailable");
+    const next = await execution.execute({ editor, blocks: [block()] });
+    expect(next.accepted).toBe(false);
+    expect((await next.done).status).toBe("unavailable");
+  });
+
+  it("restarts and clears the explicit editor before running its captured blocks", async () => {
+    const order = [];
+    fakeKernel.restart = jasmine.createSpy("restart").and.callFake(async () => {
+      order.push("restart");
+      return true;
+    });
+    spyOn(result, "clearResults").and.callFake((context) => {
+      expect(context.kernel).toBe(fakeKernel);
+      order.push("clear");
+    });
+    spyOn(result, "createResultAsync").and.callFake(async () => {
+      order.push("run");
+      return { success: true };
+    });
+    const receipt = await execution.execute({
+      editor,
+      blocks: [block()],
+      restart: true,
+      clear: true,
+    });
+    expect((await receipt.done).status).toBe("ok");
+    expect(order).toEqual(["clear", "restart", "run"]);
+  });
+
+  it("routes an inactive notebook item and its snapshots without asking for the active adapter", async () => {
+    const events = new Emitter();
+    const item = { isDestroyed: () => false };
+    const owner = {
+      isDestroyed: () => false,
+      onDidDestroy: (callback) => events.on("destroy", callback),
+    };
+    const current = { getKernelOwner: () => owner };
+    const resolver = {
+      getAdapterForItem: (candidate) => (candidate === item ? current : null),
+      getActiveAdapter: jasmine.createSpy("active adapter"),
+    };
+    adapters.push(resolver);
+    const targets = [{ id: "original", source: "original()" }];
+    const integration = require("../lib/adapter-integration");
+    spyOn(integration, "getKernelForAdapter").and.returnValue(null);
+    const run = spyOn(integration, "runAdapterTargets").and.callFake(
+      (_services, _manager, request) => {
+        request.onComplete({ status: "ok" });
+        return true;
+      },
+    );
+    try {
+      const receipt = await execution.execute({ item, owner, targets, scope: "active" });
+      expect(receipt.accepted).toBe(true);
+      expect((await receipt.done).status).toBe("ok");
+      expect(resolver.getActiveAdapter).not.toHaveBeenCalled();
+      expect(run.calls.mostRecent().args[2]).toEqual(
+        jasmine.objectContaining({ adapter: current, targets }),
+      );
+    } finally {
+      events.dispose();
+    }
+  });
+
+  it("imports saved outputs through the output service and the explicit editor's marker store", () => {
+    const imported = spyOn(result, "importResult");
+    require("../lib/output-service").outputService.importOutputs(editor, {
+      outputs: [{ output_type: "stream" }],
+      row: 1,
+    });
+    const [context, bundle] = imported.calls.mostRecent().args;
+    expect(context.editor).toBe(editor);
+    expect(context.markers).toBe(store.markersMapping.get(editor.id));
+    expect(bundle.row).toBe(1);
   });
 });
 
@@ -210,7 +318,7 @@ describe("the optional jupyter.cells consumption", () => {
   });
 
   it("answers null from getCellRange without the cell model", () => {
-    const provider = main.provideJupyterKernel();
+    const provider = main.provideJupyterContext();
     expect(main.getJupyterCellsService()).toBeNull();
     expect(provider.getCellRange()).toBeNull();
   });

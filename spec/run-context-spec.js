@@ -49,10 +49,9 @@ describe("run command context", () => {
 
   function pendingRestart() {
     let resume;
-    firstKernel.restart = (callback) =>
+    firstKernel.restart = () =>
       new Promise((resolve) => {
         resume = () => {
-          callback();
           resolve(true);
         };
       });
@@ -61,8 +60,12 @@ describe("run command context", () => {
 
   it("runs the dispatch editor without switching the active editor", async () => {
     activate(second);
-    const single = spyOn(result, "createResult");
-    await main.run(false, { target: first.element });
+    const single = spyOn(result, "createResultAsync").and.resolveTo({
+      success: true,
+      durationMs: null,
+    });
+    const receipt = await main.run(false, { target: first.element });
+    expect((await receipt.done).status).toBe("ok");
     const [context, block] = single.calls.mostRecent().args;
     expect(context.editor).toBe(first);
     expect(context.kernel).toBe(firstKernel);
@@ -84,13 +87,17 @@ describe("run command context", () => {
           finish = resolve;
         }),
     });
-    const single = spyOn(result, "createResult");
+    const single = spyOn(result, "createResultAsync").and.resolveTo({
+      success: true,
+      durationMs: null,
+    });
     const pending = main.run(false, { target: first.element });
     for (let pass = 0; pass < 5 && !finish; pass++) await Promise.resolve();
     expect(finish).toBeDefined();
     activate(second);
     finish([{ code: "first()", row: 0, cellType: "code" }]);
-    await pending;
+    const receipt = await pending;
+    expect((await receipt.done).status).toBe("ok");
     expect(single.calls.mostRecent().args[0].editor).toBe(first);
     expect(single.calls.mostRecent().args[0].kernel).toBe(firstKernel);
     expect(store.editor).toBe(second);
@@ -100,7 +107,7 @@ describe("run command context", () => {
     first.setCursorBufferPosition([1, 0]);
     const resume = pendingRestart();
     const batch = spyOn(result, "createResultBatch").and.returnValue(Promise.resolve(true));
-    const dispatched = lumine.commands.dispatch(
+    const [receipt] = await lumine.commands.dispatch(
       first.element,
       "jupyter-repl:recalculate-all-above-inline",
     );
@@ -108,7 +115,7 @@ describe("run command context", () => {
     first.setCursorBufferPosition([2, 0]);
     activate(second);
     resume();
-    await dispatched;
+    expect((await receipt.done).status).toBe("ok");
     const [context, blocks] = batch.calls.mostRecent().args;
     expect(context.editor).toBe(first);
     expect(context.kernel).toBe(firstKernel);
@@ -129,7 +136,10 @@ describe("run command context", () => {
           finish = resolve;
         }),
     });
-    const single = spyOn(result, "createResult");
+    const single = spyOn(result, "createResultAsync").and.resolveTo({
+      success: true,
+      durationMs: null,
+    });
     const pending = main.run(false, { target: first.element });
     for (let pass = 0; pass < 5 && !finish; pass++) await Promise.resolve();
     store.kernelMapping.set(
@@ -171,14 +181,17 @@ describe("run command context", () => {
   it("retires a recalculation when its source changes during restart", async () => {
     const resume = pendingRestart();
     const batch = spyOn(result, "createResultBatch");
-    const single = spyOn(result, "createResult");
-    const dispatched = lumine.commands.dispatch(
+    const single = spyOn(result, "createResultAsync").and.resolveTo({
+      success: true,
+      durationMs: null,
+    });
+    const [receipt] = await lumine.commands.dispatch(
       first.element,
       "jupyter-repl:recalculate-all-inline",
     );
     first.setText("new_source()");
     resume();
-    await dispatched;
+    expect((await receipt.done).status).toBe("cancelled");
     expect(batch).not.toHaveBeenCalled();
     expect(single).not.toHaveBeenCalled();
   });
@@ -186,13 +199,29 @@ describe("run command context", () => {
   it("does not resume a recalculation after package deactivation", async () => {
     const resume = pendingRestart();
     const batch = spyOn(result, "createResultBatch");
-    const dispatched = lumine.commands.dispatch(
+    const [receipt] = await lumine.commands.dispatch(
       first.element,
       "jupyter-repl:recalculate-all-inline",
     );
     await lumine.packages.deactivatePackage("jupyter-repl");
     resume();
-    await dispatched;
+    expect((await receipt.done).status).toBe("unavailable");
+    expect(batch).not.toHaveBeenCalled();
+  });
+
+  it("cancels a captured recalculation if its source editor changes kernel during restart", async () => {
+    const resume = pendingRestart();
+    const batch = spyOn(result, "createResultBatch").and.resolveTo(true);
+    const [receipt] = await lumine.commands.dispatch(
+      first.element,
+      "jupyter-repl:recalculate-all-inline",
+    );
+    store.kernelMapping.set(
+      `Unsaved Editor ${first.id}`,
+      new Map([[first.getGrammar().name, secondKernel]]),
+    );
+    resume();
+    expect((await receipt.done).status).toBe("cancelled");
     expect(batch).not.toHaveBeenCalled();
   });
 });
