@@ -321,7 +321,9 @@ describe("notebook adapter kernel integration", () => {
     const { adapter } = makeAdapter({ targets: [target] });
     const kernel = fakeKernel({ name: "python3", display_name: "Python 3", language: "python" });
     store.kernelMapping.set(adapter.getPath(), kernel);
-    adapter.beginTargetExecution = jasmine.createSpy("beginTargetExecution");
+    adapter.beginTargetExecution = jasmine
+      .createSpy("beginTargetExecution")
+      .and.callFake(() => new Disposable());
     adapter.finishTargetExecution = jasmine.createSpy("finishTargetExecution");
     adapter.clearTargetOutputs = jasmine.createSpy("clearTargetOutputs");
     adapter.setTargetExecutionCount = jasmine.createSpy("setTargetExecutionCount");

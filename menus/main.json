@@ -34,6 +34,9 @@
                   "command": "jupyter-repl:update-kernels"
                 },
                 {
+                  "type": "separator"
+                },
+                {
                   "label": "Interrupt Kernel",
                   "command": "jupyter-repl:interrupt-kernel"
                 },
@@ -48,6 +51,17 @@
                 {
                   "label": "Shutdown All Kernels",
                   "command": "jupyter-repl:shutdown-all-kernels"
+                },
+                {
+                  "type": "separator"
+                },
+                {
+                  "label": "Rename Remote Session…",
+                  "command": "jupyter-repl:rename-remote-session"
+                },
+                {
+                  "label": "Disconnect Remote Session",
+                  "command": "jupyter-repl:disconnect-remote-session"
                 }
               ]
             },
@@ -124,6 +138,14 @@
               "type": "separator"
             },
             {
+              "label": "Focus Prompt",
+              "command": "jupyter-repl:toggle-prompt-focus"
+            },
+            {
+              "label": "Focus Kernel Monitor",
+              "command": "jupyter-repl:toggle-kernel-monitor-focus"
+            },
+            {
               "label": "Toggle Output Area",
               "command": "jupyter-repl:toggle-output-area"
             },
@@ -133,6 +155,10 @@
             {
               "label": "Open Examples",
               "command": "jupyter-repl:open-examples"
+            },
+            {
+              "label": "Toggle Debug Logging",
+              "command": "jupyter-repl:debug-toggle"
             }
           ]
         }

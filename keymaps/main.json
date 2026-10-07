@@ -1,9 +1,11 @@
 {
-  // `alt-j` is the Jupyter family's chord prefix, shared with the eight jupyter
+  // `alt-j` is the Jupyter family's chord prefix, shared with the seven jupyter
   // packages. `alt-j k` is this package's kernel sub-family: interrupt and
   // restart are the two most-used actions in a notebook session and had no
   // keystroke at all.
   "lumine-workspace": {
+    "alt-j p": "jupyter-repl:toggle-prompt-focus",
+    "alt-j m": "jupyter-repl:toggle-kernel-monitor-focus",
     "alt-j o": "jupyter-repl:toggle-output-area",
     "alt-j k m": "jupyter-repl:toggle-kernel-commands",
     "alt-j k i": "jupyter-repl:interrupt-kernel",
@@ -21,5 +23,16 @@
   "lumine-workspace .jupyter-repl.kernel-picker lumine-text-editor[mini]": {
     "ctrl-enter": "jupyter-repl:insert-kernel-comment",
     "f5": "jupyter-repl:refresh-kernel-list"
+  },
+  "lumine-workspace .jupyter-repl-prompt lumine-text-editor[mini]": {
+    "shift-enter": "jupyter-repl:recall-history-entry"
+  },
+  "lumine-workspace .jupyter-repl-kernel-monitor .monitor-wrapper": {
+    "up": "core:move-up",
+    "down": "core:move-down",
+    "enter": "core:confirm",
+    "i": "jupyter-repl:monitor-interrupt-kernel",
+    "r": "jupyter-repl:monitor-restart-kernel",
+    "s": "jupyter-repl:monitor-shutdown-kernel"
   }
 }

@@ -10,11 +10,12 @@
   "keywords": [
     "kernel",
     "ipython",
-    "python",
-    "go-to-definition",
-    "interactive",
+    "prompt",
+    "monitor",
     "notebook",
-    "ipynb"
+    "ipynb",
+    "python",
+    "go-to-definition"
   ],
   "version": "1.0.0",
   "license": "MIT",
@@ -24,11 +25,22 @@
   "specPackages": [
     "hyperclick",
     "jupyter-cells",
+    "jupyter-explorer",
+    "jupyter-inspector",
+    "jupyter-variables",
+    "jupyter-view",
+    "jupyter-watches",
+    "language-gfm",
+    "language-html",
     "language-ipython",
-    "language-python"
+    "language-json",
+    "language-python",
+    "language-shellscript",
+    "language-text"
   ],
   "deserializers": {
-    "jupyter-repl/OutputPane": "deserializeOutputPane"
+    "jupyter-repl/OutputPane": "deserializeOutputPane",
+    "jupyter-repl/KernelMonitorPane": "deserializeKernelMonitorPane"
   },
   "main": "./lib/main",
   "files": [
@@ -66,6 +78,11 @@
     "jupyter.kernel": {
       "versions": {
         "1.0.0": "provideJupyterKernel"
+      }
+    },
+    "jupyter.context": {
+      "versions": {
+        "1.0.0": "provideJupyterContext"
       }
     },
     "jupyter.output": {

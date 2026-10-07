@@ -9,7 +9,7 @@ Render Jupyter output bundles with the same machinery the REPL renders its own r
 | Consumed by | any package that shows Jupyter outputs — a notebook, a panel |
 | Owner       | `jupyter-repl`                                               |
 
-One implementation renders for the whole family, so a MIME type gained here is gained everywhere, and the heavy renderers — MathJax, plotly, vega — are installed exactly once, in this package. Everything returned is `@lumine-code/etch` virtual DOM; a consumer embeds it in its own render tree or appends a component's `element`.
+One implementation renders for the whole family, so a MIME type gained here is gained everywhere, and the heavy renderers — MathJax, plotly, vega — are installed exactly once, in this package. Rendering methods return `@lumine-code/etch` virtual DOM for a consumer's render tree; data methods operate on plain notebook records.
 
 ## Registration
 
@@ -49,9 +49,10 @@ type JupyterOutputService = {
   truncateOutput(text: string, maxLength?: number): { text: string; truncated: boolean };
   sanitizeHtml(html: string): string;
 
-  // data
+  // owned pure data — no DOM, emitter, session or provider references
+  createOutputAccumulator(): { readonly outputs: Output[]; append(event: OutputEvent): void };
   reduceOutputs(outputs: Output[], output: Output): Output[];
-  reduceOutputEvents(events: Output[]): Output[];
+  reduceOutputEvents(events: OutputEvent[]): Output[];
   importOutputs(editor: TextEditor, bundle: { outputs: Output[]; row: number }): void;
   markdownToOutput(source: string | string[]): Output;
   normalizeOutput(output: Output): Output;
@@ -73,7 +74,7 @@ type JupyterOutputService = {
 
 An `Output` is a Jupyter notebook-format output (`output_type` of `execute_result`, `display_data`, `stream`, or `error`); `msgSpecToNotebookFormat` converts a raw iopub message into one. A `RendererTable` maps media types to render functions — `MEDIA_RENDERERS` is the full table, `pickRenderers` subsets it.
 
-Consumers own plain output records and history independently of renderer availability. `reduceOutputEvents` replays a single run, merging streams, applying display updates and honoring deferred clear messages. Rendering-service replacement preserves those records, expressions and history; consumers only rebuild their views. Geometry and display mode belong to each view.
+Consumers own plain output records and history independently of renderer availability. `createOutputAccumulator()` produces an owned pure data artifact: its array and append function retain no DOM, emitter, Session or rendering-provider reference, and may outlive the rendering service edge. Cache that pure factory value to build later runs while a renderer is unavailable; drop the provider handle on revocation. Incremental append preserves stream cursors, deferred clears and display updates without replaying historical chunks. `reduceOutputEvents` replays a single run, merging streams, applying display updates and honoring deferred clear messages. Rendering-service replacement preserves those records, expressions and history; consumers only rebuild their views. Geometry and display mode belong to each view.
 
 A render function is `(data, metadata, bundle?, options?) => VNode | null`. It receives the representation matched for its own media type, that type's metadata, the whole bundle and optional rendering context. **Returning `null` declines the media type**: `renderRichMedia` moves on to the next representation rather than rendering an empty output. That is what lets a media type sit high in the priority order without having to render every bundle carrying it — an ipywidget view is preferred over the plain-text repr the kernel sends alongside it, but only when there is a live model to render, and otherwise the repr is shown.
 
@@ -86,11 +87,15 @@ const { Disposable } = require("lumine");
 
 module.exports = {
   consumeJupyterOutput(output) {
+    const edge = {};
+    this.outputEdge = edge;
     this.output = output;
     this.refresh();
     return new Disposable(() => {
       // The service goes away with jupyter-repl; drop the reference and show
       // whatever degraded state makes sense for this package.
+      if (this.outputEdge !== edge) return;
+      this.outputEdge = null;
       this.output = null;
       this.refresh();
     });

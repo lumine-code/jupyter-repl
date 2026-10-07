@@ -64,7 +64,9 @@ describe("notebook adapter ownership across lifecycle callbacks", () => {
         owner.metadata = { kernelspec: spec };
       },
       clearTargetOutputs: jasmine.createSpy("clearTargetOutputs"),
-      beginTargetExecution: jasmine.createSpy("beginTargetExecution"),
+      beginTargetExecution: jasmine
+        .createSpy("beginTargetExecution")
+        .and.callFake(() => new Disposable()),
       finishTargetExecution: jasmine.createSpy("finishTargetExecution"),
       appendTargetOutput: jasmine.createSpy("appendTargetOutput"),
     };
@@ -289,6 +291,7 @@ describe("notebook adapter ownership across lifecycle callbacks", () => {
         document.adapter[hook].and.callFake(() => {
           if (explicit) document.owner.destroy();
           else integration.disposeAdapterIntegration();
+          if (hook === "beginTargetExecution") return new Disposable();
         });
         createResult.calls.reset();
         if (explicit) {

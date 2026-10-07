@@ -261,7 +261,7 @@ describe("Jupyter prompt panel", () => {
     await panel.execute();
 
     expect(lumine.notifications.getNotifications().map((n) => n.getMessage())).toEqual([
-      "No kernel running",
+      "Start or select a Jupyter kernel before running the prompt.",
     ]);
     expect(panel.selectListHost.isVisible()).toBeTruthy();
     expect(panel.selectList.getQuery()).toBe("1 + 1");

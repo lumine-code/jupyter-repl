@@ -1,19 +1,15 @@
 # jupyter.execution
 
-Runs pre-computed code blocks through this package's kernels and result bubbles.
+Executes captured source blocks or notebook targets in their explicit context.
 
 |             |                                                               |
 | ----------- | ------------------------------------------------------------- |
 | Version     | `1.0.0`                                                       |
-| Provided by | `provideJupyterExecution()` returning the run pipeline        |
-| Consumed by | `consumeJupyterExecution(execution)`                          |
+| Provided by | `provideJupyterExecution()` returning the execution facade    |
+| Consumed by | `consumeJupyterExecution(execution)` returning a `Disposable` |
 | Owner       | [`jupyter-repl`](https://github.com/lumine-code/jupyter-repl) |
 
-This is the seam between deciding **what** to run and running it. A consumer computes `{code, row, cellType}` blocks from whatever structure it understands — `# %%` marker cells, a notebook pane, a selection — and hands them over; kernels, result rendering, adapter routing and cursor choreography stay on this side. jupyter-cells runs marker cells through it, and jupyter-view routes its notebook toolbar through the adapter member.
-
 ## Registration
-
-In your `package.json`:
 
 ```json
 {
@@ -25,75 +21,110 @@ In your `package.json`:
 }
 ```
 
-Service consumption is passive and has no activation mode. The provider is available when jupyter-repl is enabled and bootstrapped; a consumer can await `lumine.packages.requestService("jupyter.execution", "^1.0.0")` to check whether a compatible provider is currently published before running its first operation.
+Consumption is passive. An operation can await `lumine.packages.requestService("jupyter.execution", "^1.0.0")` before reading its current service reference. Capture the invoking editor or pane item, source revision, cursor and selected targets before that wait, then verify that the captured source and owner remain valid.
 
 ## Contract
 
 ```ts
-type CodeBlock = { code: string; row: number; cellType: "code" | "markdown" | "raw" };
+type CodeBlock = {
+  code: string;
+  row: number;
+  cellType: "code" | "markdown" | "raw";
+};
+
+type ExecutionOutcome = {
+  status: "ok" | "error" | "timeout" | "cancelled" | "unavailable" | "unknown" | "skipped";
+  success?: boolean;
+  requestId?: string;
+  generation?: number;
+  executionCount?: number | null;
+  durationMs?: number | null;
+  results?: {
+    requestId?: string;
+    generation?: number;
+    status: string;
+    executionCount?: number | null;
+    durationMs?: number | null;
+  }[];
+  reason?: string;
+  error?: { ename: string; evalue: string; traceback?: string[] };
+};
+
+type ExecutionReceipt = {
+  id?: string;
+  accepted: boolean;
+  done: Promise<ExecutionOutcome>;
+};
+
+type ExecutionRequest = {
+  item?: object;
+  editor?: TextEditor;
+  grammar?: Grammar; // captured embedded grammar, independently of the base editor grammar
+  owner?: object;
+  blocks?: CodeBlock[];
+  targets?: Target[];
+  scope?: "active" | "all" | "above" | "selected" | "editor";
+  moveDown?: boolean;
+  restart?: boolean;
+  clear?: boolean;
+  signal?: AbortSignal;
+  autocompleteCancelled?: boolean;
+};
 
 type JupyterExecution = {
-  runAdapter(scope: "active" | "all" | "above", moveDown?: boolean): boolean;
-  runBlocks(
-    editor: TextEditor,
-    codeBlocks: CodeBlock[],
-    options?: { autocompleteCancelled?: boolean },
-  ): Promise<boolean>;
-  moveDown(editor: TextEditor, endRow: number): void;
-  clearResults(): void;
-  restartKernel(onRestarted?: () => void): void;
-  importOutputs(editor: TextEditor, bundle: { outputs: object[]; row: number }): void;
-  markdownToOutput(source: string | string[]): object;
+  execute(request: ExecutionRequest): Promise<ExecutionReceipt>;
 };
 ```
 
-| Member                          | Description                                                                                     |
-| ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `runAdapter(scope, moveDown)`   | Offer the run to the notebook adapter owning the active pane. True when it took it — stop then. |
-| `runBlocks(editor, codeBlocks)` | Run blocks in the editor's kernel, starting one when none is attached. See Behavior.            |
-| `moveDown(editor, endRow)`      | Move the cursor past a run, honoring the scroll-behavior setting.                               |
-| `clearResults()`                | Clear the current context's result bubbles, adapter panes included.                             |
-| `restartKernel(onRestarted)`    | Restart the current kernel; calls back immediately when there is none.                          |
-| `importOutputs(editor, bundle)` | Render outputs saved in a notebook as an inline result bubble at `row`.                         |
-| `markdownToOutput(source)`      | A markdown source as the display-data shape `importOutputs` renders.                            |
-
-A `CodeBlock`'s `row` is the buffer row the result bubble anchors to — the last meaningful row of what ran, not the first. Markdown renders locally without a kernel; raw is skipped before kernel selection or result allocation. Obtain prepared blocks from `jupyter.cells.getExecutionBlocks()` so literal `.ipy` source retains headings and indentation and selected magic bodies retain their original headers.
-
-`runBlocks` cancels the editor's completion session at entry. A caller that already cancelled it before asynchronous source preparation can pass `{ autocompleteCancelled: true }` to preserve a newer completion session opened while that preparation was pending.
+`Target` is defined by [`jupyter.adapter`](jupyter.adapter.md). Source execution supplies `editor` and `blocks`, normally also `item: editor`. Notebook execution supplies its explicit `item`, shared `owner` and captured `targets`. An item with no matching adapter is refused; the runtime never falls through to a newly active editor or notebook.
 
 ## Minimal example
 
 ```js
+const { Disposable } = require("lumine");
+
 module.exports = {
   consumeJupyterExecution(execution) {
+    const edge = {};
+    this.executionEdge = edge;
     this.execution = execution;
     return new Disposable(() => {
-      this.execution = null;
+      if (this.executionEdge === edge) this.execution = null;
     });
   },
 
-  runWholeFile(editor) {
-    if (this.execution.runAdapter("all")) return;
-    const lastRow = editor.getLastBufferRow();
-    this.execution.runBlocks(editor, [{ code: editor.getText(), row: lastRow, cellType: "code" }]);
+  async runWholeFile(editor) {
+    const blocks = [
+      {
+        code: editor.getText(),
+        row: editor.getLastBufferRow(),
+        cellType: "code",
+      },
+    ];
+    const receipt = await this.execution.execute({ item: editor, editor, blocks });
+    return receipt.done;
   },
 };
 ```
 
 ## Behavior
 
-**Call `runAdapter` first, with the scope you mean.** A notebook pane owned by a `jupyter.adapter` provider handles its own runs; when it claims the active item the adapter answer is the run, and dispatching blocks as well would run things twice. This mirrors what the built-in run commands have always done, and it is what keeps one keystroke meaningful in a notebook pane and a text editor alike.
+Acceptance and completion are separate. `execute()` resolves a receipt when the invocation has been accepted or refused; kernel selection and execution can still be pending. `receipt.done` settles once with the terminal outcome, including cancellation, provider retirement and unavailable context. UI commands can stop at acceptance; automation and dependent operations await completion.
 
-`runBlocks` resolves `true` once the run is accepted and `false` when there is no editor, no blocks, or no grammar for executable code. Markdown-only runs require no kernel grammar; raw-only runs are accepted without effects. In a mixed run, leading Markdown renders before the first code block requests a kernel, and the remaining blocks retain their order and stop after a code failure. Kernel selection may prompt the user; acceptance does not wait for that picker.
+Completion preserves the public request's terminal status and identity, execution count and duration. An uncertain execution remains `unknown`, an unavailable session remains `unavailable`, and cancellation remains `cancelled`; these outcomes stop the remaining batch without changing their meaning. Batch results carry bounded plain request metadata. A duplicate invocation while the same kernel's batch is in flight reports `skipped` and sends no duplicate work.
 
-One block renders through the single-result path; several go through the batch path. Repeated requests while that kernel's batch is in flight are accepted without queueing duplicate executions.
+A block's `row` is the original buffer row anchoring its inline result, usually the last meaningful source row. Use `jupyter.cells.getExecutionBlocks()` to preserve typed Markdown/raw cells and selected magic headers. Raw blocks do not allocate a kernel request. Markdown source blocks render locally; leading Markdown appears before a mixed run requests a kernel, and code failures stop the remaining sequence.
 
-`moveDown` is deliberately a separate member rather than an option: the built-in commands capture their blocks first and move the cursor before the kernel answers, and a consumer that wants the same feel calls it in the same order.
+`moveDown` operates on the captured editor or notebook after its source has been captured, before the kernel replies. `restart` and `clear` apply to the same explicit context and execute before the captured work. Recalculation is one request with both flags, so an asynchronous restart cannot switch to a different active notebook or recapture a moved cursor.
+
+The runtime cancels the editor's current completion session when accepting work. A caller that cancelled completion before asynchronous source preparation can set `autocompleteCancelled: true`, preserving a newer completion session opened while preparation was pending.
+
+Saved-output import and Markdown-to-output conversion belong to [`jupyter.output`](jupyter.output.md), separately from execution.
 
 ## Teardown
 
-`consumeJupyterExecution` receives the pipeline for as long as both packages are active. Hold it in a field and drop it in the `Disposable` you return; nothing else is held on your behalf.
+Each consumption owns one service edge. Its disposable may clear the consumer's reference only while that edge is still current; retiring an older provider must not revoke a replacement. Closing the owner, aborting `signal`, or retiring the provider settles pending receipts and prevents late work from using disposed state.
 
 ## Versioning
 
-`1.0.0` provided, `^1.0.0` consumed. This unreleased contract uses `code`, `markdown` and `raw` throughout the ecosystem; providers and consumers are updated together before the first release.
+`1.0.0` is provided and `^1.0.0` is consumed. This preproduction contract replaces the former split execution paths throughout the ecosystem, without aliases or parallel versions.

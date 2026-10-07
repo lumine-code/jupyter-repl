@@ -187,6 +187,7 @@ describe("the jupyter.output surface", () => {
       "sanitizeHtml",
       "reduceOutputs",
       "reduceOutputEvents",
+      "createOutputAccumulator",
       "importOutputs",
       "markdownToOutput",
       "normalizeOutput",

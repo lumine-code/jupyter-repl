@@ -742,3 +742,122 @@ autocomplete-suggestion-list.select-list.popover-list .suggestion-description {
 .output-resource-load[hidden] {
   display: none;
 }
+
+.jupyter-repl-prompt .prompt-history-item {
+  /* Rows hold code, so they read in the editor font rather than the UI one. */
+  .primary-text {
+    font-family: var(--editor-font-family);
+  }
+
+  /* An outcome marker is a glyph and nothing else, so it trips the framework's
+     "hide an unused badge" rule; opt back in and drop the label gap the icon
+     box reserves for text that is not there. */
+  .prompt-status.badge:empty {
+    display: inline-block;
+  }
+
+  .prompt-status.badge::before {
+    margin-right: 0;
+  }
+
+  /* Clock times stack in a column, so they align on their digits. */
+  .prompt-time.badge {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.jupyter-repl-kernel-monitor {
+  .monitor-wrapper {
+    overflow-y: auto;
+    overflow-x: hidden;
+    cursor: default;
+    outline: none;
+
+    /* Row states, the way the linter panel draws them: hover gives faint
+       feedback, `current` (the active file's kernel) is always tinted, and
+       `focused` is the keyboard cursor — an outline shown only while the
+       panel has focus, further below. */
+    .monitor-row {
+      transition: background-color 0.15s ease-out;
+      cursor: default;
+
+      &:hover > td {
+        background-color: rgb(from var(--text-color) r g b / 0.06);
+      }
+
+      &.current > td {
+        background-color: rgb(from var(--accent-indicator-color) r g b / 0.25);
+      }
+
+      &.current:hover > td {
+        background-color: rgb(from var(--accent-indicator-color) r g b / 0.3);
+      }
+    }
+
+    .monitor-table {
+      width: 100%;
+
+      > thead {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background-color: var(--background-color-highlight);
+      }
+
+      border: unset;
+
+      th,
+      td {
+        padding: 0.3em 0.5em;
+        border: 1px solid var(--base-border-color);
+        border-top: 1px;
+
+        p {
+          margin-bottom: unset;
+        }
+      }
+
+      th:nth-child(1),
+      th:nth-child(2),
+      th:nth-child(3) {
+        white-space: nowrap;
+      }
+
+      .monitor-count,
+      .monitor-time {
+        text-align: right;
+      }
+
+      .monitor-managements {
+        text-align: center;
+        white-space: nowrap;
+
+        a {
+          cursor: default;
+        }
+
+        .icon::before {
+          padding-right: 5px;
+          padding-left: 5px;
+          width: auto;
+        }
+
+        .icon:hover {
+          color: var(--text-color-error);
+        }
+      }
+
+      .monitor-files {
+        text-align: left;
+        white-space: pre-wrap;
+      }
+    }
+  }
+
+  .monitor-wrapper:focus-within {
+    .monitor-row.focused {
+      outline: 1px dotted var(--text-color-highlight);
+      outline-offset: -2px;
+    }
+  }
+}
