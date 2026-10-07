@@ -50,10 +50,10 @@
   --jp-ui-font-size1: var(--ui-font-size);
 
   /* Text on top of a brand-coloured surface. ipywidgets uses both spellings. */
-  --jp-inverse-ui-font-color0: var(--text-color-selected);
-  --jp-inverse-ui-font-color1: var(--text-color-selected);
-  --jp-ui-inverse-font-color0: var(--text-color-selected);
-  --jp-ui-inverse-font-color1: var(--text-color-selected);
+  --jp-inverse-ui-font-color0: var(--accent-foreground-color);
+  --jp-inverse-ui-font-color1: var(--accent-foreground-color);
+  --jp-ui-inverse-font-color0: var(--accent-foreground-color);
+  --jp-ui-inverse-font-color1: var(--accent-foreground-color);
 
   /* Borders. */
   --jp-border-color1: var(--base-border-color);
@@ -61,9 +61,9 @@
   --jp-border-width: 1px;
 
   /* The accent a slider track, a checked box and a selected tab take. */
-  --jp-brand-color0: var(--button-background-color-selected);
-  --jp-brand-color1: var(--background-color-selected);
-  --jp-brand-color2: color-mix(in srgb, var(--background-color-selected) 60%, transparent);
+  --jp-brand-color0: var(--accent-background-color);
+  --jp-brand-color1: var(--accent-background-color);
+  --jp-brand-color2: color-mix(in srgb, var(--accent-indicator-color) 60%, transparent);
 
   /* Semantic. The 0 and 1 pairs differ by emphasis upstream; the theme exposes
      one of each, so a mix stands in for the stronger. */
@@ -562,7 +562,7 @@
         &:focus {
           &::-webkit-slider-thumb {
             -webkit-appearance: none;
-            background-color: var(--button-background-color-selected);
+            background-color: var(--accent-indicator-color);
             border: 1px solid var(--background-color-selected);
           }
 
