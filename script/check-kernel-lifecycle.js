@@ -159,30 +159,20 @@ async function retire(kernel) {
   live.delete(transport);
 }
 
-function watch(kernel, code) {
-  return new Promise((resolve, reject) => {
-    let reply = null;
-    let idle = false;
-    const timer = setTimeout(() => reject(new Error("Owned CI watch timed out")), 15000);
-    try {
-      kernel.executeWatch(code, (result) => {
-        if (result.stream === "status") reply = result.data;
-        if (result.output_type === "status" && result.execution_state === "idle") idle = true;
-        if (reply !== null && idle) {
-          clearTimeout(timer);
-          reply === "ok" ? resolve() : reject(new Error("Owned CI watch failed"));
-        }
-      });
-    } catch (error) {
-      clearTimeout(timer);
-      reject(error);
-    }
-  });
+function execute(session, code, options = {}) {
+  return session.request({ type: "execute", purpose: "user", code, ...options }).done;
+}
+
+async function watch(kernel, code) {
+  const outcome = await kernel
+    .getPluginWrapper()
+    .request({ type: "execute", purpose: "query", code, timeoutMs: 15000 }).done;
+  assert.equal(outcome.status, "ok");
 }
 
 async function recoverWithoutReplay(kernel, api) {
   const transport = kernel.transport;
-  assert.equal((await api.execute("recovery_counter = 0", { timeoutMs: 15000 })).status, "ok");
+  assert.equal((await execute(api, "recovery_counter = 0", { timeoutMs: 15000 })).status, "ok");
   const shell = transport.onShellMessage;
   const iopub = transport.onIOMessage;
   const buffered = [];
@@ -200,9 +190,10 @@ async function recoverWithoutReplay(kernel, api) {
   try {
     // Simulate delayed inbound traffic only. The code, sockets, watchdog and
     // independent recovery probes remain the real shipped implementations.
-    execution = api.execute("recovery_counter += 1\nprint('recovered once')", {
+    execution = execute(api, "recovery_counter += 1\nprint('recovered once')", {
       timeoutMs: 15000,
     });
+    await Promise.resolve();
     requestId = transport._activeShellRequest;
     assert(requestId, "Recovery target must have reached the native shell queue");
     const deadline = Date.now() + 10000;
@@ -240,7 +231,7 @@ async function recoverWithoutReplay(kernel, api) {
   while (transport.lifecycle === "recovering" && Date.now() < deadline) await wait(10);
   assert.equal(transport.lifecycle, "ready");
   assert.equal(transport._recovery, null);
-  const counter = await api.execute("print(recovery_counter)", { timeoutMs: 15000 });
+  const counter = await execute(api, "print(recovery_counter)", { timeoutMs: 15000 });
   assert.equal(counter.status, "ok");
   assert.equal(outputText(counter), "1\n");
   counts.executes += 3;
@@ -262,7 +253,8 @@ async function run() {
         }
         const results = await Promise.all(
           Array.from({ length: 6 }, (_, index) =>
-            api.execute(
+            execute(
+              api,
               `seen = globals().get('seen', [])\nseen.append(${index})\nprint('request_${index}')`,
               { timeoutMs: 15000 },
             ),
@@ -274,37 +266,52 @@ async function run() {
         }
         assert.equal(new Set(results.map((result) => result.executionCount)).size, 6);
         assert.equal(
-          (await api.execute("assert sorted(seen) == list(range(6))", { timeoutMs: 15000 })).status,
+          (await execute(api, "assert sorted(seen) == list(range(6))", { timeoutMs: 15000 }))
+            .status,
           "ok",
         );
         counts.executes += 7;
         await watch(kernel, "print('background watch')");
         counts.watches++;
-        assert((await api.complete("see")).matches.includes("seen"));
+        assert(
+          (
+            await api.request({ type: "complete", purpose: "query", code: "see" }).done
+          ).data.matches.includes("seen"),
+        );
         counts.completions++;
-        assert.equal((await api.inspect("print", 5)).found, true);
+        assert.equal(
+          (
+            await api.request({ type: "inspect", purpose: "query", code: "print", cursorPos: 5 })
+              .done
+          ).data.found,
+          true,
+        );
         counts.inspections++;
       }
       await recoverWithoutReplay(kernel, api);
-      const definition = await api.execute(
+      const definition = await execute(
+        api,
         "def live_target(value):\n    return value + 1\nlive_alias = live_target",
         { timeoutMs: 15000 },
       );
       assert.equal(definition.status, "ok");
       counts.executes++;
       const countBeforeLookup = api.executionCount;
-      const source = await queryRuntimeSource(kernel, "live_alias");
+      const source = await queryRuntimeSource(kernel.getPluginWrapper(), "live_alias");
       assert.equal(source?.executionCount, definition.executionCount);
       assert.equal(source.line, 1);
       assert(source.source.startsWith("def live_target(value):"));
-      assert.equal(await queryRuntimeSource(kernel, "unknown_live_symbol"), null);
+      assert.equal(
+        await queryRuntimeSource(kernel.getPluginWrapper(), "unknown_live_symbol"),
+        null,
+      );
       assert.equal(api.executionCount, countBeforeLookup);
       counts.sourceLookups += 2;
-      const stream = await api.execute("print('ż😀 ' * 62500)", { timeoutMs: 15000 });
+      const stream = await execute(api, "print('ż😀 ' * 62500)", { timeoutMs: 15000 });
       assert.equal(stream.status, "ok");
       assert.equal(outputText(stream), "ż😀 ".repeat(62500) + "\n");
       counts.executes++;
-      const pending = api.execute("import time\ntime.sleep(2)\nprint('old generation')", {
+      const pending = execute(api, "import time\ntime.sleep(2)\nprint('old generation')", {
         timeoutMs: 15000,
       });
       const deadline = Date.now() + 5000;
@@ -316,9 +323,13 @@ async function run() {
       retired.push(previous.pid);
       counts.restarts++;
       const cancelled = await pending;
-      assert.equal(cancelled.status, "error");
+      // Busy can precede execute_input on IOPub, so whether the restart
+      // captured an acknowledgement depends on which message arrived first.
+      assert(["cancelled", "unknown"].includes(cancelled.status));
+      if (cancelled.status === "unknown")
+        assert.equal(cancelled.error.ename, "ExecutionOutcomeUnknown");
       assert(!outputText(cancelled).includes("old generation"));
-      const fresh = await api.execute("print('fresh generation')", { timeoutMs: 15000 });
+      const fresh = await execute(api, "print('fresh generation')", { timeoutMs: 15000 });
       assert.equal(outputText(fresh), "fresh generation\n");
       counts.executes++;
     } finally {

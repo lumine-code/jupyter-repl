@@ -20,7 +20,11 @@ describe("executed editor source provenance", () => {
     };
     events = new Emitter();
     kernel = {
-      transport: { _connectionGeneration: 1, lifecycle: "ready" },
+      generation: 1,
+      connectionState: "ready",
+      isDestroyed: () => false,
+      onDidChangeGeneration: (callback) => events.on("generation", callback),
+      onDidDestroy: (callback) => events.on("destroy", callback),
       onDidChangeExecutionState: (callback) => events.on("state", callback),
     };
     context.captureExecution(
@@ -66,14 +70,13 @@ describe("executed editor source provenance", () => {
   });
 
   it("rejects a restarted transport before any new execution count arrives", () => {
-    kernel.transport._connectionGeneration++;
+    kernel.generation++;
     expect(context.resolveSourceFrame(kernel, frame())).toBeNull();
   });
 
-  it("clears live provenance on restart even without a transport generation field", () => {
-    delete kernel.transport._connectionGeneration;
+  it("clears live provenance as the public session generation changes", () => {
     const query = { ...frame(), generation: undefined };
-    for (const state of ["restarting", "autorestarting"]) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       context.captureExecution(
         editor,
         kernel,
@@ -81,17 +84,17 @@ describe("executed editor source provenance", () => {
         3,
       )({ stream: "execution_count", data: 17 });
       expect(context.resolveSourceFrame(kernel, query)).toBeTruthy();
-      events.emit("state", state);
-      events.emit("state", "idle");
+      events.emit("generation", ++kernel.generation);
+
       expect(context.resolveSourceFrame(kernel, query)).toBeNull();
     }
   });
 
-  it("rechecks transport identity and generation when a resolved link is clicked", async () => {
+  it("rechecks public connection state when a resolved link is clicked", async () => {
     const link = context.resolveSourceFrame(kernel, frame());
     const open = spyOn(lumine.workspace, "open");
     spyOn(lumine.notifications, "addWarning");
-    kernel.transport = { _connectionGeneration: 1, lifecycle: "ready" };
+    kernel.connectionState = "unresponsive";
     await link.open();
     expect(open).not.toHaveBeenCalled();
     expect(editor.setSelectedBufferRange).not.toHaveBeenCalled();
@@ -103,7 +106,7 @@ describe("executed editor source provenance", () => {
       new Promise((resolve) => (finishOpen = resolve)),
     );
     const pending = context.resolveSourceFrame(kernel, frame()).open();
-    kernel.transport._connectionGeneration++;
+    kernel.generation++;
     finishOpen(editor);
     await pending;
     expect(editor.setSelectedBufferRange).not.toHaveBeenCalled();
@@ -140,13 +143,15 @@ describe("executed editor source provenance", () => {
     receive({ stream: "execution_count", data: 18 });
     const error = { output_type: "error" };
     receive(error);
-    kernel.transport._connectionGeneration++;
+    kernel.generation++;
     expect(context.resolveSourceFrame(kernel, frame())).toBeNull();
     expect(context.resolverForOutput(error)({ executionCount: 17, line: 1 })).toBeTruthy();
   });
 
   it("does not subscribe to kernels with no recorded execution provenance", () => {
     const unknown = {
+      isDestroyed: () => false,
+      connectionState: "ready",
       onDidChangeExecutionState: jasmine
         .createSpy("unused subscription")
         .and.returnValue(new Disposable()),

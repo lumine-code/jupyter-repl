@@ -1,4 +1,6 @@
-const { Emitter } = require("lumine");
+const RequestHandle = require("../lib/request-handle");
+const { retireRequest } = RequestHandle;
+const { Emitter, CompositeDisposable, Disposable } = require("lumine");
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -16,19 +18,48 @@ function kernel() {
   return {
     language: "python",
     executionState: "idle",
-    destroyed: false,
+    connectionState: "ready",
+    generation: 1,
+    isDestroyed: () => false,
     requests: [],
     events,
     lifecycle,
-    transport: {
-      lifecycle: "ready",
-      _connectionGeneration: 1,
-      onDidChangeLifecycle: (callback) => lifecycle.on("change", callback),
-    },
     onDidDestroy: (callback) => events.on("destroy", callback),
-    onDidChangeExecutionState: (callback) => events.on("state", callback),
-    executeWatch(code, receive) {
-      this.requests.push({ code, receive });
+    onDidChangeGeneration: (callback) => events.on("generation", callback),
+    onDidChangeConnectionState: (callback) => lifecycle.on("change", callback),
+    request(descriptor) {
+      let receive = null;
+      let disposed = false;
+      const queued = [];
+      const subscriptions = new CompositeDisposable();
+      const record = {
+        code: descriptor.code,
+        receive: (message) => {
+          if (disposed) return;
+          if (receive) receive(message);
+          else queued.push(message);
+        },
+      };
+      this.requests.push(record);
+      const handle = new RequestHandle({
+        ...descriptor,
+        generation: this.generation,
+        start: (callback) => {
+          receive = callback;
+          for (const message of queued.splice(0)) receive(message);
+          return new Disposable(() => {
+            disposed = true;
+            receive = null;
+            queued.length = 0;
+          });
+        },
+        onFinish: () => subscriptions.dispose(),
+      });
+      subscriptions.add(
+        events.on("destroy", () => retireRequest(handle, "Session destroyed")),
+        events.on("generation", () => retireRequest(handle, "Session restarted")),
+      );
+      return handle;
     },
   };
 }
@@ -120,7 +151,7 @@ describe("runtime source request lifetime", () => {
     expect(source.requests.length).toBe(0);
   });
 
-  it("keeps only one physical request and does not share another caller's lifetime", async () => {
+  it("keeps only one owned request and does not share another caller's lifetime", async () => {
     const first = queryRuntimeSource(source, "target");
     expect(await queryRuntimeSource(source, "target", { isCurrent: () => true })).toBeNull();
     expect(await queryRuntimeSource(source, "other")).toBeNull();
@@ -131,13 +162,13 @@ describe("runtime source request lifetime", () => {
     expect(await second).toEqual(target());
   });
 
-  it("settles a timeout while blocking additional queued work until the backend finishes", async () => {
+  it("releases a timed-out observation and leaves physical serialization to the runtime", async () => {
     const first = queryRuntimeSource(source, "target", { timeoutMs: 100 });
+    await Promise.resolve();
     window.advanceClock(100);
     expect(await first).toBeNull();
-    expect(await queryRuntimeSource(source, "other")).toBeNull();
-    answer(source.requests[0]);
     const next = queryRuntimeSource(source, "target");
+    answer(source.requests[0], { ...target(), source: "late prior query" });
     answer(source.requests[1]);
     expect(await next).toEqual(target());
   });
@@ -159,7 +190,7 @@ describe("runtime source request lifetime", () => {
     answer(source.requests[0]);
     expect(await result).toBeNull();
     const restarting = queryRuntimeSource(source, "target");
-    source.events.emit("state", "restarting");
+    source.events.emit("generation", ++source.generation);
     expect(await restarting).toBeNull();
     const next = queryRuntimeSource(source, "target");
     answer(source.requests[1], { ...target(), source: "old process" });
@@ -172,7 +203,7 @@ describe("runtime source request lifetime", () => {
     source.lifecycle.emit("change", "recovering");
     expect(await recovering).toBeNull();
     const replaced = queryRuntimeSource(source, "target");
-    source.transport._connectionGeneration++;
+    source.generation++;
     answer(source.requests[1]);
     expect(await replaced).toBeNull();
   });
@@ -201,9 +232,9 @@ describe("runtime source request lifetime", () => {
   });
 
   it("contains send errors and releases its request slot", async () => {
-    spyOn(source, "executeWatch").and.throwError("gone");
+    spyOn(source, "request").and.throwError("gone");
     expect(await queryRuntimeSource(source, "target")).toBeNull();
-    source.executeWatch.and.callThrough();
+    source.request.and.callThrough();
     const next = queryRuntimeSource(source, "target");
     answer(source.requests[0]);
     expect(await next).toEqual(target());

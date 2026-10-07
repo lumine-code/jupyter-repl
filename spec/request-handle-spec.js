@@ -73,6 +73,8 @@ describe("owned Jupyter requests", () => {
     expect(JupyterKernel.isSession(session)).toBe(true);
     kernel.destroy();
     expect(session.id).toBe(id);
+    expect(JupyterKernel.getInternalKernel(session)).toBeNull();
+    expect(session.displayName).toBe("Python");
     expect(session.isDestroyed()).toBe(true);
     expect(session.connectionState).toBe("dead");
   });
@@ -228,12 +230,33 @@ describe("owned Jupyter requests", () => {
     transport.reply(
       transport.requests[0],
       "inspect_reply",
-      { data: { "text/plain": "docs" }, found: true },
+      { data: { "text/plain": "docs" }, found: true, metadata: { origin: "kernel" } },
       "shell",
     );
     const result = await request.done;
     expect(result.status).toBe("ok");
-    expect(result.data).toEqual({ data: { "text/plain": "docs" }, found: true });
+    expect(result.data).toEqual({
+      data: { "text/plain": "docs" },
+      found: true,
+      metadata: { origin: "kernel" },
+    });
+  });
+
+  it("preserves precise transport outcomes emitted immediately after generation reset", async () => {
+    const request = session.request({ type: "execute", purpose: "user", code: "side_effect()" });
+    await Promise.resolve();
+    transport.emitDidResetComms("Kernel restarted");
+    const record = transport.requests[0];
+    transport.reply(record, "error", {
+      ename: "ExecutionOutcomeUnknown",
+      evalue: "Unacknowledged execution",
+      traceback: [],
+    });
+    transport.reply(record, "execute_reply", { status: "error" }, "shell");
+    transport.reply(record, "status", { execution_state: "idle" });
+    const result = await request.done;
+    expect(result.status).toBe("unknown");
+    expect(result.error.ename).toBe("ExecutionOutcomeUnknown");
   });
 
   it("invalidates requests on destruction and settles later requests without throwing", async () => {

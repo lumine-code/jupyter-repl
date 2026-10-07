@@ -166,6 +166,15 @@ describe("the local shell request coordinator", () => {
     expect(kernel.executionCallbacks.active).toBeUndefined();
   });
 
+  it("leaves no queued status when the last user run is cancelled behind a query", () => {
+    request(kernel, "complete_request", "query");
+    request(kernel, "execute_request", "user", () => {}, false);
+    expect(kernel.executionState).toBe("queued");
+    kernel.onIOMessage(status("query", "busy", "complete_request"));
+    kernel._shellRequests().observation("user").dispose();
+    expect(kernel.executionState).toBe("idle");
+  });
+
   it("supersedes queued autocomplete requests before they reach ZMQ", () => {
     request(kernel, "complete_request", "complete_1");
     const second = [];

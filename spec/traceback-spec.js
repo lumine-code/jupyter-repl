@@ -227,7 +227,10 @@ describe("traceback navigation", () => {
     const open = jasmine.createSpy("open");
     const kernel = {
       executionState: "idle",
-      transport: { lifecycle: "ready", _connectionGeneration: 1 },
+      generation: 1,
+      connectionState: "ready",
+      isDestroyed: () => false,
+      capabilities: { localSource: true },
     };
     view = new Traceback({
       output: { traceback: ["Cell In[1], line 1"] },
@@ -237,11 +240,11 @@ describe("traceback navigation", () => {
     document.body.appendChild(view.element);
     const span = view.element.querySelector(".traceback-location");
     const suggestion = getSuggestionForElement(span);
-    kernel.transport._connectionGeneration++;
+    kernel.generation++;
     expect(suggestion.isCurrent()).toBe(false);
     await suggestion.callback();
-    kernel.transport._connectionGeneration = 1;
-    kernel.transport.lifecycle = "recovering";
+    kernel.generation = 1;
+    kernel.connectionState = "recovering";
     expect(getSuggestionForElement(span)).toBe(null);
     await suggestion.callback();
     view.destroy();

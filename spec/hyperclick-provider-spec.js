@@ -1,9 +1,10 @@
+const { wrapSession } = require("./helpers/session");
 const path = require("node:path");
 const fs = require("node:fs/promises");
-const { Range } = require("lumine");
+const { Range, Emitter } = require("lumine");
 
 describe("kernel source navigation through hyperclick", () => {
-  let editor, target, provider, store, kernel, query, context;
+  let editor, target, provider, store, kernel, session, query, context;
   const range = () => new Range([0, 0], [0, 5]);
   const filename = path.join(__dirname, "runtime-target.py");
   const source = () => ({ filename, line: 2, source: "def target():\n    return 1\n" });
@@ -23,6 +24,10 @@ describe("kernel source navigation through hyperclick", () => {
       destroyed: false,
       transport: { lifecycle: "ready", _connectionGeneration: 1, _destroyed: false },
     };
+    kernel.emitter = new Emitter();
+    kernel.transport.events = new Emitter();
+    kernel.transport.onDidResetComms = (callback) => kernel.transport.events.on("reset", callback);
+    session = wrapSession(kernel);
     store = {
       globalMode: false,
       runningKernels: [kernel],
@@ -37,6 +42,9 @@ describe("kernel source navigation through hyperclick", () => {
   });
   afterEach(() => {
     provider.dispose();
+    kernel.emitter.emit("did-destroy");
+    kernel.emitter.dispose();
+    kernel.transport.events.dispose();
     editor.destroy();
     target.destroy();
   });
@@ -44,7 +52,7 @@ describe("kernel source navigation through hyperclick", () => {
   it("uses the pointed editor's existing kernel and opens a freshly resolved source", async () => {
     store.kernel = { language: "python", executionState: "idle" };
     const suggestion = await provider.getSuggestionForWord(editor, "alias", range());
-    expect(query.calls.argsFor(0)[0]).toBe(kernel);
+    expect(query.calls.argsFor(0)[0]).toBe(session);
     expect(suggestion.range).toEqual(range());
     const latest = { ...source(), filename: path.join(__dirname, "rebound-target.py") };
     query.and.resolveTo(latest);
@@ -71,7 +79,7 @@ describe("kernel source navigation through hyperclick", () => {
     const unrelated = { language: "javascript", executionState: "idle" };
     store.runningKernels = [unrelated, kernel];
     expect(await provider.getSuggestionForWord(editor, "alias", range())).toBeTruthy();
-    expect(query.calls.argsFor(0)[0]).toBe(kernel);
+    expect(query.calls.argsFor(0)[0]).toBe(session);
   });
 
   it("reads dotted symbols at the mouse range and rejects calls and subscripts", async () => {
@@ -173,7 +181,10 @@ describe("kernel source navigation through hyperclick", () => {
     );
     const pending = provider.getSuggestionForWord(editor, "alias", range());
     await queried;
-    store.kernelMapping.set(`Unsaved Editor ${editor.id}`, { ...kernel });
+    store.kernelMapping.set(`Unsaved Editor ${editor.id}`, {
+      ...kernel,
+      getPluginWrapper: () => ({ id: "rebound" }),
+    });
     finish(source());
     expect(await pending).toBeUndefined();
   });
@@ -184,7 +195,7 @@ describe("kernel source navigation through hyperclick", () => {
     await edited.callback();
     editor.setText("alias");
     const restarted = await provider.getSuggestionForWord(editor, "alias", range());
-    kernel.transport._connectionGeneration++;
+    kernel.transport.events.emit("reset", "Kernel restarted");
     await restarted.callback();
     const retired = await provider.getSuggestionForWord(editor, "alias", range());
     provider.dispose();
@@ -230,8 +241,8 @@ describe("kernel source navigation through hyperclick", () => {
     expect(open).toHaveBeenCalled();
     const [frame, queriedKernel] = adapter.resolveSourceFrame.calls.mostRecent().args;
     expect(frame.executionCount).toBe(7);
-    expect(frame.generation).toBe(1);
-    expect(queriedKernel).toBe(kernel);
+    expect(frame.generation).toBe(session.generation);
+    expect(queriedKernel).toBe(session);
     expect(lumine.workspace.open).not.toHaveBeenCalled();
   });
 
@@ -262,7 +273,7 @@ describe("kernel source navigation through hyperclick", () => {
     spyOn(target, "setCursorBufferPosition");
     const following = suggestion.callback();
     await opened;
-    kernel.transport._connectionGeneration++;
+    kernel.transport.events.emit("reset", "Kernel restarted");
     finishOpen(target);
     await following;
     expect(target.setCursorBufferPosition).not.toHaveBeenCalled();

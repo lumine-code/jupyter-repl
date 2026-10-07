@@ -92,7 +92,8 @@ type Session = {
   readonly grammar: Grammar;
   readonly kernelSpec: object;
   readonly gatewayName: string | null;
-  readonly capabilities: { rename: boolean; disconnect: boolean };
+  readonly name: string;
+  readonly capabilities: { rename: boolean; disconnect: boolean; localSource: boolean };
   isDestroyed(): boolean;
   request(descriptor: RequestDescriptor): RequestHandle;
   onDidChangeGeneration(callback: (generation: number) => void): Disposable;

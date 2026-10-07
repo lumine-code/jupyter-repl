@@ -1,3 +1,4 @@
+const { wrapSession } = require("./helpers/session");
 const path = require("node:path");
 const { CompositeDisposable, Emitter } = require("lumine");
 const root = path.resolve(__dirname, "..");
@@ -61,6 +62,7 @@ describe("autocomplete without a running kernel", () => {
         callback({ matches: ["a100"], cursor_start: 0, cursor_end: 2 });
       },
     };
+    wrapSession(kernel);
     const key = store.filePath;
     store.runningKernels.push(kernel);
     store.kernelMapping.set(key, new Map([[store.grammar.name, kernel]]));
@@ -123,6 +125,7 @@ describe("completion deadlines when a kernel becomes unavailable", () => {
       getTextInBufferRange: () => "a1",
       getCursorBufferPosition: () => ({ row: 0, column: 2 }),
     };
+    wrapSession(kernel);
     provider = require("../lib/services/provided/autocomplete").provideAutocomplete(store);
   });
   afterEach(() => {

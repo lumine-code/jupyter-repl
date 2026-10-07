@@ -1,3 +1,4 @@
+const { wrapSession } = require("./helpers/session");
 const { CompositeDisposable } = require("lumine");
 const { provideAutocomplete } = require("../lib/services/provided/autocomplete");
 
@@ -27,6 +28,7 @@ describe("kernel autocomplete request lifetime", () => {
         inspect: (_code, _position, callback) => replies.push(callback),
       },
     };
+    wrapSession(store.kernel);
     provider = provideAutocomplete(store);
   });
 
@@ -38,30 +40,35 @@ describe("kernel autocomplete request lifetime", () => {
 
   it("settles a superseded completion without waiting for its kernel reply", async () => {
     const first = suggestions();
+    await Promise.resolve();
     const second = suggestions();
     await expectAsync(first).toBeResolvedTo(null);
-    replies[1]({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
+    await Promise.resolve();
+    replies.at(-1)({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
     expect((await second)[0].text).toBe("print");
   });
 
   it("discards a response after its source text changes", async () => {
     const pending = suggestions();
     code = "ab";
-    replies[0]({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
+    await Promise.resolve();
+    replies.at(-1)({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
     await expectAsync(pending).toBeResolvedTo(null);
   });
 
   it("discards a response after the cursor moves", async () => {
     const pending = suggestions();
     position = { row: 0, column: 0 };
-    replies[0]({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
+    await Promise.resolve();
+    replies.at(-1)({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
     await expectAsync(pending).toBeResolvedTo(null);
   });
 
   it("discards a response after the kernel changes", async () => {
     const pending = suggestions();
     store.kernel = null;
-    replies[0]({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
+    await Promise.resolve();
+    replies.at(-1)({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
     await expectAsync(pending).toBeResolvedTo(null);
   });
 
@@ -75,7 +82,8 @@ describe("kernel autocomplete request lifetime", () => {
   it("releases a successful completion's deadline immediately", async () => {
     spyOn(window, "clearTimeout").and.callThrough();
     const pending = suggestions();
-    replies[0]({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
+    await Promise.resolve();
+    replies.at(-1)({ matches: ["print"], cursor_start: 0, cursor_end: 2 });
     await pending;
     expect(window.clearTimeout).toHaveBeenCalled();
   });
@@ -89,7 +97,8 @@ describe("kernel autocomplete request lifetime", () => {
 
   it("tolerates an inspection reply with no documentation", async () => {
     const pending = provider.getSuggestionDetailsOnSelect({ text: "print", replacedText: "print" });
-    replies[0]({ found: true });
+    await Promise.resolve();
+    replies.at(-1)({ found: true });
     await expectAsync(pending).toBeResolvedTo(null);
   });
 });

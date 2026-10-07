@@ -16,7 +16,7 @@ function fileLink(frame, kernel) {
   // Kernels may return remote paths, pseudo-files, or URLs. A local absolute
   // regular file is the only default navigation target.
   if (
-    kernel?.transport?.session ||
+    (kernel && !kernel.capabilities.localSource) ||
     !filename ||
     !path.isAbsolute(filename) ||
     /[\0\r\n]/.test(filename)
@@ -83,14 +83,10 @@ class Traceback {
     )
       return false;
     const kernel = snapshot.kernel;
-    const transport = kernel?.transport;
     return (
-      !kernel?._destroyed &&
-      !kernel?.destroyed &&
-      !transport?._destroyed &&
-      transport === snapshot.transport &&
-      transport?._connectionGeneration === snapshot.connectionGeneration &&
-      (!transport?.lifecycle || transport.lifecycle === "ready") &&
+      !kernel?.isDestroyed() &&
+      kernel?.generation === snapshot.connectionGeneration &&
+      (!kernel || kernel.connectionState === "ready") &&
       ![
         "loading",
         "recovering",
@@ -160,8 +156,7 @@ class Traceback {
       ename: output.ename,
       resolver: this.props.resolveTracebackFrame,
       kernel: this.props.kernel,
-      transport: this.props.kernel?.transport,
-      connectionGeneration: this.props.kernel?.transport?._connectionGeneration,
+      connectionGeneration: this.props.kernel?.generation,
     };
     const { text, truncated } = truncateOutput(raw);
     const parts = text ? parseTraceback(text, output.ename) : [];
