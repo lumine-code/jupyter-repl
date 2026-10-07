@@ -14,6 +14,12 @@ describe("batch inline feedback", () => {
   let previousOutputAreaDefault;
   let previousResizeObserver;
 
+  async function waitForExecutions(count) {
+    for (let turn = 0; turn < 12 && fakeKernel.executions.length < count; turn++)
+      await Promise.resolve();
+    expect(fakeKernel.executions.length).toBe(count);
+  }
+
   const resultAtRow = (row) =>
     [...markers.markers.values()].find(
       (resultView) => resultView.marker.getStartBufferPosition().row === row,
@@ -80,8 +86,7 @@ describe("batch inline feedback", () => {
     ]);
 
     // Let the resolved first execution advance the queue to the second block.
-    await Promise.resolve();
-    await Promise.resolve();
+    await waitForExecutions(2);
     if (fakeKernel.executions.length !== 2) {
       throw new Error(`Expected the second block to start; got ${fakeKernel.executions.length}`);
     }
@@ -128,7 +133,7 @@ describe("batch inline feedback", () => {
 
     // The next deliberate run, after the batch finished, goes through.
     const again = result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks);
-    expect(fakeKernel.executions.length).toBe(2);
+    await waitForExecutions(2);
     fakeKernel.executions[1].callback({ data: "ok", stream: "status" });
     fakeKernel.executions[1].callback({ output_type: "status", execution_state: "idle" });
     await again;
@@ -145,7 +150,8 @@ describe("batch inline feedback", () => {
       callback({ data: "ok", stream: "status" });
       callback({ output_type: "status", execution_state: "idle" });
     };
-    await runAllInline();
+    const receipt = await runAllInline();
+    await receipt.done;
 
     expect(fakeKernel.executions.length).toBeGreaterThan(0);
     expect(editor.getCursorBufferPosition().toArray()).toEqual([2, 4]);
@@ -171,7 +177,7 @@ describe("batch inline feedback", () => {
       { code: "second()", row: 1, cellType: "code" },
     ]);
 
-    await expectAsync(batch).toBeRejectedWithError("send failed");
+    expect(await batch).toBe(false);
 
     expect(fakeKernel.batchInFlight).toBe(false);
     expect(resultAtRow(0).outputStore.status).toBe("error");
@@ -184,8 +190,7 @@ describe("batch inline feedback", () => {
       { code: "second()", row: 1, cellType: "code" },
       { code: "third()", row: 2, cellType: "code" },
     ]);
-    await Promise.resolve();
-    await Promise.resolve();
+    await waitForExecutions(2);
     expect(fakeKernel.executions.length).toBe(2);
     editor.destroy();
     fakeKernel.executions[1].callback({ data: "ok", stream: "status" });

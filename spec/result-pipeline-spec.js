@@ -1,5 +1,5 @@
 describe("the shared result pipeline", () => {
-  let result, editor, markers, kernel, previousDefault, previousResizeObserver;
+  let result, editor, markers, kernel, session, previousDefault, previousResizeObserver;
 
   beforeEach(async () => {
     result = require("../lib/result");
@@ -19,11 +19,14 @@ describe("the shared result pipeline", () => {
     kernel = {
       outputStore: new OutputStore(),
       setLastOutputStore: jasmine.createSpy("setLastOutputStore"),
+      onDidChangeExecutionState: () => new (require("lumine").Disposable)(),
       execute: jasmine.createSpy("execute").and.callFake((_code, receive) => {
         kernel.receive = receive;
         return { durationMs: 12 };
       }),
     };
+    session = new (require("../lib/plugin-api/jupyter-kernel"))(kernel);
+    kernel.getPluginWrapper = () => session;
     // Dock opening is independent of delivery; this spec owns no dock item.
     spyOn(lumine.workspace, "open").and.returnValue(Promise.resolve(null));
   });
@@ -50,9 +53,11 @@ describe("the shared result pipeline", () => {
       const messages = ["one ", "two ", "three"].map((text) =>
         Object.freeze({ output_type: "stream", name: "stdout", text }),
       );
+      await Promise.resolve();
       for (const message of messages) kernel.receive(message);
       kernel.receive({ data: "ok", stream: "status" });
       kernel.receive({ output_type: "status", execution_state: "idle" });
+      await Promise.resolve();
       const [view] = markers.markers.values();
 
       expect(view.outputStore.outputs[0].text).toBe("one two three");
@@ -61,7 +66,7 @@ describe("the shared result pipeline", () => {
       expect(view.component.props.showResult).toBe(false);
       expect(kernel.setLastOutputStore).toHaveBeenCalledWith(kernel.outputStore);
       expect(messages.map((message) => message.text)).toEqual(["one ", "two ", "three"]);
-      if (completion) expect(await completion).toEqual({ success: true, durationMs: 12 });
+      if (completion) expect(await completion).toEqual({ success: true, durationMs: null });
     });
 
     it(`${method} renders markdown inline without sending code to the kernel`, async () => {
@@ -90,13 +95,15 @@ describe("the shared result pipeline", () => {
         evalue: "failed",
         traceback: [],
       };
+      await Promise.resolve();
       kernel.receive(output);
       kernel.receive({ data: "error", stream: "status" });
       kernel.receive({ output_type: "status", execution_state: "idle" });
+      await Promise.resolve();
       const [view] = markers.markers.values();
       for (const store of [view.outputStore, kernel.outputStore]) {
         const options = renderOptionsForOutput(store.outputs[0]);
-        expect(options.kernel).toBe(kernel);
+        expect(options.kernel).toBe(session);
         expect(
           options.resolveTracebackFrame({ filename: "<string>", line: 1, sourceLine: "value()" }),
         ).toBeTruthy();
@@ -107,7 +114,11 @@ describe("the shared result pipeline", () => {
   }
 
   it("retains duration when both terminal messages arrive before execute returns", async () => {
+    let now = 100;
+    spyOn(Date, "now").and.callFake(() => now);
     kernel.execute.and.callFake((_code, receive) => {
+      receive({ stream: "execution_count", data: 1 });
+      now = 125;
       receive({ data: "ok", stream: "status" });
       receive({ output_type: "status", execution_state: "idle" });
       return { durationMs: 25 };
@@ -119,15 +130,18 @@ describe("the shared result pipeline", () => {
     expect(await completion).toEqual({ success: true, durationMs: 25 });
   });
 
-  it("keeps synchronous send errors synchronous and awaiting send errors rejected", async () => {
+  it("settles send failures and renders the error through every result sink", async () => {
     kernel.execute.and.throwError("send failed");
     const context = { editor, markers, kernel };
     const block = { code: "value()", row: 0, cellType: "code" };
-    expect(() => result.createResult(context, block)).toThrowError("send failed");
-    await expectAsync(result.createResultAsync(context, block)).toBeRejectedWithError(
-      "send failed",
-    );
-    // Flush and release both reserved markers within this case.
+    expect(() => result.createResult(context, block)).not.toThrow();
+    const outcome = await result.createResultAsync(context, block);
+    expect(outcome.success).toBe(false);
+    expect(
+      kernel.outputStore.outputs.some(
+        (output) => output.output_type === "error" && output.evalue === "send failed",
+      ),
+    ).toBe(true);
     window.advanceClock(25);
   });
 });

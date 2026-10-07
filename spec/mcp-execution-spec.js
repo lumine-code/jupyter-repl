@@ -560,6 +560,7 @@ describe("MCP uses the normal kernel output pipeline", () => {
       settled = true;
       return result;
     });
+    await Promise.resolve();
     kernel.receive({ stream: "status", data: "ok" });
     kernel.receive({ output_type: "stream", name: "stdout", text: "1\n" });
     await flush();

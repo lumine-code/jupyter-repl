@@ -130,6 +130,7 @@ describe("restoring the Output Area pane", () => {
         { editor, kernel, markers },
         { code: "value()", row: 0, cellType: "code" },
       );
+      await Promise.resolve();
 
       expect(globalOutputStore.setLastCode).toHaveBeenCalledWith("value()");
       expect(globalOutputStore.startNewRun).toHaveBeenCalledTimes(1);

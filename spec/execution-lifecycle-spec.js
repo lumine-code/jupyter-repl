@@ -1,9 +1,7 @@
 const etch = require("@lumine-code/etch");
 const Kernel = require("../lib/kernel");
-const KernelTransport = require("../lib/kernel-transport");
 const OutputStore = require("../lib/store/output");
 const ResultViewComponent = require("../lib/components/result-view/result-view");
-const { createResultAsync } = require("../lib/result");
 
 // A result bubble owns its execution lifecycle outright: queued -> running ->
 // ok | error, driven only by the messages of its own execution. It never
@@ -12,61 +10,66 @@ const { createResultAsync } = require("../lib/result");
 
 // The transport is fed messages by hand. They pass the middleware's message
 // validation, so they carry the full envelope a kernel would send.
-class FakeTransport extends KernelTransport {
-  constructor() {
-    super({ language: "python", display_name: "Python 3" }, null);
-    this.restarted = 0;
-  }
+function FakeTransport() {
+  const KernelTransport = require("../lib/kernel-transport");
+  return new (class extends KernelTransport {
+    constructor() {
+      super({ language: "python", display_name: "Python 3" }, null);
+      this.restarted = 0;
+      this.setLifecycle("ready");
+      this.setExecutionState("idle");
+    }
 
-  execute(code, onResults) {
-    this.onResults = onResults;
-  }
+    execute(code, onResults) {
+      this.onResults = onResults;
+    }
 
-  executeWatch(code, onResults) {
-    this.watchOnResults = onResults;
-  }
+    executeWatch(code, onResults) {
+      this.watchOnResults = onResults;
+    }
 
-  restart(onRestarted) {
-    this.restarted++;
-    onRestarted?.();
-  }
+    restart(onRestarted) {
+      this.restarted++;
+      onRestarted?.();
+    }
 
-  deliver(message, channel) {
-    this.onResults(message, channel);
-  }
+    deliver(message, channel) {
+      this.onResults(message, channel);
+    }
 
-  deliverInput(executionCount) {
-    this.deliver(
-      {
-        header: { msg_id: "in", msg_type: "execute_input" },
-        parent_header: { msg_id: "execute_1", msg_type: "execute_request" },
-        content: { execution_count: executionCount },
-      },
-      "iopub",
-    );
-  }
+    deliverInput(executionCount) {
+      this.deliver(
+        {
+          header: { msg_id: "in", msg_type: "execute_input" },
+          parent_header: { msg_id: "execute_1", msg_type: "execute_request" },
+          content: { execution_count: executionCount },
+        },
+        "iopub",
+      );
+    }
 
-  deliverReply(status, executionCount) {
-    this.deliver(
-      {
-        header: { msg_id: "re", msg_type: "execute_reply" },
-        parent_header: { msg_id: "execute_1", msg_type: "execute_request" },
-        content: { status, execution_count: executionCount },
-      },
-      "shell",
-    );
-  }
+    deliverReply(status, executionCount) {
+      this.deliver(
+        {
+          header: { msg_id: "re", msg_type: "execute_reply" },
+          parent_header: { msg_id: "execute_1", msg_type: "execute_request" },
+          content: { status, execution_count: executionCount },
+        },
+        "shell",
+      );
+    }
 
-  deliverIdle() {
-    this.deliver(
-      {
-        header: { msg_id: "st", msg_type: "status" },
-        parent_header: { msg_id: "execute_1", msg_type: "execute_request" },
-        content: { execution_state: "idle" },
-      },
-      "iopub",
-    );
-  }
+    deliverIdle() {
+      this.deliver(
+        {
+          header: { msg_id: "st", msg_type: "status" },
+          parent_header: { msg_id: "execute_1", msg_type: "execute_request" },
+          content: { execution_state: "idle" },
+        },
+        "iopub",
+      );
+    }
+  })();
 }
 
 describe("the execution lifecycle of a result store", () => {
@@ -128,7 +131,7 @@ describe("cross-socket message order", () => {
     // on iopub; nothing orders one stream against the other. Deliver the
     // reply first — the fast-cell case — and the store must still end ok.
     const transport = new FakeTransport();
-    const kernel = new Kernel(transport);
+    const kernel = new (require("../lib/kernel"))(transport);
     const store = new OutputStore();
     kernel.execute("1", (result) => store.appendOutput(result));
 
@@ -149,7 +152,7 @@ describe("settling in-flight executions", () => {
 
   beforeEach(() => {
     transport = new FakeTransport();
-    kernel = new Kernel(transport);
+    kernel = new (require("../lib/kernel"))(transport);
     results = [];
     kernel.execute("1 + 1", (result) => results.push(result));
   });
@@ -207,11 +210,13 @@ describe("settling in-flight executions", () => {
   it("resolves an awaiting createResultAsync instead of hanging it", async () => {
     // Minimal editor stand-in: inline=false takes the no-bubble path, so only
     // the kernel wiring is exercised.
-    const resolution = createResultAsync(
+    const resolution = require("../lib/result").createResultAsync(
       { editor: {}, kernel, markers: null },
       { code: "sleep(9999)", row: 0, cellType: "code", inline: false },
     );
 
+    await Promise.resolve();
+    expect(kernel._inFlight.size).toBe(2);
     kernel.restart();
 
     const { success } = await resolution;
@@ -249,7 +254,7 @@ describe("settling in-flight watches", () => {
 
   beforeEach(() => {
     transport = new FakeTransport();
-    kernel = new Kernel(transport);
+    kernel = new (require("../lib/kernel"))(transport);
     results = [];
     kernel.executeWatch("len(x)", (result) => results.push(result));
   });
@@ -351,7 +356,7 @@ describe("the kernel-wide idle signal", () => {
 
   beforeEach(() => {
     transport = new FakeTransport();
-    kernel = new Kernel(transport);
+    kernel = new (require("../lib/kernel"))(transport);
     refetches = 0;
     kernel.onDidBecomeIdle(() => refetches++);
   });
@@ -413,7 +418,7 @@ describe("the kernel-wide idle signal", () => {
 describe("per-execution durations", () => {
   it("measures each execution from its own start", () => {
     const transport = new FakeTransport();
-    const kernel = new Kernel(transport);
+    const kernel = new (require("../lib/kernel"))(transport);
 
     let now = 1000;
     spyOn(Date, "now").and.callFake(() => now);
@@ -467,7 +472,7 @@ describe("execution cleanup when callbacks or middleware fail", () => {
 
   beforeEach(() => {
     transport = new FakeTransport();
-    kernel = new Kernel(transport);
+    kernel = new (require("../lib/kernel"))(transport);
   });
 
   afterEach(() => kernel.destroy());
@@ -532,7 +537,7 @@ describe("execution cleanup when callbacks or middleware fail", () => {
 
   it("settles a result even when its external output hook throws on terminal messages", async () => {
     spyOn(lumine.notifications, "addError");
-    const answer = createResultAsync(
+    const answer = require("../lib/result").createResultAsync(
       { editor: {}, kernel, markers: null },
       {
         code: "1",
@@ -545,6 +550,7 @@ describe("execution cleanup when callbacks or middleware fail", () => {
       },
     );
 
+    await Promise.resolve();
     expect(() => transport.deliverReply("ok", 1)).not.toThrow();
     expect(() => transport.deliverIdle()).not.toThrow();
 
@@ -556,7 +562,7 @@ describe("execution cleanup when callbacks or middleware fail", () => {
   it("settles after a renderer fails while preserving delivery to other recipients", async () => {
     spyOn(lumine.notifications, "addError");
     const onResult = jasmine.createSpy("onResult");
-    const answer = createResultAsync(
+    const answer = require("../lib/result").createResultAsync(
       { editor: {}, kernel, markers: {} },
       {
         code: "1",
@@ -570,6 +576,15 @@ describe("execution cleanup when callbacks or middleware fail", () => {
         },
         onResult,
       },
+    );
+    await Promise.resolve();
+    transport.deliver(
+      {
+        header: { msg_id: "stream", msg_type: "stream" },
+        parent_header: { msg_id: "execute_1", msg_type: "execute_request" },
+        content: { name: "stdout", text: "before renderer failure" },
+      },
+      "iopub",
     );
     transport.deliverReply("ok", 1);
     transport.deliverIdle();
