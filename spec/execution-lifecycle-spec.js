@@ -580,16 +580,15 @@ describe("execution cleanup when callbacks or middleware fail", () => {
   });
 });
 
-describe("kernel input prompt lifetime", () => {
-  const InputView = require("../lib/input-view");
-  let transport;
-  let kernel;
-
+describe("kernel input request lifetime", () => {
+  let transport, kernel, input;
   beforeEach(() => {
     transport = new FakeTransport();
     transport.inputReply = jasmine.createSpy("inputReply");
     kernel = new Kernel(transport);
-    spyOn(InputView.prototype, "attach");
+    kernel.getPluginWrapper().onDidRequestInput((request) => {
+      input = request;
+    });
     kernel.execute("input()", () => {});
     transport.deliver(
       {
@@ -600,38 +599,28 @@ describe("kernel input prompt lifetime", () => {
       "stdin",
     );
   });
-
   afterEach(() => kernel.destroy());
-
-  it("closes the old prompt on restart and cannot send input to the new process", () => {
-    const [view] = kernel._inputViews;
-    view.miniEditor.setText("late input");
-
+  it("retires input on restart and refuses replies to the replacement process", () => {
+    const closed = jasmine.createSpy("input closed");
+    input.onDidClose(closed);
     kernel.restart();
-    view.confirm();
-
-    expect(view.miniEditor).toBeNull();
-    expect(kernel._inputViews.size).toBe(0);
+    input.reply("late input");
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(kernel._inputRequests.size).toBe(0);
     expect(transport.inputReply).not.toHaveBeenCalled();
   });
-
-  it("closes a prompt when interruption finishes its execution", () => {
-    const [view] = kernel._inputViews;
+  it("retires input when interruption finishes its execution", () => {
+    const closed = jasmine.createSpy("input closed");
+    input.onDidClose(closed);
     transport.deliverReply("error", 1);
     transport.deliverIdle();
-
-    expect(view.miniEditor).toBeNull();
-    expect(kernel._inputViews.size).toBe(0);
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(kernel._inputRequests.size).toBe(0);
   });
-
-  it("sends a confirmation once and removes the prompt's lifetime record", () => {
-    const [view] = kernel._inputViews;
-    view.miniEditor.setText("answer");
-    view.confirm();
-    view.confirm();
-
-    expect(transport.inputReply.calls.count()).toBe(1);
-    expect(transport.inputReply).toHaveBeenCalledWith("answer");
-    expect(kernel._inputViews.size).toBe(0);
+  it("sends an answer once and releases the input request", () => {
+    input.reply("answer");
+    input.reply("answer");
+    expect(transport.inputReply).toHaveBeenCalledOnceWith("answer");
+    expect(kernel._inputRequests.size).toBe(0);
   });
 });

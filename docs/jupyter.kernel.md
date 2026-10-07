@@ -91,6 +91,8 @@ type Session = {
   readonly languageInfo: object | null;
   readonly grammar: Grammar;
   readonly kernelSpec: object;
+  readonly gatewayName: string | null;
+  readonly capabilities: { rename: boolean; disconnect: boolean };
   isDestroyed(): boolean;
   request(descriptor: RequestDescriptor): RequestHandle;
   onDidChangeGeneration(callback: (generation: number) => void): Disposable;
@@ -99,10 +101,19 @@ type Session = {
   onDidChangeStatus(callback: () => void): Disposable;
   onDidBecomeIdle(callback: () => void): Disposable;
   onDidDestroy(callback: () => void): Disposable;
+  onDidRequestInput(
+    callback: (request: {
+      prompt: string;
+      password: boolean;
+      reply(value: string): void;
+      onDidClose(callback: () => void): Disposable;
+    }) => void,
+  ): Disposable;
   interrupt(): void;
   restart(): Promise<boolean>;
   shutdown(): Promise<void>;
   disconnect(): void;
+  rename(name: string): Promise<boolean>;
   getConnectionFile(): string | null;
 };
 ```
@@ -166,7 +177,9 @@ module.exports = {
 
 Connection lifecycle is separate from the execution state of the shared process. A recovering or unresponsive connection refuses new requests with `unavailable`; late messages cannot release its quarantine. Recovery never resends user code. A sent execution with an unconfirmed outcome returns `unknown` and an `ExecutionOutcomeUnknown` error; retrying it could repeat side effects. A queued execution known not to have been sent returns `cancelled` with `ExecutionCancelled`.
 
-`shutdown()` both asks the process to stop and releases the session, and its promise settles after graceful shutdown or the bounded force-close fallback. `disconnect()` releases the client connection. Kernel resources belong to the runtime; closing a consumer panel is not a reason to shut down or disconnect a session.
+`shutdown()` both asks the process to stop and releases the session, and its promise settles after graceful shutdown or the bounded force-close fallback. `disconnect()` releases an attached remote client connection when its capability is present. `gatewayName` labels a remote connection; `rename(name)` changes its remote session name when supported and otherwise resolves `false`. Kernel resources belong to the runtime; closing a consumer panel is not a reason to shut down or disconnect a session.
+
+`onDidRequestInput()` exposes a kernel input request without constructing a dialog. The UI owns the view and listens to the token's `onDidClose()` signal; `reply()` answers once and refuses a late answer after the execution, generation or session has retired. Input requests close on trailing idle, restart and destruction. The REPL's UI controller creates its dialog on demand and disposes the dialog independently of the transport.
 
 ## Teardown
 
