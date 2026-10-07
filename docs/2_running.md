@@ -93,6 +93,8 @@ A block result carries its own chrome, shown while the pointer is over it and si
 
 Expand appears only while the content overflows. A dragged size applies to that one result and is not remembered — a re-run builds a fresh result at its natural size — and **Reset Result Size** in the result's context menu returns it sooner. That context menu also holds every action above in words, plus copy, open in editor and save image.
 
+HTML frames with a percentage width, such as Dash's default inline app, use the available editor or output-panel width and follow window resizing. Dragging an inline result's grip sets its width explicitly; **Reset Result Size** restores automatic sizing. Frames with a numeric width keep that width.
+
 ## Console launcher
 
 Attach a standalone Jupyter console to the active kernel via its connection file. The same kernel that runs your inline code is reused, so variables and state are shared between the console and the editor.

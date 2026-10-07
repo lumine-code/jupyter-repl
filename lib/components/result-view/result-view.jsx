@@ -273,6 +273,9 @@ class ResultViewComponent {
 
     const blockStyle = {
       maxWidth: `${position.editorWidth - 2 * position.charWidth}px`,
+      // Responsive frames fill the available width until the user chooses a
+      // size. Then the bubble follows its display, as every other result does.
+      width: this.resizedWidth == null ? "" : "auto",
       margin: "0px",
       userSelect: "text",
     };

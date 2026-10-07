@@ -393,6 +393,24 @@
     }
   }
 
+  /* A percentage-width frame needs a definite containing width. Its intrinsic
+     width is only 300px, so content-sized flex items otherwise keep a dashboard
+     narrow even when the editor or output dock has room for it. */
+  .multiline-container:has(.output-html iframe[width*="%"]) {
+    width: 100%;
+    min-width: 0;
+
+    > .jupyter_cell_display {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+
+  .output-html:has(iframe[width*="%"]) {
+    width: 100%;
+    min-width: 0;
+  }
+
   .multiline-container .jupyter_cell_display {
     padding: var(--ui-spacing);
 
