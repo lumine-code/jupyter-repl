@@ -98,7 +98,8 @@ describe("notebook adapter kernel integration", () => {
   }
 
   function fakeKernel(kernelSpec, languageInfo = null) {
-    return {
+    const kernel = {
+      emitter: new Emitter(),
       kernelSpec,
       language: languageInfo?.name || kernelSpec.language,
       languageInfo,
@@ -107,6 +108,8 @@ describe("notebook adapter kernel integration", () => {
       executionState: "idle",
       shutdownAndDestroy: jasmine.createSpy("shutdownAndDestroy"),
     };
+    require("./helpers/session").wrapSession(kernel);
+    return kernel;
   }
 
   async function flushPromises() {
@@ -294,7 +297,7 @@ describe("notebook adapter kernel integration", () => {
     const executions = [];
     spyOn(result, "createResultAsync").and.callFake((context) => {
       executions.push(context.kernel);
-      return Promise.resolve({ success: true, durationMs: 1 });
+      return Promise.resolve({ status: "ok", success: true, durationMs: 1 });
     });
 
     adapterIntegration.runAdapterTargets(serviceFor(adapter), {}, { scope: "all" });
@@ -328,7 +331,7 @@ describe("notebook adapter kernel integration", () => {
     spyOn(result, "createResultAsync").and.callFake((_context, options) => {
       options.onResult({ stream: "execution_count", data: 19 });
       options.onResult(output);
-      return Promise.resolve({ success: true, durationMs: 2 });
+      return Promise.resolve({ status: "ok", success: true, durationMs: 2 });
     });
     const completed = await adapterIntegration.runExplicitAdapterTarget(
       [serviceFor(adapter)],
@@ -338,7 +341,9 @@ describe("notebook adapter kernel integration", () => {
       observe,
     );
     expect(completed.success).toBe(true);
-    expect(adapter.beginTargetExecution).toHaveBeenCalledWith(target, { kernel });
+    expect(adapter.beginTargetExecution).toHaveBeenCalledWith(target, {
+      kernel: kernel.getPluginWrapper(),
+    });
     expect(adapter.clearTargetOutputs).toHaveBeenCalledWith(target);
     expect(adapter.setTargetExecutionCount).toHaveBeenCalledWith(target, 19);
     expect(adapter.appendTargetOutput).toHaveBeenCalledWith(target, output);
@@ -434,7 +439,7 @@ describe("notebook adapter kernel integration", () => {
     expect(store.kernelMapping.get(originalKey)).toBe(kernel);
     expect(adapterIntegration.getKernelForAdapter(adapter)).toBe(kernel);
     const execute = spyOn(result, "createResultAsync").and.returnValue(
-      Promise.resolve({ success: true }),
+      Promise.resolve({ status: "ok", success: true }),
     );
     const manager = {
       startKernel: jasmine.createSpy("startKernel"),
@@ -522,7 +527,11 @@ describe("notebook adapter kernel integration", () => {
     });
     const kernel = fakeKernel({ name: "xcpp", display_name: "C++", language: "c++" });
     store.kernelMapping.set(adapter.getPath(), kernel);
-    spyOn(result, "createResultAsync").and.resolveTo({ success: true, durationMs: 1 });
+    spyOn(result, "createResultAsync").and.resolveTo({
+      status: "ok",
+      success: true,
+      durationMs: 1,
+    });
 
     adapterIntegration.runAdapterTargets(serviceFor(adapter), {}, { scope: "active" });
     await flushPromises();
@@ -740,7 +749,7 @@ describe("notebook adapter kernel integration", () => {
     await flushPromises();
     expect(resolvers.length).toBe(2);
 
-    resolvers[0]({ success: true, durationMs: 1 });
+    resolvers[0]({ status: "ok", success: true, durationMs: 1 });
     await flushPromises();
     const replacement = fakeKernel({ name: "ir", display_name: "R", language: "R" });
     spyOn(lumine.notifications, "addWarning");
@@ -753,7 +762,7 @@ describe("notebook adapter kernel integration", () => {
     expect(store.kernelMapping.get(adapter.getPath())).toBe(kernel);
     expect(lumine.notifications.addWarning).toHaveBeenCalled();
 
-    resolvers[1]({ success: true, durationMs: 1 });
+    resolvers[1]({ status: "ok", success: true, durationMs: 1 });
     await flushPromises();
   });
 
@@ -843,7 +852,11 @@ describe("notebook adapter kernel integration", () => {
     adapter.focusTarget = jasmine.createSpy("focusTarget");
     const kernel = fakeKernel(adapter.getMetadata().kernelspec);
     store.kernelMapping.set(adapter.getPath(), kernel);
-    spyOn(result, "createResultAsync").and.resolveTo({ success: true, durationMs: 1 });
+    spyOn(result, "createResultAsync").and.resolveTo({
+      status: "ok",
+      success: true,
+      durationMs: 1,
+    });
 
     adapterIntegration.runAdapterTargets(serviceFor(adapter), {}, { scope: "all", moveDown: true });
     await flushPromises();

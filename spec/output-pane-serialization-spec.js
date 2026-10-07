@@ -126,6 +126,7 @@ describe("restoring the Output Area pane", () => {
         execute: jasmine.createSpy("execute"),
       };
 
+      require("./helpers/session").wrapSession(kernel);
       result.createResult(
         { editor, kernel, markers },
         { code: "value()", row: 0, cellType: "code" },

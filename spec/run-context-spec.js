@@ -61,6 +61,7 @@ describe("run command context", () => {
   it("runs the dispatch editor without switching the active editor", async () => {
     activate(second);
     const single = spyOn(result, "createResultAsync").and.resolveTo({
+      status: "ok",
       success: true,
       durationMs: null,
     });
@@ -88,6 +89,7 @@ describe("run command context", () => {
         }),
     });
     const single = spyOn(result, "createResultAsync").and.resolveTo({
+      status: "ok",
       success: true,
       durationMs: null,
     });
@@ -106,7 +108,7 @@ describe("run command context", () => {
   it("keeps its editor and above range when a restart outlives a pane switch", async () => {
     first.setCursorBufferPosition([1, 0]);
     const resume = pendingRestart();
-    const batch = spyOn(result, "createResultBatch").and.returnValue(Promise.resolve(true));
+    const batch = spyOn(result, "createResultBatch").and.resolveTo({ status: "ok", success: true });
     const [receipt] = await lumine.commands.dispatch(
       first.element,
       "jupyter-repl:recalculate-all-above-inline",
@@ -137,6 +139,7 @@ describe("run command context", () => {
         }),
     });
     const single = spyOn(result, "createResultAsync").and.resolveTo({
+      status: "ok",
       success: true,
       durationMs: null,
     });
@@ -182,6 +185,7 @@ describe("run command context", () => {
     const resume = pendingRestart();
     const batch = spyOn(result, "createResultBatch");
     const single = spyOn(result, "createResultAsync").and.resolveTo({
+      status: "ok",
       success: true,
       durationMs: null,
     });
@@ -211,7 +215,7 @@ describe("run command context", () => {
 
   it("cancels a captured recalculation if its source editor changes kernel during restart", async () => {
     const resume = pendingRestart();
-    const batch = spyOn(result, "createResultBatch").and.resolveTo(true);
+    const batch = spyOn(result, "createResultBatch").and.resolveTo({ status: "ok", success: true });
     const [receipt] = await lumine.commands.dispatch(
       first.element,
       "jupyter-repl:recalculate-all-inline",

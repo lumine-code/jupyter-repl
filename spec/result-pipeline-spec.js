@@ -22,11 +22,9 @@ describe("the shared result pipeline", () => {
       onDidChangeExecutionState: () => new (require("lumine").Disposable)(),
       execute: jasmine.createSpy("execute").and.callFake((_code, receive) => {
         kernel.receive = receive;
-        return { durationMs: 12 };
       }),
     };
-    session = new (require("../lib/plugin-api/jupyter-kernel"))(kernel);
-    kernel.getPluginWrapper = () => session;
+    session = require("./helpers/session").wrapSession(kernel);
     // Dock opening is independent of delivery; this spec owns no dock item.
     spyOn(lumine.workspace, "open").and.returnValue(Promise.resolve(null));
   });
@@ -66,7 +64,10 @@ describe("the shared result pipeline", () => {
       expect(view.component.props.showResult).toBe(false);
       expect(kernel.setLastOutputStore).toHaveBeenCalledWith(kernel.outputStore);
       expect(messages.map((message) => message.text)).toEqual(["one ", "two ", "three"]);
-      if (completion) expect(await completion).toEqual({ success: true, durationMs: null });
+      if (completion)
+        expect(await completion).toEqual(
+          jasmine.objectContaining({ status: "ok", success: true, durationMs: null }),
+        );
     });
 
     it(`${method} renders markdown inline without sending code to the kernel`, async () => {
@@ -80,7 +81,10 @@ describe("the shared result pipeline", () => {
       expect(view.component.props.showResult).toBe(true);
       expect(kernel.outputStore.outputs.length).toBe(0);
       expect(kernel.execute).not.toHaveBeenCalled();
-      if (completion) expect(await completion).toEqual({ success: true, durationMs: null });
+      if (completion)
+        expect(await completion).toEqual(
+          jasmine.objectContaining({ status: "ok", success: true, durationMs: null }),
+        );
     });
 
     it(`${method} preserves the producing kernel and traceback source on copied outputs`, async () => {
@@ -121,13 +125,14 @@ describe("the shared result pipeline", () => {
       now = 125;
       receive({ data: "ok", stream: "status" });
       receive({ output_type: "status", execution_state: "idle" });
-      return { durationMs: 25 };
     });
     const completion = result.createResultAsync(
       { editor, markers, kernel },
       { code: "value()", row: 0, cellType: "code" },
     );
-    expect(await completion).toEqual({ success: true, durationMs: 25 });
+    expect(await completion).toEqual(
+      jasmine.objectContaining({ status: "ok", success: true, durationMs: 25 }),
+    );
   });
 
   it("settles send failures and renders the error through every result sink", async () => {
@@ -143,5 +148,27 @@ describe("the shared result pipeline", () => {
       ),
     ).toBe(true);
     window.advanceClock(25);
+  });
+
+  it("preserves an unknown session outcome and its request identity", async () => {
+    const pending = result.createResultAsync(
+      { editor, markers, kernel },
+      { code: "value()", row: 0, cellType: "code" },
+    );
+    await Promise.resolve();
+    kernel.receive({
+      output_type: "error",
+      ename: "ExecutionOutcomeUnknown",
+      evalue: "Execution may have run.",
+      traceback: [],
+    });
+    kernel.receive({ data: "error", stream: "status" });
+    kernel.receive({ output_type: "status", execution_state: "idle" });
+    const outcome = await pending;
+    expect(outcome.status).toBe("unknown");
+    expect(outcome.success).toBe(false);
+    expect(outcome.error.ename).toBe("ExecutionOutcomeUnknown");
+    expect(outcome.requestId).toMatch(/^request-/);
+    expect(outcome.generation).toBe(session.generation);
   });
 });

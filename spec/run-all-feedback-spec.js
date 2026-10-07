@@ -26,7 +26,10 @@ describe("batch inline feedback", () => {
     );
 
   beforeEach(async () => {
-    ({ run, runAllInline } = require("../lib/main"));
+    const pack = await lumine.packages.activatePackage(
+      require("node:path").resolve(__dirname, ".."),
+    );
+    ({ run, runAllInline } = pack.mainModule);
     result = require("../lib/result");
     store = require("../lib/store");
     previousEditor = store.editor;
@@ -65,6 +68,7 @@ describe("batch inline feedback", () => {
     // MobX deep-wraps plain objects stored in an observable map. Use the
     // active wrapped instance for assertions and callbacks.
     fakeKernel = store.kernel;
+    require("./helpers/session").wrapSession(fakeKernel);
   });
 
   afterEach(() => {
@@ -109,7 +113,9 @@ describe("batch inline feedback", () => {
     secondExecution.callback({ data: "error", stream: "status" });
     secondExecution.callback({ output_type: "status", execution_state: "idle" });
 
-    expect(await batchPromise).toBe(false);
+    expect(await batchPromise).toEqual(
+      jasmine.objectContaining({ status: "error", success: false }),
+    );
     expect(resultAtRow(2).outputStore.status).toBe("error");
     expect(fakeKernel.executions.length).toBe(2);
   });
@@ -126,7 +132,10 @@ describe("batch inline feedback", () => {
       result.createResultBatch({ editor, kernel: fakeKernel, markers }, blocks),
     ]);
 
-    expect(repeats).toEqual([true, true]);
+    expect(repeats.map(({ status, success }) => ({ status, success }))).toEqual([
+      { status: "skipped", success: true },
+      { status: "skipped", success: true },
+    ]);
     expect(fakeKernel.executions.length).toBe(1);
 
     await batchPromise;
@@ -158,7 +167,10 @@ describe("batch inline feedback", () => {
   });
 
   it("routes multi-selection run through the shared batch path", async () => {
-    const batchSpy = spyOn(result, "createResultBatch").and.returnValue(Promise.resolve(true));
+    const batchSpy = spyOn(result, "createResultBatch").and.resolveTo({
+      status: "ok",
+      success: true,
+    });
     editor.setSelectedBufferRanges([
       new Range([0, 0], [0, 7]),
       new Range([1, 0], [1, 8]),
@@ -177,7 +189,7 @@ describe("batch inline feedback", () => {
       { code: "second()", row: 1, cellType: "code" },
     ]);
 
-    expect(await batch).toBe(false);
+    expect(await batch).toEqual(jasmine.objectContaining({ status: "error", success: false }));
 
     expect(fakeKernel.batchInFlight).toBe(false);
     expect(resultAtRow(0).outputStore.status).toBe("error");
@@ -196,8 +208,31 @@ describe("batch inline feedback", () => {
     fakeKernel.executions[1].callback({ data: "ok", stream: "status" });
     fakeKernel.executions[1].callback({ output_type: "status", execution_state: "idle" });
 
-    expect(await batch).toBe(false);
+    expect(await batch).toEqual(jasmine.objectContaining({ status: "cancelled", success: false }));
     expect(fakeKernel.executions.length).toBe(2);
     expect(fakeKernel.batchInFlight).toBe(false);
+  });
+
+  it("keeps an unknown first execution outcome and leaves later blocks unsent", async () => {
+    fakeKernel.execute = (code, callback) => {
+      fakeKernel.executions.push({ code, callback });
+      callback({
+        output_type: "error",
+        ename: "ExecutionOutcomeUnknown",
+        evalue: "Execution may have run.",
+        traceback: [],
+      });
+      callback({ data: "error", stream: "status" });
+      callback({ output_type: "status", execution_state: "idle" });
+    };
+    const outcome = await result.createResultBatch({ editor, kernel: fakeKernel, markers }, [
+      { code: "first()", row: 0, cellType: "code" },
+      { code: "second()", row: 1, cellType: "code" },
+    ]);
+    expect(outcome.status).toBe("unknown");
+    expect(outcome.success).toBe(false);
+    expect(outcome.results.map((entry) => entry.status)).toEqual(["unknown"]);
+    expect(fakeKernel.executions.length).toBe(1);
+    expect(resultAtRow(1).outputStore.status).toBe("error");
   });
 });

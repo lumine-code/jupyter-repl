@@ -100,6 +100,10 @@ describe("notebook adapter ownership across lifecycle callbacks", () => {
     };
     kernel.shutdownAndDestroy = jasmine.createSpy("shutdownAndDestroy").and.resolveTo();
     kernel.destroy = jasmine.createSpy("destroy");
+    kernel.emitter = new Emitter();
+    kernel.onDidChangeExecutionState = () => new Disposable();
+    kernel.onDidChangeStatus = () => new Disposable();
+    require("./helpers/session").wrapSession(kernel);
     return kernel;
   }
 
@@ -153,7 +157,7 @@ describe("notebook adapter ownership across lifecycle callbacks", () => {
     const markers = [];
     spyOn(result, "createResultAsync").and.callFake((context) => {
       markers.push(context.markers);
-      return Promise.resolve({ success: true, durationMs: 1 });
+      return Promise.resolve({ status: "ok", success: true, durationMs: 1 });
     });
     const run = () =>
       integration.runExplicitAdapterTarget([document.service], document.adapter, kernel, target);
@@ -252,7 +256,7 @@ describe("notebook adapter ownership across lifecycle callbacks", () => {
     const output = { output_type: "stream", name: "stdout", text: "still bound\n" };
     pending[0].options.onResult(output);
     pending[1].options.onResult(output);
-    pending[1].resolve({ success: true, durationMs: 1 });
+    pending[1].resolve({ status: "ok", success: true, durationMs: 1 });
 
     const [outcomeA, outcomeB] = await Promise.all([runA, runB]);
 
@@ -264,13 +268,16 @@ describe("notebook adapter ownership across lifecycle callbacks", () => {
     expect(second.adapter.finishTargetExecution).toHaveBeenCalledTimes(1);
     expect(store.kernelMapping.get(second.adapter.getPath())).toBe(kernel);
     expect(kernel.shutdownAndDestroy).not.toHaveBeenCalled();
-    pending[0].resolve({ success: true, durationMs: 1 });
+    pending[0].resolve({ status: "ok", success: true, durationMs: 1 });
     second.owner.destroy();
     expect(kernel.shutdownAndDestroy).toHaveBeenCalledTimes(1);
   });
 
   it("does not dispatch after begin or clear hooks close the owner or deactivate the integration", async () => {
-    const createResult = spyOn(result, "createResultAsync").and.resolveTo({ success: true });
+    const createResult = spyOn(result, "createResultAsync").and.resolveTo({
+      status: "ok",
+      success: true,
+    });
     const warning = spyOn(lumine.notifications, "addWarning").and.callThrough();
     for (const explicit of [true, false]) {
       for (const hook of ["beginTargetExecution", "clearTargetOutputs"]) {
@@ -317,7 +324,11 @@ describe("notebook adapter ownership across lifecycle callbacks", () => {
     const document = makeDocument({ targets });
     const kernel = makeKernel();
     bindForExecution(document, kernel);
-    spyOn(result, "createResultAsync").and.resolveTo({ success: true, durationMs: 1 });
+    spyOn(result, "createResultAsync").and.resolveTo({
+      status: "ok",
+      success: true,
+      durationMs: 1,
+    });
     document.adapter.finishTargetExecution.and.callFake(() => {
       integration.disposeAdapterIntegration();
       integration.activateAdapterIntegration();
@@ -368,14 +379,14 @@ describe("notebook adapter ownership across lifecycle callbacks", () => {
     const output = { output_type: "stream", name: "stdout", text: "new generation\n" };
     pending[0].options.onResult(output);
     pending[1].options.onResult(output);
-    pending[1].resolve({ success: true, durationMs: 1 });
+    pending[1].resolve({ status: "ok", success: true, durationMs: 1 });
     const [oldOutcome, newOutcome] = await Promise.all([oldExecution, newExecution]);
 
     expect(oldOutcome.status).toBe("cancelled");
     expect(newOutcome.status).toBe("ok");
     expect(document.adapter.appendTargetOutput).toHaveBeenCalledOnceWith(target, output);
     expect(document.adapter.finishTargetExecution).toHaveBeenCalledTimes(1);
-    pending[0].resolve({ success: true, durationMs: 1 });
+    pending[0].resolve({ status: "ok", success: true, durationMs: 1 });
   });
 
   it("does not persist toolbar results through a refreshed adapter that now represents another owner", async () => {
@@ -407,7 +418,7 @@ describe("notebook adapter ownership across lifecycle callbacks", () => {
     expect(document.adapter.getKernelOwner()).toBe(document.owner);
     executionOwner = other.owner;
     options.onResult({ output_type: "stream", name: "stdout", text: "wrong owner\n" });
-    resolve({ success: true, durationMs: 1 });
+    resolve({ status: "ok", success: true, durationMs: 1 });
     await flushPromises();
 
     expect(refreshed.appendTargetOutput).not.toHaveBeenCalled();
@@ -481,6 +492,6 @@ describe("notebook adapter ownership across lifecycle callbacks", () => {
     expect(observer).not.toHaveBeenCalled();
     expect(document.adapter.finishTargetExecution).not.toHaveBeenCalled();
     expect(outcome.status).toBe("cancelled");
-    resolve({ success: true, durationMs: 1 });
+    resolve({ status: "ok", success: true, durationMs: 1 });
   });
 });

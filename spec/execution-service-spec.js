@@ -69,16 +69,35 @@ describe("the explicit jupyter.execution service", () => {
     expect(single.calls.mostRecent().args[0].editor).toBe(editor);
     expect(single.calls.mostRecent().args[1].code).toBe("first()");
     expect(batch).not.toHaveBeenCalled();
-    complete({ success: true });
+    complete({ status: "ok", success: true });
     expect((await receipt.done).status).toBe("ok");
   });
 
   it("reports batch completion independently from acceptance", async () => {
-    const batch = spyOn(result, "createResultBatch").and.resolveTo(false);
+    const batch = spyOn(result, "createResultBatch").and.resolveTo({
+      status: "error",
+      success: false,
+    });
     const receipt = await execution.execute({ editor, blocks: [block(), block("second()", 1)] });
     expect(receipt.accepted).toBe(true);
     expect((await receipt.done).status).toBe("error");
     expect(batch.calls.mostRecent().args[1].length).toBe(2);
+  });
+
+  it("preserves unknown execution outcome metadata through the facade receipt", async () => {
+    const terminal = {
+      status: "unknown",
+      success: false,
+      requestId: "request-unknown",
+      generation: 4,
+      executionCount: 18,
+      durationMs: 25,
+      error: { ename: "ExecutionOutcomeUnknown", evalue: "Execution may have run.", traceback: [] },
+    };
+    spyOn(result, "createResultAsync").and.resolveTo(terminal);
+    const receipt = await execution.execute({ editor, blocks: [block()] });
+    expect(receipt.accepted).toBe(true);
+    expect(await receipt.done).toEqual(terminal);
   });
 
   it("refuses incomplete invocations without redirecting to the active editor", async () => {
@@ -97,7 +116,10 @@ describe("the explicit jupyter.execution service", () => {
 
   it("renders Markdown without selecting a kernel", async () => {
     store.kernelMapping.delete(filePath);
-    const render = spyOn(result, "createResultAsync").and.resolveTo({ success: true });
+    const render = spyOn(result, "createResultAsync").and.resolveTo({
+      status: "ok",
+      success: true,
+    });
     const receipt = await execution.execute({
       editor,
       blocks: [block("# Heading", 0, "markdown")],
@@ -131,8 +153,11 @@ describe("the explicit jupyter.execution service", () => {
         select = resolve;
       }),
     );
-    const render = spyOn(result, "createResultAsync").and.resolveTo({ success: true });
-    const batch = spyOn(result, "createResultBatch").and.resolveTo(true);
+    const render = spyOn(result, "createResultAsync").and.resolveTo({
+      status: "ok",
+      success: true,
+    });
+    const batch = spyOn(result, "createResultBatch").and.resolveTo({ status: "ok", success: true });
     const receipt = await execution.execute({
       editor,
       blocks: [
@@ -226,7 +251,7 @@ describe("the explicit jupyter.execution service", () => {
     });
     spyOn(result, "createResultAsync").and.callFake(async () => {
       order.push("run");
-      return { success: true };
+      return { status: "ok", success: true };
     });
     const receipt = await execution.execute({
       editor,

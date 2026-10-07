@@ -58,6 +58,7 @@ describe("run commands capture notebook adapter controls", () => {
       return true;
     });
     single = spyOn(require("../lib/result"), "createResultAsync").and.resolveTo({
+      status: "ok",
       success: true,
       durationMs: null,
     });

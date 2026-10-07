@@ -96,7 +96,7 @@ describe("Jupyter MCP execution receipts", () => {
   });
   afterEach(() => {
     runtime.dispose();
-    for (const send of sends) send.resolve({ success: true });
+    for (const send of sends) send.resolve({ status: "ok", success: true });
   });
   const codeArgs = (operationId = "op") => ({
     kernelId: "kernel-1",
@@ -198,7 +198,7 @@ describe("Jupyter MCP execution receipts", () => {
     expect(runtime.waiters.size).toBe(0);
     expect(kernel.interrupt).not.toHaveBeenCalled();
     expect((await runtime.getExecution({ executionId: receipt.executionId })).state).toBe("queued");
-    sends[0].resolve({ success: true });
+    sends[0].resolve({ status: "ok", success: true });
     await flush();
     expect((await runtime.getExecution({ executionId: receipt.executionId })).state).toBe("done");
   });
@@ -346,7 +346,7 @@ describe("Jupyter MCP execution receipts", () => {
     notebook.cells.reverse();
     notebook.cells[0].source = "changed()";
     notebook.cells[0].sourceRevision++;
-    sends[0].resolve({ success: true });
+    sends[0].resolve({ status: "ok", success: true });
     await flush();
     expect(sends.length).toBe(1);
     const record = await runtime.getExecution({ executionId: receipt.executionId });
@@ -360,10 +360,10 @@ describe("Jupyter MCP execution receipts", () => {
     const receipt = await runtime.runNotebook(notebookArgs());
     await flush();
     notebook.cells.reverse();
-    sends[0].resolve({ success: true });
+    sends[0].resolve({ status: "ok", success: true });
     await flush();
     expect(sends[1].source).toBe("cell-b");
-    sends[1].resolve({ success: true });
+    sends[1].resolve({ status: "ok", success: true });
     await flush();
     expect((await runtime.getExecution({ executionId: receipt.executionId })).state).toBe("done");
   });
@@ -372,7 +372,7 @@ describe("Jupyter MCP execution receipts", () => {
     const receipt = await runtime.runNotebook(notebookArgs());
     await flush();
     sends[0].observe({ output_type: "stream", text: "first", name: "stdout" });
-    sends[0].resolve({ success: true });
+    sends[0].resolve({ status: "ok", success: true });
     await flush();
     sends[1].observe({ output_type: "stream", text: "replace", name: "stdout" });
     sends[1].observe({ output_type: "clear_output", wait: true });
@@ -399,7 +399,7 @@ describe("Jupyter MCP execution receipts", () => {
     await flush();
     const second = await runtime.executeCode(codeArgs("second"));
     for (const reset of resets) reset();
-    sends[0].resolve({ success: true });
+    sends[0].resolve({ status: "ok", success: true });
     await flush();
     expect(sends.length).toBe(1);
     expect((await runtime.getExecution({ executionId: second.executionId })).error.code).toBe(
@@ -445,7 +445,7 @@ describe("Jupyter MCP execution receipts", () => {
   });
 
   it("retains operation protection when a completed result leaves the bounded cache", async () => {
-    context.runCode = async () => ({ success: true });
+    context.runCode = async () => ({ status: "ok", success: true });
     const first = await runtime.executeCode(codeArgs("first"));
     await flush();
     for (let index = 0; index < 200; index++) {
@@ -555,6 +555,7 @@ describe("MCP uses the normal kernel output pipeline", () => {
         this.receive = receive;
       },
     };
+    require("./helpers/session").wrapSession(kernel);
     let settled = false;
     const pending = createKernelResultAsync(kernel, "print(1)").then((result) => {
       settled = true;

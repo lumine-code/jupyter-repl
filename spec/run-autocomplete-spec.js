@@ -121,6 +121,7 @@ describe("Run autocomplete cancellation boundary", () => {
       },
     });
     const rendered = spyOn(require("../lib/result"), "createResultAsync").and.resolveTo({
+      status: "ok",
       success: true,
     });
     store.kernelMapping.set(store.filePath, new Map([[store.grammar.name, {}]]));
@@ -210,6 +211,7 @@ describe("Run autocomplete cancellation boundary", () => {
         }),
     });
     const rendered = spyOn(require("../lib/result"), "createResultAsync").and.resolveTo({
+      status: "ok",
       success: true,
     });
     const receipt = await service.execute({
