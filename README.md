@@ -43,7 +43,6 @@ Commands available in `lumine-workspace`:
 - `jupyter-repl:shutdown-kernel`: shutdown the kernel,
 - `jupyter-repl:rename-remote-session`: rename remote session,
 - `jupyter-repl:disconnect-remote-session`: disconnect remote session,
-- `jupyter-repl:update-kernels`: refresh available kernels list,
 - `jupyter-repl:open-examples`: open example files,
 - `jupyter-repl:edit-gateways`: open `gateways.json`,
 - `jupyter-repl:shutdown-all-kernels`: shutdown all running kernels,

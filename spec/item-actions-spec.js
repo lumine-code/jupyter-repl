@@ -72,6 +72,14 @@ describe("jupyter-repl kernel picker item actions", () => {
     ]);
   });
 
+  it("exposes kernel rescan only inside the picker", () => {
+    const commands = lumine.commands.findCommands({ target: lumine.workspace.getElement() });
+    expect(commands.map((command) => command.name)).not.toContain("jupyter-repl:update-kernels");
+    expect(commands.map((command) => command.name)).not.toContain(
+      "jupyter-repl:refresh-kernel-list",
+    );
+  });
+
   it("selects the highlighted kernel exactly once through its semantic action", async () => {
     picker.onConfirmed = jasmine.createSpy("onConfirmed");
     await picker.selectListHost.show();

@@ -83,13 +83,16 @@ describe("teardown with a running kernel", () => {
   it("closes pending startup transports immediately after UI subscriptions", async () => {
     const { KernelManager } = require("../lib/kernel-manager");
     let manager;
-    spyOn(KernelManager.prototype, "updateKernelSpecs").and.callFake(function () {
+    spyOn(KernelManager.prototype, "getAllKernelSpecsForGrammar").and.callFake(function () {
       manager = this;
       return Promise.resolve([]);
     });
+    const editor = await lumine.workspace.open();
+    store.editor = editor;
+    store.grammar = editor.getGrammar();
     await lumine.commands.dispatch(
       lumine.views.getView(lumine.workspace),
-      "jupyter-repl:update-kernels",
+      "jupyter-repl:start-local-kernel",
     );
     const order = [];
     store.subscriptions.add(new Disposable(() => order.push("subscriptions")));
