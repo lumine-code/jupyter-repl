@@ -58,6 +58,48 @@ describe("jupyter-repl bootstrap", () => {
     subscription.dispose();
   });
 
+  it("configures its Etch copy once across a status tile and output pane", async () => {
+    const etch = require("@lumine-code/etch");
+    const configure = spyOn(etch, "setScheduler").and.callThrough();
+    const store = require("../lib/store");
+    const kernel = {
+      displayName: "Test kernel",
+      executionState: "idle",
+      executionCount: 0,
+      lastExecutionTime: "No execution",
+      onDidChangeStatus: () => ({ dispose() {} }),
+    };
+    const currentKernel = spyOnProperty(store, "kernel", "get").and.returnValue(kernel);
+    const container = document.createElement("div");
+    const statusBar = {
+      addLeftTile({ item }) {
+        container.appendChild(item);
+        return { destroy: () => item.remove() };
+      },
+    };
+    const edge = pack.mainModule.consumeStatusBar(statusBar);
+    await Promise.resolve();
+    expect(container.querySelector(".jupyter-repl")).not.toBeNull();
+    currentKernel.and.callThrough();
+    const output = pack.mainModule.deserializeOutputPane();
+    expect(configure).toHaveBeenCalledOnceWith(lumine.views);
+    output.destroy();
+    edge.dispose();
+  });
+
+  it("keeps Etch cold when a consumed status bar has no kernel to display", async () => {
+    const etch = require("@lumine-code/etch");
+    const configure = spyOn(etch, "setScheduler").and.callThrough();
+    const store = require("../lib/store");
+    spyOnProperty(store, "kernel", "get").and.returnValue(null);
+    const statusBar = { addLeftTile: jasmine.createSpy("addLeftTile") };
+    const edge = pack.mainModule.consumeStatusBar(statusBar);
+    await Promise.resolve();
+    expect(statusBar.addLeftTile).not.toHaveBeenCalled();
+    expect(configure).not.toHaveBeenCalled();
+    edge.dispose();
+  });
+
   it("keeps a replacement cells provider when the old provider detaches", () => {
     const first = {};
     const second = {};
