@@ -159,6 +159,39 @@ describe("Gateway cookie standard transport", () => {
     ).toBeRejected();
     expect(requests).toEqual([]);
   });
+  it("keeps the original Agent on a real ClientRequest after credential filtering", async () => {
+    const settings = await cookieSettings();
+    if (!isNodeSettings(settings)) return;
+    // The actual native constructor is safe here: addRequest is already
+    // stubbed on both global Agents, so it cannot allocate a socket.
+    spyOn(https.globalAgent, "createConnection").and.callFake(() => {
+      throw new Error("Unexpected socket creation");
+    });
+    let nativeRequest;
+    https.request.and.callFake((url, options) => {
+      nativeRequest = new http.ClientRequest(url, options);
+      queueMicrotask(() => {
+        const response = Readable.from([Buffer.from("controlled native response")]);
+        response.statusCode = 200;
+        response.statusMessage = "Controlled";
+        response.headers = {};
+        response.rawHeaders = [];
+        nativeRequest.emit("response", response);
+      });
+      return nativeRequest;
+    });
+    try {
+      const response = await settings.fetch(
+        new settings.Request("https://other-controlled.invalid/"),
+      );
+      expect(await response.text()).toBe("controlled native response");
+      expect(nativeRequest.agent).toBe(https.globalAgent);
+      expect(nativeRequest.getHeader("cookie")).toBeUndefined();
+      expect(https.globalAgent.createConnection).not.toHaveBeenCalled();
+    } finally {
+      nativeRequest?.destroy();
+    }
+  });
   it("passes Cookie to the modern SDK WebSocket constructor without opening a socket", async () => {
     const Socket = jasmine.createSpy("controlled socket constructor");
     const settings = await cookieSettings({ WebSocket: Socket });
