@@ -81,12 +81,22 @@ jobs:
   integration:
     # Run the Jasmine spec suite inside a real Lumine build. The specs use the
     # editor runtime (lumine config/notifications, the watchFile path-watcher), so
-    # this is the single place they run in CI.
-    name: Lumine integration specs
-    runs-on: ubuntu-latest
+    # full runtime suites run on all three supported operating systems.
+    name: Lumine integration specs on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
     env:
       LUMINE_JASMINE_REPORTER: list
+      TEMP: ${{ github.workspace }}/jupyter-repl-spec-tmp
+      TMP: ${{ github.workspace }}/jupyter-repl-spec-tmp
+      TMPDIR: ${{ github.workspace }}/jupyter-repl-spec-tmp
     steps:
       - uses: actions/checkout@v7
         with:
@@ -95,12 +105,21 @@ jobs:
         with:
           repository: lumine-code/lumine
           path: lumine
+      - name: Check out the original runtime for the full regression control
+        if: runner.os == 'Linux'
+        uses: actions/checkout@v7
+        with:
+          path: jupyter-repl-original
+          ref: 48d61e99288a14df12f345d1c04525f68c8d3879
       - uses: actions/setup-node@v7
         with:
           node-version-file: lumine/.nvmrc
           cache: npm
           cache-dependency-path: lumine/package-lock.json
+      - name: Create the private temporary directory
+        run: mkdir -p "$TEMP"
       - name: Install Linux build and headless-display dependencies
+        if: runner.os == 'Linux'
         run: |
           # A third-party repository on the runner image answering 403 must not
           # fail the job: the lists this actually needs still fetched, and the
@@ -134,8 +153,38 @@ jobs:
         run: npm run build
       - name: Install ecosystem integration peers in an isolated home
         working-directory: lumine
-        run: node script/install-spec-packages.js --package ../jupyter-repl --home "${{ runner.temp }}/jupyter-spec-home" --github-env "$GITHUB_ENV"
+        run: node script/install-spec-packages.js --package ../jupyter-repl --home "$RUNNER_TEMP/jupyter-spec-home" --github-env "$GITHUB_ENV"
+      - name: Verify the identical regressions against the original full runtime
+        if: runner.os == 'Linux'
+        working-directory: lumine
+        timeout-minutes: 20
+        run: |
+          ln -s "$GITHUB_WORKSPACE/jupyter-repl/node_modules" "$GITHUB_WORKSPACE/jupyter-repl-original/node_modules"
+          cp ../jupyter-repl/spec/unicode-completion-offsets-spec.js ../jupyter-repl-original/spec/
+          cp ../jupyter-repl/spec/text-index-spec.js ../jupyter-repl-original/spec/
+          peer_home="$LUMINE_HOME"
+          export LUMINE_HOME="$RUNNER_TEMP/jupyter-original-home"
+          mkdir -p "$LUMINE_HOME"
+          ln -s "$peer_home/packages" "$LUMINE_HOME/packages"
+          export HOME="$LUMINE_HOME" USERPROFILE="$LUMINE_HOME"
+          set +e
+          xvfb-run --auto-servernum npm start -- --test ../jupyter-repl-original/spec > "$RUNNER_TEMP/jupyter-original.log" 2>&1
+          original_status=$?
+          set -e
+          cat "$RUNNER_TEMP/jupyter-original.log"
+          test "$original_status" -eq 1
+          grep -E '[0-9]+ specs, 6 failures' "$RUNNER_TEMP/jupyter-original.log"
+          if grep '\[FAIL\]' "$RUNNER_TEMP/jupyter-original.log" | grep -Ev '^(Jupyter completion code-point offsets|converting between character and code-unit indices) '; then
+            echo "Unexpected original-runtime regression"
+            exit 1
+          fi
       - name: Run the Jasmine spec suite
         working-directory: lumine
         timeout-minutes: 20
-        run: xvfb-run --auto-servernum npm start -- --test ../jupyter-repl/spec
+        run: |
+          export HOME="$LUMINE_HOME" USERPROFILE="$LUMINE_HOME"
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run --auto-servernum npm start -- --test ../jupyter-repl/spec
+          else
+            npm start -- --test ../jupyter-repl/spec
+          fi

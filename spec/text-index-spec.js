@@ -4,53 +4,37 @@ const { js_idx_to_char_idx, char_idx_to_js_idx } = require("../lib/utils");
 // units, so these two run on the keystroke path — twice per completion match,
 // which for a Python `dir()` reply is hundreds of times per keypress. They take
 // an ASCII shortcut for that reason; these check the shortcut answers exactly
-// what walking the graphemes would.
+// what the protocol's independent code-point boundary table says.
 
-// What the functions do when they cannot take the shortcut, written out here so
-// the shortcut has something independent to agree with.
-function segments(text) {
-  return [...new Intl.Segmenter("en", { granularity: "grapheme" }).segment(text)];
-}
-
-function jsToCharBySegmenting(jsIndex, text) {
-  const parts = segments(text);
-  for (let i = 0; i < parts.length; i++) {
-    const end = parts[i + 1]?.index ?? text.length;
-    if (jsIndex >= parts[i].index && jsIndex < end) {
-      return i;
-    }
-  }
-  return parts.length;
-}
-
-function charToJsBySegmenting(charIndex, text) {
-  const parts = segments(text);
-  return charIndex >= parts.length ? text.length : parts[charIndex].index;
+function jsToCodePoint(jsIndex, offsets) {
+  const next = offsets.findIndex((offset) => offset > jsIndex);
+  return next < 0 ? offsets.length - 1 : next - 1;
 }
 
 describe("converting between character and code-unit indices", () => {
+  const ascii = "result = pandas.DataFrame(data).groupby(['a']).agg";
   const samples = [
-    "",
-    "x",
-    "result = pandas.DataFrame(data).groupby(['a']).agg",
-    "df.描述", // beyond ASCII, one code unit per character
-    "emoji = '😀'", // astral, two code units
-    "éclair", // combining accent, two code points in one grapheme
-    "a😀b́c",
+    { text: "", offsets: [0] },
+    { text: "x", offsets: [0, 1] },
+    { text: ascii, offsets: Array.from({ length: ascii.length + 1 }, (_, index) => index) },
+    { text: "df.描述", offsets: [0, 1, 2, 3, 4, 5] },
+    { text: "emoji = '😀'", offsets: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12] },
+    { text: "éclair", offsets: [0, 1, 2, 3, 4, 5, 6, 7] },
+    { text: "a😀b́c", offsets: [0, 1, 3, 4, 5, 6] },
   ];
 
-  it("converts code-unit indices the same way whether or not it segments", () => {
-    for (const text of samples) {
+  it("converts code-unit indices to protocol code-point boundaries", () => {
+    for (const { text, offsets } of samples) {
       for (let index = 0; index <= text.length + 2; index++) {
-        expect(js_idx_to_char_idx(index, text)).toBe(jsToCharBySegmenting(index, text));
+        expect(js_idx_to_char_idx(index, text)).toBe(jsToCodePoint(index, offsets));
       }
     }
   });
 
-  it("converts character indices the same way whether or not it segments", () => {
-    for (const text of samples) {
-      for (let index = 0; index <= segments(text).length + 2; index++) {
-        expect(char_idx_to_js_idx(index, text)).toBe(charToJsBySegmenting(index, text));
+  it("converts protocol code-point indices to the recorded UTF-16 boundaries", () => {
+    for (const { text, offsets } of samples) {
+      for (let index = 0; index <= offsets.length + 2; index++) {
+        expect(char_idx_to_js_idx(index, text)).toBe(offsets[index] ?? text.length);
       }
     }
   });
