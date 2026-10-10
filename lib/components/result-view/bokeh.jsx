@@ -1,5 +1,7 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch");
+const { CompositeDisposable } = require("lumine");
+const { getInternalKernel } = require("../../plugin-api/jupyter-kernel");
 
 const BOKEH_LOAD = "application/vnd.bokehjs_load.v0+json";
 const BOKEH_EXEC = "application/vnd.bokehjs_exec.v0+json";
@@ -11,11 +13,20 @@ function text(value) {
   return typeof value === "string" ? value : Array.isArray(value) ? value.join("") : "";
 }
 
+function propsWithGeneration(props) {
+  return {
+    ...props,
+    kernelGeneration:
+      props.kernelGeneration === undefined ? props.kernel?.generation : props.kernelGeneration,
+  };
+}
+
 function samePlot(left, right) {
   const previous = left.loadCode || [];
   const next = right.loadCode || [];
   return (
     left.kernel === right.kernel &&
+    left.kernelGeneration === right.kernelGeneration &&
     left.panel === right.panel &&
     text(left.bundle["text/html"]) === text(right.bundle["text/html"]) &&
     text(left.bundle["application/javascript"]) === text(right.bundle["application/javascript"]) &&
@@ -176,7 +187,7 @@ function isolatedBokeh(payload) {
 
 class BokehView {
   constructor(props) {
-    this.props = props;
+    this.props = propsWithGeneration(props);
     this.error = null;
     this.comms = new Map();
     this.targets = new Map();
@@ -219,10 +230,19 @@ class BokehView {
       onError: (message) => this.fail(message),
     });
     this.refs.host.appendChild(this.frame.element);
-    this.resetSubscription = kernel?.transport?.onDidResetComms?.(() => {
+    this.kernelGeneration = this.props.kernelGeneration;
+    const retireKernel = () => {
       this.disposeComms();
       this.fail("The kernel session changed. Run this plot again to reconnect its controls.");
-    });
+    };
+    this.resetSubscription = kernel
+      ? new CompositeDisposable(
+          kernel.onDidChangeGeneration(retireKernel),
+          kernel.onDidDestroy(retireKernel),
+        )
+      : null;
+    if (kernel && (kernel.isDestroyed() || kernel.generation !== this.kernelGeneration))
+      retireKernel();
   }
 
   fail(message) {
@@ -255,7 +275,12 @@ class BokehView {
 
   receive(data) {
     if (data?.type !== "plot-comm") return;
-    const transport = this.props.kernel?.transport;
+    const kernel = this.props.kernel;
+    if (kernel && (kernel.isDestroyed() || kernel.generation !== this.kernelGeneration)) {
+      this.fail("The kernel session changed. Run this plot again to reconnect its controls.");
+      return;
+    }
+    const transport = getInternalKernel(kernel)?.transport;
     if (!transport) {
       this.fail("This stored plot has no live kernel. Python callbacks are unavailable.");
       return;
@@ -309,6 +334,7 @@ class BokehView {
   }
 
   update(props) {
+    props = propsWithGeneration(props);
     if (samePlot(this.props, props)) {
       this.props = props;
       return Promise.resolve();
@@ -361,6 +387,7 @@ function bokehRenderer(mime) {
         metadata={metadata}
         panel={panel}
         kernel={options.kernel}
+        kernelGeneration={options.kernelGeneration}
         loadCode={loadCode}
       />
     );
