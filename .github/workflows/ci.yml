@@ -166,6 +166,9 @@ jobs:
           ln -s "$GITHUB_WORKSPACE/jupyter-repl/node_modules" "$GITHUB_WORKSPACE/jupyter-repl-original/node_modules"
           cp ../jupyter-repl/spec/unicode-completion-offsets-spec.js ../jupyter-repl-original/spec/
           cp ../jupyter-repl/spec/text-index-spec.js ../jupyter-repl-original/spec/
+          # The control keeps its original implementation and full suite. Only
+          # translate its known navigation option to the current editor API.
+          node -e 'const fs = require("node:fs"); const file = "../jupyter-repl-original/lib/services/provided/hyperclick.js"; const text = fs.readFileSync(file, "utf8"); const oldCall = "editor.scrollToBufferPosition([source.line - 1, 0], { center: true });"; if (text.split(oldCall).length !== 2) throw new Error("Expected exactly one original hyperclick navigation call"); fs.writeFileSync(file, text.replace(oldCall, "editor.scrollToBufferPosition([source.line - 1, 0], { mode: \"center\" });"));'
           peer_home="$LUMINE_HOME"
           export LUMINE_HOME="$RUNNER_TEMP/jupyter-original-home"
           mkdir -p "$LUMINE_HOME"
