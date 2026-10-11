@@ -242,17 +242,23 @@ describe("runtime source request lifetime", () => {
 });
 
 function findPython() {
+  // Loading ordinary specs must not start an interpreter from the user's PATH.
+  if (process.env.LUMINE_TEST_LIVE_PYTHON !== "true") return null;
   for (const candidate of ["python", "python3"]) {
     try {
       if (
         /Python 3/.test(
-          execFileSync(candidate, ["--version"], { encoding: "utf8", timeout: 10000 }),
+          execFileSync(candidate, ["--version"], {
+            encoding: "utf8",
+            timeout: 10000,
+            windowsHide: true,
+          }),
         )
       )
         return candidate;
     } catch {}
   }
-  return null;
+  throw new Error("Live Python integration was enabled, but Python 3 is unavailable.");
 }
 const python = findPython();
 const pythonSuite = python ? describe : () => {};
@@ -279,6 +285,7 @@ pythonSuite("static Python runtime source lookup", () => {
     const { code, marker: prefix } = buildSourceQuery(parseSymbol(symbol), "python-spec");
     const harness = `${setup}\n${extra}\n${code}\n${checks}\n`;
     const output = execFileSync(python, ["-B", "-c", harness], {
+      windowsHide: true,
       encoding: "utf8",
       timeout: 15000,
     });
@@ -320,6 +327,7 @@ pythonSuite("static Python runtime source lookup", () => {
     const { code, marker: prefix } = buildSourceQuery(["target"], "python-spec");
     const harness = `${setup}\nexec = globals = inspect = print = 123\nbefore = set((lambda: None).__globals__)\n${code}\nassert set((lambda: None).__globals__) - {'before'} == before\n`;
     const output = execFileSync(python, ["-B", "-c", harness], {
+      windowsHide: true,
       encoding: "utf8",
       timeout: 15000,
     });
