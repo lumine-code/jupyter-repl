@@ -43,10 +43,14 @@ describe("executed editor source provenance", () => {
     expect(link).toBeTruthy();
     await link.open();
     expect(lumine.workspace.open).toHaveBeenCalledWith(editor, { searchAllPanes: true });
-    expect(editor.setSelectedBufferRange).toHaveBeenCalledWith([
-      [1, 0],
-      [1, 0],
-    ]);
+    expect(editor.setSelectedBufferRange).toHaveBeenCalledWith(
+      [
+        [1, 0],
+        [1, 0],
+      ],
+      { autoscroll: false },
+    );
+    expect(editor.scrollToBufferPosition).toHaveBeenCalledWith([1, 0], { mode: "zone" });
   });
 
   it("accepts an explicit IPython execution count for modern temporary filenames", () => {

@@ -35,10 +35,13 @@ function fileLink(frame, kernel) {
         initialColumn: frame.column || 0,
       });
       if (frame.endColumn != null && editor?.setSelectedBufferRange) {
-        editor.setSelectedBufferRange([
-          [frame.line - 1, frame.column || 0],
-          [frame.line - 1, frame.endColumn],
-        ]);
+        editor.setSelectedBufferRange(
+          [
+            [frame.line - 1, frame.column || 0],
+            [frame.line - 1, frame.endColumn],
+          ],
+          { mode: "zone" },
+        );
       }
     },
   };

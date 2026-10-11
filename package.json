@@ -243,11 +243,11 @@
           "description": "Center scroll - always center cursor on screen"
         },
         {
-          "value": "halfWindow",
-          "description": "Scroll until half window - scroll only when cursor passes mid-screen"
+          "value": "zone",
+          "description": "Scroll within the editor's shared navigation zone"
         }
       ],
-      "default": "halfWindow"
+      "default": "zone"
     },
     "wrapOutput": {
       "title": "Enable soft wrap for output",
