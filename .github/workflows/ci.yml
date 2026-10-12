@@ -166,6 +166,11 @@ jobs:
           ln -s "$GITHUB_WORKSPACE/jupyter-repl/node_modules" "$GITHUB_WORKSPACE/jupyter-repl-original/node_modules"
           cp ../jupyter-repl/spec/unicode-completion-offsets-spec.js ../jupyter-repl-original/spec/
           cp ../jupyter-repl/spec/text-index-spec.js ../jupyter-repl-original/spec/
+          # Preserve the frozen suite's cases while making its pane fixtures
+          # obey the current core's explicit singleton and dock contracts.
+          for specification in adapter-provider-lifecycle-spec.js output-pane-serialization-spec.js pane-teardown-spec.js; do
+            cp "../jupyter-repl/spec/$specification" ../jupyter-repl-original/spec/
+          done
           # The control keeps its original implementation and full suite. Only
           # translate its known navigation option to the current editor API.
           node -e 'const fs = require("node:fs"); const file = "../jupyter-repl-original/lib/services/provided/hyperclick.js"; const text = fs.readFileSync(file, "utf8"); const oldCall = "editor.scrollToBufferPosition([source.line - 1, 0], { center: true });"; if (text.split(oldCall).length !== 2) throw new Error("Expected exactly one original hyperclick navigation call"); fs.writeFileSync(file, text.replace(oldCall, "editor.scrollToBufferPosition([source.line - 1, 0], { mode: \"center\" });"));'

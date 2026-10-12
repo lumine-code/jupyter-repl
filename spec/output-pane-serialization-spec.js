@@ -79,7 +79,7 @@ describe("restoring the Output Area pane", () => {
 
   it("lets the output-mode toggle close a restored item and then creates a new one", () => {
     const restored = main.deserializeOutputPane();
-    const pane = lumine.workspace.getCenter().getActivePane();
+    const pane = lumine.workspace.getRightDock().getActivePane();
     pane.addItem(restored);
 
     commands.toggleOutputMode();
