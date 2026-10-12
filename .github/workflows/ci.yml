@@ -167,8 +167,8 @@ jobs:
           cp ../jupyter-repl/spec/unicode-completion-offsets-spec.js ../jupyter-repl-original/spec/
           cp ../jupyter-repl/spec/text-index-spec.js ../jupyter-repl-original/spec/
           # Preserve the frozen suite's cases while making its pane fixtures
-          # obey the current core's explicit singleton and dock contracts.
-          for specification in adapter-provider-lifecycle-spec.js output-pane-serialization-spec.js pane-teardown-spec.js; do
+          # obey the current core's explicit item, dock and view contracts.
+          for specification in adapter-provider-lifecycle-spec.js output-pane-serialization-spec.js pane-teardown-spec.js runtime-source-provenance-spec.js; do
             cp "../jupyter-repl/spec/$specification" ../jupyter-repl-original/spec/
           done
           # The control keeps its original implementation and full suite. Only
