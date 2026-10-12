@@ -41,6 +41,9 @@
         const listeners = new Set();
         const disposers = new Set();
         const urls = new Set();
+        const windowStates = new Map();
+        let executableOutput = false;
+        let initialCheckpoint = null;
         const output = document.getElementById("output");
         let resizePending = false;
         const send = (data) => {
@@ -101,11 +104,101 @@
             return () => disposers.delete(callback);
           },
           resize,
+          getWindowState(key) {
+            const entry = initialCheckpoint?.handlers?.find((entry) => entry.key === key);
+            return entry ? structuredClone(entry.state) : undefined;
+          },
+          registerWindowState(key, handler) {
+            if (
+              typeof key !== "string" ||
+              !key ||
+              windowStates.has(key) ||
+              typeof handler?.capture !== "function" ||
+              typeof handler?.restore !== "function"
+            )
+              throw new Error("A window state handler requires a unique key, capture and restore.");
+            windowStates.set(key, handler);
+            return () => windowStates.delete(key);
+          },
         });
+        async function captureWindowState() {
+          if (executableOutput && !windowStates.size)
+            throw new Error("This interactive output has no window state checkpoint handler.");
+          const handlers = [];
+          for (const [key, handler] of windowStates)
+            handlers.push({ key, state: await handler.capture() });
+          return {
+            handlers,
+            controls: [...output.querySelectorAll("input, textarea, select")].map((node) => ({
+              value: node.value,
+              checked: node.checked,
+              start: node.selectionStart,
+              end: node.selectionEnd,
+            })),
+            details: [...output.querySelectorAll("details")].map((node) => node.open),
+            scroll: [...output.querySelectorAll("*")].map((node) => ({
+              top: node.scrollTop,
+              left: node.scrollLeft,
+            })),
+          };
+        }
+        async function restoreWindowState(state) {
+          if (!state) return;
+          for (const entry of state.handlers ?? []) {
+            const handler = windowStates.get(entry.key);
+            if (!handler)
+              throw new Error(`The output did not restore checkpoint handler '${entry.key}'.`);
+            await handler.restore(entry.state);
+          }
+          const restoreDOM = () => {
+            [...output.querySelectorAll("input, textarea, select")].forEach((node, index) => {
+              const value = state.controls?.[index];
+              if (!value) return;
+              node.value = value.value;
+              node.checked = value.checked;
+              if (value.start != null && value.end != null)
+                node.setSelectionRange?.(value.start, value.end);
+            });
+            [...output.querySelectorAll("details")].forEach((node, index) => {
+              node.open = !!state.details?.[index];
+            });
+            [...output.querySelectorAll("*")].forEach((node, index) => {
+              const value = state.scroll?.[index];
+              if (value) {
+                node.scrollTop = value.top;
+                node.scrollLeft = value.left;
+              }
+            });
+          };
+          restoreDOM();
+          if (
+            state.controls?.length &&
+            output.querySelectorAll("input, textarea, select").length < state.controls.length
+          ) {
+            const pendingDOM = new MutationObserver(() => {
+              if (
+                output.querySelectorAll("input, textarea, select").length >= state.controls.length
+              ) {
+                restoreDOM();
+                pendingDOM.disconnect();
+              }
+            });
+            pendingDOM.observe(output, { childList: true, subtree: true });
+            disposers.add(() => pendingDOM.disconnect());
+          }
+        }
         async function initialize(data) {
           if (initialized) return;
           initialized = true;
+          initialCheckpoint = data.checkpoint;
           output.innerHTML = String(data.html || "");
+          executableOutput =
+            !!data.script ||
+            [...output.querySelectorAll("script")].some(
+              (node) =>
+                !node.type ||
+                ["module", "text/javascript", "application/javascript"].includes(node.type),
+            );
           // innerHTML leaves scripts inert. Execute them deliberately, in document
           // order, inside this iframe only; retain JSON script tags as data.
           for (const previous of [...output.querySelectorAll("script")]) {
@@ -152,6 +245,7 @@
             document.body.appendChild(script);
             await loaded;
           }
+          await restoreWindowState(data.checkpoint);
           send({ type: "lumine-output-ready" });
           resize();
         }
@@ -171,6 +265,27 @@
             if (data?.type === "lumine-output-dispose") return dispose();
             if (data?.type === "lumine-output-init") {
               initialize(data).catch(error);
+              return;
+            }
+            if (data?.type === "lumine-output-checkpoint") {
+              captureWindowState().then(
+                (checkpoint) =>
+                  send({
+                    type: "lumine-output-checkpoint-result",
+                    requestId: data.requestId,
+                    checkpoint,
+                  }),
+                (reason) =>
+                  send({
+                    type: "lumine-output-checkpoint-result",
+                    requestId: data.requestId,
+                    error: String(reason?.message || reason),
+                  }),
+              );
+              return;
+            }
+            if (data?.type === "lumine-output-restore") {
+              restoreWindowState(data.checkpoint).catch(error);
               return;
             }
             for (const callback of listeners) {

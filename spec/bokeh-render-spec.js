@@ -49,6 +49,68 @@ describe("isolated Bokeh and Panel output", () => {
     };
   }
 
+  it("restores a plot's document and resumes its owned comm without opening another backend", async () => {
+    jasmine.useRealClock();
+    jasmine.attachToDOM(lumine.workspace.getElement());
+    let deliver;
+    const channel = {
+      comm_id: "stable-comm",
+      open: jasmine.createSpy("open"),
+      close: jasmine.createSpy("close"),
+      send: jasmine.createSpy("send"),
+      on_msg: (callback) => {
+        deliver = callback;
+      },
+      on_close() {},
+    };
+    const createComm = jasmine.createSpy("createComm").and.callFake((_target, id) => {
+      channel.comm_id = id;
+      return channel;
+    });
+    const kernel = sessionFor({ createComm, getComm: () => null }).session;
+    component = new BokehView({
+      kernel,
+      bundle: {
+        "application/javascript": `
+          window.Bokeh = { documents: [{
+            state: { range: 7 },
+            to_json() { return structuredClone(this.state); },
+            replace_with_json(state) { this.state = state; }
+          }] };
+          const channel = window.Jupyter.notebook.kernel.comm_manager.new_comm("bokeh", {});
+          channel.on_msg((message) => { window.Bokeh.documents[0].state.range = message.content.data.range; });
+        `,
+      },
+    });
+    document.body.append(component.element);
+    const item = {
+      canCopy: () => false,
+      getTitle: () => "Live plot",
+      getElement: () => component.element,
+    };
+    await lumine.workspace.open(item);
+    await globalThis.conditionPromise(() => component.frame.ready && deliver);
+    deliver({ content: { data: { range: 42 } } });
+    const before = await component.frame.prepareWindowChange();
+    expect(before.checkpoint.handlers[0].state.documents).toEqual([{ range: 42 }]);
+    before.dispose();
+    const extra = await lumine.workspace.detachPane(lumine.workspace.paneForItem(item));
+    try {
+      const after = await component.frame.prepareWindowChange();
+      expect(after.checkpoint.handlers[0].state.documents).toEqual([{ range: 42 }]);
+      after.dispose();
+      expect(component.comms.get(channel.comm_id)).toBe(channel);
+      expect(createComm).toHaveBeenCalledTimes(1);
+      expect(channel.open).toHaveBeenCalledTimes(1);
+      expect(channel.close).not.toHaveBeenCalled();
+      await lumine.workspace.attachWindow(extra);
+      expect(component.comms.get(channel.comm_id)).toBe(channel);
+      expect(channel.close).not.toHaveBeenCalled();
+    } finally {
+      await lumine.workspace.discardEditorWindows();
+    }
+  });
+
   it("prefers the marker renderer to the HTML and JavaScript fallbacks", () => {
     for (const mime of [BOKEH_EXEC, PANEL_EXEC]) {
       const vnode = renderDisplay({

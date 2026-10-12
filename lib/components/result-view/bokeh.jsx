@@ -42,6 +42,8 @@ function samePlot(left, right) {
 function isolatedBokeh(payload) {
   const bridge = window.lumineOutput;
   const comms = new Map();
+  const resume = bridge.getWindowState?.("bokeh");
+  const resumedComms = new Set();
   const targets = new Map();
   const resources = new Set();
   const root = document.getElementById("rich-output");
@@ -65,17 +67,28 @@ function isolatedBokeh(payload) {
         handlers.close = callback;
       },
     };
-    comms.set(id, { channel, handlers });
-    return { channel, handlers };
+    const entry = { channel, handlers };
+    comms.set(id, entry);
+    return entry;
   }
   window.Jupyter = {
     notebook: {
       kernel: {
         id: payload.kernelId,
         comm_manager: {
-          new_comm(target, data, callbacks, metadata, id = crypto.randomUUID(), buffers) {
+          new_comm(target, data, callbacks, metadata, id, buffers) {
+            const previous = resume?.comms?.find(
+              (entry) =>
+                entry.target === target &&
+                !resumedComms.has(entry.id) &&
+                (id == null || entry.id === id),
+            );
+            id ??= previous?.id ?? crypto.randomUUID();
+            if (previous) resumedComms.add(id);
             const entry = comm(id);
-            send({ operation: "open", id, target, data, metadata, buffers });
+            entry.target = target;
+            entry.client = true;
+            send({ operation: previous ? "resume" : "open", id, target, data, metadata, buffers });
             return entry.channel;
           },
           register_target(target, callback) {
@@ -89,8 +102,11 @@ function isolatedBokeh(payload) {
   bridge.onMessage((data) => {
     if (data?.type !== "plot-comm-event") return;
     const entry = comm(data.id);
-    if (data.operation === "open") targets.get(data.target)?.(entry.channel, data.message);
-    else if (data.operation === "message") entry.handlers.msg?.(data.message);
+    if (data.operation === "open") {
+      entry.target = data.target;
+      entry.client = false;
+      targets.get(data.target)?.(entry.channel, data.message);
+    } else if (data.operation === "message") entry.handlers.msg?.(data.message);
     else if (data.operation === "close") {
       entry.handlers.close?.(data.message);
       comms.delete(data.id);
@@ -180,7 +196,36 @@ function isolatedBokeh(payload) {
     targets.clear();
     for (const view of Object.values(window.Bokeh?.index || {})) view?.remove?.();
   });
-  render().catch((error) => {
+  const rendered = render();
+  bridge.registerWindowState("bokeh", {
+    async capture() {
+      await rendered;
+      const documents = window.Bokeh?.documents || [];
+      if (
+        documents.some(
+          (document) =>
+            typeof document.to_json !== "function" ||
+            typeof document.replace_with_json !== "function",
+        )
+      )
+        throw new Error("This Bokeh runtime cannot preserve its document state across windows.");
+      return {
+        documents: documents.map((document) => document.to_json()),
+        comms: [...comms]
+          .filter(([, entry]) => entry.client)
+          .map(([id, entry]) => ({ id, target: entry.target })),
+      };
+    },
+    async restore(state) {
+      await rendered;
+      const documents = window.Bokeh?.documents || [];
+      if (documents.length !== (state.documents || []).length)
+        throw new Error("The Bokeh output restored a different set of documents.");
+      for (const [index, document] of documents.entries())
+        document.replace_with_json(state.documents[index]);
+    },
+  });
+  rendered.catch((error) => {
     bridge.send({ type: "lumine-output-error", message: error.message });
   });
 }
@@ -190,6 +235,8 @@ class BokehView {
     this.props = propsWithGeneration(props);
     this.error = null;
     this.comms = new Map();
+    this.commTargets = new Map();
+    this.serverComms = new Map();
     this.targets = new Map();
     this.frame = null;
     this.destroyed = false;
@@ -251,9 +298,10 @@ class BokehView {
     etch.update(this);
   }
 
-  bind(channel) {
+  bind(channel, target) {
     if (this.comms.has(channel.comm_id)) return;
     this.comms.set(channel.comm_id, channel);
+    this.commTargets.set(channel.comm_id, target);
     channel.on_msg((message) =>
       this.frame?.postMessage({
         type: "plot-comm-event",
@@ -270,6 +318,8 @@ class BokehView {
         message,
       });
       this.comms.delete(channel.comm_id);
+      this.commTargets.delete(channel.comm_id);
+      this.serverComms.delete(channel.comm_id);
     });
   }
 
@@ -286,14 +336,25 @@ class BokehView {
       return;
     }
     try {
-      if (data.operation === "register" || data.operation === "open") {
+      if (["register", "open", "resume"].includes(data.operation)) {
         if (!this.allowedTargets.has(data.target))
           throw new Error("The plot requested an unrelated comm target.");
       }
       if (data.operation === "register") {
-        if (this.targets.has(data.target)) return;
+        if (this.targets.has(data.target)) {
+          for (const [id, record] of this.serverComms)
+            if (record.target === data.target && this.comms.has(id))
+              this.frame?.postMessage({
+                type: "plot-comm-event",
+                operation: "open",
+                id,
+                ...record,
+              });
+          return;
+        }
         const subscription = transport.registerCommTarget(data.target, (channel, message) => {
-          this.bind(channel);
+          this.bind(channel, data.target);
+          this.serverComms.set(channel.comm_id, { target: data.target, message });
           this.frame?.postMessage({
             type: "plot-comm-event",
             operation: "open",
@@ -303,13 +364,16 @@ class BokehView {
           });
         });
         this.targets.set(data.target, subscription);
+      } else if (data.operation === "resume") {
+        if (!this.comms.has(data.id) || this.commTargets.get(data.id) !== data.target)
+          throw new Error("The resumed plot comm is not owned by this output.");
       } else if (data.operation === "open") {
         if (typeof data.id !== "string" || !/^[a-zA-Z0-9_.:-]{1,128}$/.test(data.id))
           throw new Error("Invalid plot comm ID.");
         if (this.comms.has(data.id) || transport.getComm(data.id))
           throw new Error("The plot comm already exists.");
         const channel = transport.createComm(data.target, data.id);
-        this.bind(channel);
+        this.bind(channel, data.target);
         channel.open(data.data, undefined, data.metadata, data.buffers);
       } else {
         const channel = this.comms.get(data.id);
@@ -319,6 +383,8 @@ class BokehView {
         else if (data.operation === "close") {
           channel.close(data.data);
           this.comms.delete(data.id);
+          this.commTargets.delete(data.id);
+          this.serverComms.delete(data.id);
         }
       }
     } catch (error) {
@@ -331,6 +397,8 @@ class BokehView {
     this.targets.clear();
     for (const channel of this.comms.values()) channel.close();
     this.comms.clear();
+    this.commTargets.clear();
+    this.serverComms.clear();
   }
 
   update(props) {

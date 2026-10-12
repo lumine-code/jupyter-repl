@@ -77,7 +77,9 @@ describe("jupyter-repl bootstrap", () => {
         return { destroy: () => item.remove() };
       },
     };
-    const edge = pack.mainModule.consumeStatusBar(statusBar);
+    const edge = pack.mainModule.consumeStatusBar({
+      observeWindows: (create) => create(statusBar, { window: lumine.workspace.getMainWindow() }),
+    });
     await Promise.resolve();
     expect(container.querySelector(".jupyter-repl")).not.toBeNull();
     currentKernel.and.callThrough();
@@ -93,7 +95,9 @@ describe("jupyter-repl bootstrap", () => {
     const store = require("../lib/store");
     spyOnProperty(store, "kernel", "get").and.returnValue(null);
     const statusBar = { addLeftTile: jasmine.createSpy("addLeftTile") };
-    const edge = pack.mainModule.consumeStatusBar(statusBar);
+    const edge = pack.mainModule.consumeStatusBar({
+      observeWindows: (create) => create(statusBar, { window: lumine.workspace.getMainWindow() }),
+    });
     await Promise.resolve();
     expect(statusBar.addLeftTile).not.toHaveBeenCalled();
     expect(configure).not.toHaveBeenCalled();

@@ -62,6 +62,74 @@ describe("an isolated rich output", () => {
     expect(frame.port).toBe(null);
   });
 
+  it("checkpoints interactive state before a pane moves and reconnects in the destination", async () => {
+    jasmine.attachToDOM(lumine.workspace.getElement());
+    let ready;
+    const loaded = new Promise((resolve) => {
+      ready = resolve;
+    });
+    mount({
+      html: '<input id="value" value="initial">',
+      script: `
+        let count = 7;
+        document.getElementById("value").value = "edited";
+        window.lumineOutput.registerWindowState("counter", {
+          capture: () => ({ count }),
+          restore: (state) => { count = state.count; }
+        });
+      `,
+      onReady: ready,
+    });
+    await loaded;
+    const item = {
+      canCopy: () => false,
+      getTitle: () => "Interactive output",
+      getElement: () => frame.element,
+    };
+    await lumine.workspace.open(item);
+    const pane = lumine.workspace.paneForItem(item);
+    const checkpoint = await frame.prepareWindowChange();
+    expect(checkpoint.checkpoint.handlers[0].state).toEqual({ count: 7 });
+    expect(checkpoint.checkpoint.controls[0].value).toBe("edited");
+    checkpoint.dispose();
+    const extra = await lumine.workspace.detachPane(pane);
+    try {
+      await globalThis.conditionPromise(() => frame.ready);
+      const restored = await frame.prepareWindowChange();
+      expect(restored.checkpoint.handlers[0].state).toEqual({ count: 7 });
+      expect(restored.checkpoint.controls[0].value).toBe("edited");
+      restored.dispose();
+      expect(frame.element.ownerDocument).toBe(extra.getDocument());
+      await lumine.workspace.attachWindow(extra);
+      await globalThis.conditionPromise(() => frame.ready);
+    } finally {
+      await lumine.workspace.discardEditorWindows();
+    }
+  });
+
+  it("keeps an output with uncheckpointable script state in its original pane", async () => {
+    jasmine.attachToDOM(lumine.workspace.getElement());
+    let ready;
+    const loaded = new Promise((resolve) => {
+      ready = resolve;
+    });
+    mount({ script: "let privateState = 17;", onReady: ready });
+    await loaded;
+    const item = {
+      canCopy: () => false,
+      getTitle: () => "Uncheckpointable output",
+      getElement: () => frame.element,
+    };
+    await lumine.workspace.open(item);
+    const pane = lumine.workspace.paneForItem(item);
+    await expectAsync(lumine.workspace.detachPane(pane)).toBeRejectedWithError(
+      /no window state checkpoint handler/,
+    );
+    expect(lumine.workspace.paneForItem(item)).toBe(pane);
+    expect(frame.element.ownerDocument).toBe(document);
+    expect(frame.ready).toBeTrue();
+  });
+
   it("bounds iframe height and ignores malformed measurements", () => {
     mount({ maxHeight: 800 });
     frame._receive({ type: "lumine-output-resize", height: 900000 });
