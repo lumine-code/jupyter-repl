@@ -81,7 +81,7 @@ jasmine.describeWithDocumentFocus("pane commands from isolated notebook output",
     owner = {
       element: document.createElement("div"),
       getTitle: () => "Isolated notebook output",
-      isSingleton: () => true,
+      canCopy: () => false,
       getAllowedLocations: () => ["center"],
     };
     owner.element.tabIndex = -1;

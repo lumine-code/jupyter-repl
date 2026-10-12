@@ -60,7 +60,7 @@ describe("notebook adapter provider edge ownership", () => {
       getPath: owner.getPath,
       getTitle: () => "Provider lifetime",
       getURI: () => "lumine://jupyter-provider-lifetime-test",
-      isSingleton: () => true,
+      canCopy: () => false,
       isDestroyed: owner.isDestroyed,
       onDidDestroy: owner.onDidDestroy,
       destroy: owner.destroy,
