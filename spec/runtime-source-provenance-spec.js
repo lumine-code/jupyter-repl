@@ -38,7 +38,11 @@ describe("executed editor source provenance", () => {
 
   it("uses the captured execution count and decorator line to open its source", async () => {
     spyOn(lumine.workspace, "open").and.returnValue(Promise.resolve(editor));
-    spyOn(lumine.views, "getView").and.returnValue({ focus() {} });
+    const getView = lumine.views.getView.bind(lumine.views);
+    const sourceView = document.createElement("div");
+    spyOn(lumine.views, "getView").and.callFake((candidate) =>
+      candidate === editor ? sourceView : getView(candidate),
+    );
     const link = context.resolveSourceFrame(kernel, frame());
     expect(link).toBeTruthy();
     await link.open();
