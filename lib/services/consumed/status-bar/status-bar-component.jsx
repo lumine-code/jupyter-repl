@@ -12,6 +12,7 @@ class StatusBar {
   constructor({ store, container }) {
     this.store = store;
     this.container = container;
+    this.timerWindow = container?.ownerDocument.defaultView ?? window;
     this.elapsedMs = 0;
     this.timerId = null;
     this.kernelSubscription = null;
@@ -60,7 +61,7 @@ class StatusBar {
   startTimer() {
     this.stopTimer();
     this.elapsedMs = this.elapsedSinceStart();
-    this.timerId = setInterval(() => {
+    this.timerId = this.timerWindow.setInterval(() => {
       this.elapsedMs = this.elapsedSinceStart();
       etch.update(this);
     }, TICK_MS);
@@ -68,7 +69,7 @@ class StatusBar {
 
   stopTimer() {
     if (this.timerId) {
-      clearInterval(this.timerId);
+      this.timerWindow.clearInterval(this.timerId);
       this.timerId = null;
     }
   }

@@ -27,10 +27,17 @@ describe("kernel commands picker command", () => {
     expect(warning).toHaveBeenCalledWith("No running kernel for the current editor");
   });
 
-  it("opens the same kernel command picker used by the status bar", () => {
+  it("opens the same kernel command picker used by the status bar", async () => {
     const kernel = { destroy: jasmine.createSpy("destroy") };
     store.runningKernels = [kernel];
-    store.updateActivePaneItem({ getJupyterKernel: () => kernel });
+    const item = {
+      getTitle: () => "Kernel client",
+      getJupyterKernel: () => kernel,
+      canCopy: () => false,
+      element: document.createElement("div"),
+    };
+    await lumine.workspace.open(item);
+    store.updateActivePaneItem(item);
     const showKernelCommands = spyOn(services.consumed.statusBar, "showKernelCommands");
 
     lumine.commands.dispatch(
@@ -40,7 +47,7 @@ describe("kernel commands picker command", () => {
 
     expect(showKernelCommands).toHaveBeenCalled();
     const [commandStore, handleKernelCommand] = showKernelCommands.calls.mostRecent().args;
-    expect(commandStore).toBe(store);
+    expect(commandStore.kernel).toBe(kernel);
     expect(typeof handleKernelCommand).toBe("function");
   });
 

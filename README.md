@@ -2,7 +2,7 @@
 
 Run code interactively with Jupyter kernels.
 
-Supports Python, R, JavaScript, and other languages with rich output including plots, images, HTML, and LaTeX.
+Supports Python, R, JavaScript, and other languages with rich output including plots, images, HTML, and LaTeX. Each editor window has its own kernel indicator and command picker; an open picker retains the kernel it was opened for.
 
 ## Features
 

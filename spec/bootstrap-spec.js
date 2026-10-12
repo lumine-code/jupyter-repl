@@ -68,7 +68,15 @@ describe("jupyter-repl bootstrap", () => {
       executionCount: 0,
       lastExecutionTime: "No execution",
       onDidChangeStatus: () => ({ dispose() {} }),
+      destroy() {},
     };
+    store.runningKernels = [kernel];
+    await lumine.workspace.open({
+      getTitle: () => "Kernel client",
+      getJupyterKernel: () => kernel,
+      canCopy: () => false,
+      element: document.createElement("div"),
+    });
     const currentKernel = spyOnProperty(store, "kernel", "get").and.returnValue(kernel);
     const container = document.createElement("div");
     const statusBar = {
@@ -82,6 +90,7 @@ describe("jupyter-repl bootstrap", () => {
     });
     await Promise.resolve();
     expect(container.querySelector(".jupyter-repl")).not.toBeNull();
+    store.runningKernels = [];
     currentKernel.and.callThrough();
     const output = pack.mainModule.deserializeOutputPane();
     expect(configure).toHaveBeenCalledOnceWith(lumine.views);
