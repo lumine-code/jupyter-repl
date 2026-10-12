@@ -84,13 +84,20 @@ describe("an isolated rich output", () => {
     await initialized;
     expect(typeof document.body.moveBefore).toBe("function");
     const iframe = frame.refs.frame;
+    const keyboardHost = frame.keyboardHost;
+    spyOn(keyboardHost, "dispose").and.callThrough();
     const received = [];
     const original = frame._receive.bind(frame);
     frame._receive = (data) => {
       received.push(data.type);
       original(data);
     };
+    const destruction = frame.destroy();
+    expect(keyboardHost.dispose).toHaveBeenCalledTimes(1);
+    expect(iframe.style.display).toBe("none");
+    await destruction;
     await frame.destroy();
+    expect(keyboardHost.dispose).toHaveBeenCalledTimes(1);
     expect(received).toContain("lumine-output-disposed");
     expect(iframe.isConnected).toBe(false);
     expect(frame.port).toBe(null);

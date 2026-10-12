@@ -241,6 +241,7 @@ class HTML {
     this.vegaMediaType = null;
     this.processHTML(this.props.data);
     etch.initialize(this);
+    this.keyboardHost = lumine.keymaps.registerFrameHost(this.element);
   }
 
   processHTML(html) {
@@ -296,6 +297,7 @@ class HTML {
   }
 
   destroy() {
+    this.keyboardHost.dispose();
     return etch.destroy(this);
   }
 }
