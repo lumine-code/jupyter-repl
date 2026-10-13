@@ -1,12 +1,21 @@
-const { renderLatexRuns } = require("../lib/components/result-view/latex");
+const path = require("node:path");
+const { createRequire } = require("node:module");
+const requireCurrent = createRequire(path.join(__dirname, "..", "package.json"));
 
-// Exercises the async ESM MathJax load path end to end: `renderLatexRuns`
-// dynamically imports the `mjs` build of `@mathjax/src` and renders through
-// the headless liteAdaptor, so it needs no browser DOM and runs in the spec
-// env. MathJax renders TeX *errors* as SVG too, so a passing render is one
-// whose SVG carries no `data-mjx-error` — `toContain("<svg")` alone proves
-// nothing.
-describe("LaTeX MathJax rendering (async ESM load)", () => {
+// These renders cross the production WebWorker boundary, including its
+// MathJax initialization, serial conversion queue, and dynamic font loader.
+// MathJax renders TeX errors as SVG too, so merely finding an SVG does not
+// prove a successful render.
+describe("LaTeX MathJax rendering in a persistent worker", () => {
+  let renderLatexRuns, warmMathJax, disposeMathJax;
+
+  beforeAll(() => requireCurrent("./lib/mathjax-client").disposeMathJax());
+  beforeEach(() => {
+    // A preceding lifecycle suite can have unloaded the package's modules.
+    ({ renderLatexRuns, warmMathJax, disposeMathJax } = requireCurrent("./lib/mathjax-client"));
+  });
+  afterAll(() => disposeMathJax());
+
   const soleMath = (runs) => {
     expect(runs.length).toBe(1);
     expect(runs[0].kind).toBe("math");
@@ -18,7 +27,9 @@ describe("LaTeX MathJax rendering (async ESM load)", () => {
     return run;
   };
 
-  it("loads MathJax from the ESM build and renders inline TeX to an SVG string", async () => {
+  const glyphs = (run) => run.svg.match(/data-c="[^"]+"/g);
+
+  it("loads MathJax in the worker and renders inline TeX to an SVG string", async () => {
     const run = clean(soleMath(await renderLatexRuns("$x^2 + 1$")));
     expect(run.display).toBe(false);
   });
@@ -148,5 +159,45 @@ describe("LaTeX MathJax rendering (async ESM load)", () => {
     expect(a.map((run) => run.kind)).toEqual(["math", "text", "math"]);
     clean(a[0]);
     clean(soleMath(b));
+  });
+
+  it("keeps user macros across later renders and warm-up calls", async () => {
+    clean(soleMath(await renderLatexRuns("$\\newcommand{\\workerpersistentmacro}{x+37}$")));
+    await warmMathJax();
+    const macro = clean(soleMath(await renderLatexRuns("$\\workerpersistentmacro$")));
+    const explicit = clean(soleMath(await renderLatexRuns("$x+37$")));
+    expect(glyphs(explicit)).not.toBeNull();
+    expect(glyphs(macro)).toEqual(glyphs(explicit));
+  });
+
+  it("applies macro definitions before overlapping renders while loading fonts", async () => {
+    const [definition, use] = await Promise.all([
+      renderLatexRuns("$\\newcommand{\\workerorderedmacro}{y+19}\\mathbb{C}$"),
+      renderLatexRuns("$\\workerorderedmacro$"),
+    ]);
+    clean(soleMath(definition));
+    const macro = clean(soleMath(use));
+    const explicit = clean(soleMath(await renderLatexRuns("$y+19$")));
+    expect(glyphs(explicit)).not.toBeNull();
+    expect(glyphs(macro)).toEqual(glyphs(explicit));
+  });
+
+  it("keeps SVG font references local and IDs distinct after worker replacement", async () => {
+    const first = clean(soleMath(await renderLatexRuns("$\\mathbb{R}+x$")));
+    disposeMathJax();
+    const second = clean(soleMath(await renderLatexRuns("$\\mathbb{R}+x$")));
+    const ids = (run) => new Set([...run.svg.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+    const firstIds = ids(first);
+    const secondIds = ids(second);
+    expect(firstIds.size).toBeGreaterThan(0);
+    expect(secondIds.size).toBeGreaterThan(0);
+    expect([...firstIds].some((id) => secondIds.has(id))).toBe(false);
+    for (const run of [first, second]) {
+      const localIds = ids(run);
+      const references = [...run.svg.matchAll(/(?:xlink:)?href="#([^"]+)"/g)];
+      expect(references.length).toBeGreaterThan(0);
+      for (const reference of references) expect(localIds.has(reference[1])).toBe(true);
+    }
+    expect(glyphs(first)).toEqual(glyphs(second));
   });
 });

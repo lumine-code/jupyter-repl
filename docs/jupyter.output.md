@@ -116,7 +116,7 @@ module.exports = {
 
 Truncation, output wrapping, and the output font size follow this package's settings (`jupyter-repl.outputMaxLength`, `wrapOutput`, `outputAreaFontSize`). That is deliberate: one settings page controls output rendering for every consumer.
 
-The heavy renderers load on demand — the first vega output parses the vega bundles, the first LaTeX output loads MathJax. Rendering follows MIME priority, so a bundle whose richest type cannot be rendered falls back to a lower one.
+The heavy renderers load on demand — the first vega output parses the vega bundles. MathJax loads and converts LaTeX to SVG in one persistent WebWorker, prepared when the first kernel starts or on the first LaTeX output when no kernel is running. Initializing MathJax and converting formulas leave the interface free to respond; output views insert the completed SVG asynchronously. Rendering follows MIME priority, so a bundle whose richest type cannot be rendered falls back to a lower one.
 
 The rich renderer supports core `ipywidgets`, Vega and Vega-Lite 5–6 (both the `.json` MIME spelling emitted by current Altair and the established `+json` spelling), Plotly JSON and Plotly HTML carrying literal JSON arguments, HTML, Markdown, LaTeX, SVG, WebP, PNG, JPEG, GIF, JSON, JavaScript source, and plain text. Earlier Vega MIME versions are deliberately unsupported; a bundle carrying one falls through to its next representation.
 
