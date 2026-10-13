@@ -107,6 +107,40 @@ describe("an isolated rich output", () => {
     }
   });
 
+  it("reconnects the last captured interactive state after the native host disappears", async () => {
+    jasmine.attachToDOM(lumine.workspace.getElement());
+    let ready;
+    const loaded = new Promise((resolve) => {
+      ready = resolve;
+    });
+    mount({
+      html: '<input id="value" value="initial">',
+      script: `let count = 42;
+        document.getElementById("value").value = "captured";
+        window.lumineOutput.registerWindowState("counter", { capture: () => ({ count }), restore: state => { count = state.count; } });`,
+      onReady: ready,
+    });
+    await loaded;
+    const item = {
+      canCopy: () => false,
+      getTitle: () => "Recovered output",
+      getElement: () => frame.element,
+    };
+    await lumine.workspace.open(item);
+    const extra = await lumine.workspace.detachItem(item);
+    await globalThis.conditionPromise(() => frame.ready);
+    const checkpoint = await frame.prepareWindowChange();
+    checkpoint.dispose();
+    await extra.windowService.close();
+    await globalThis.conditionPromise(() => extra.isDestroyed());
+    await globalThis.conditionPromise(() => frame.ready);
+    expect(frame.element.ownerDocument).toBe(document);
+    const restored = await frame.prepareWindowChange();
+    expect(restored.checkpoint.handlers[0].state).toEqual({ count: 42 });
+    expect(restored.checkpoint.controls[0].value).toBe("captured");
+    restored.dispose();
+  });
+
   it("keeps an output with uncheckpointable script state in its original pane", async () => {
     jasmine.attachToDOM(lumine.workspace.getElement());
     let ready;
