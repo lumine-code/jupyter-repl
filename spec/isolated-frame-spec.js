@@ -62,6 +62,44 @@ describe("an isolated rich output", () => {
     expect(frame.port).toBe(null);
   });
 
+  it("restarts a frame that connected before the window-change callback", async () => {
+    let ready;
+    const loaded = new Promise((resolve) => {
+      ready = resolve;
+    });
+    mount({
+      script: `let count = 42;
+        window.lumineOutput.registerWindowState("counter", { capture: () => ({ count }), restore: state => { count = state.count; } });`,
+      onReady: ready,
+    });
+    await loaded;
+    const state = await frame.prepareWindowChange();
+    state.dispose();
+    const previousPort = frame.port;
+    const previousNonce = frame.nonce;
+    spyOn(previousPort, "close").and.callThrough();
+
+    // didAttachToWindow may already have bound the destination document and
+    // accepted its automatic iframe bootstrap before didChangeWindow runs.
+    frame.didAttachToWindow({ document });
+    const changed = frame.didChangeWindow({ state });
+    expect(previousPort.close).toHaveBeenCalledTimes(1);
+    expect(frame.nonce).not.toBe(previousNonce);
+    expect(frame.port).toBeNull();
+    frame._connect({
+      source: frame.refs.frame.contentWindow,
+      origin: "null",
+      data: { type: "lumine-output-connect", nonce: previousNonce },
+    });
+    expect(frame.port).toBeNull();
+    await changed;
+
+    expect(frame.ready).toBeTrue();
+    const restored = await frame.prepareWindowChange();
+    expect(restored.checkpoint.handlers[0].state).toEqual({ count: 42 });
+    restored.dispose();
+  });
+
   it("checkpoints interactive state before a pane moves and reconnects in the destination", async () => {
     jasmine.attachToDOM(lumine.workspace.getElement());
     let ready;

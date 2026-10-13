@@ -94,6 +94,13 @@ describe("isolated Bokeh and Panel output", () => {
     const before = await component.frame.prepareWindowChange();
     expect(before.checkpoint.handlers[0].state.documents).toEqual([{ range: 42 }]);
     before.dispose();
+    // An adopted frame may already be connected by didAttachToWindow before
+    // the transfer callback navigates it. Keep its document and backend comm.
+    await component.frame.didChangeWindow({ state: before });
+    const resumed = await component.frame.prepareWindowChange();
+    expect(resumed.checkpoint.handlers[0].state.documents).toEqual([{ range: 42 }]);
+    resumed.dispose();
+    expect(createComm).toHaveBeenCalledTimes(1);
     const extra = await lumine.workspace.detachPane(lumine.workspace.paneForItem(item));
     try {
       const after = await component.frame.prepareWindowChange();
