@@ -16,6 +16,8 @@ Supports Python, R, JavaScript, and other languages with rich output including p
 - **Typed source cells**: renders literal Markdown locally, skips raw cells, and preserves cell magic headers when running selected body fragments.
 - **Jupyter console**: attach a console in an embedded or system terminal.
 
+![Execute Python in a real Jupyter kernel and inspect the inline results.](.github/demo.png)
+
 ## Installation
 
 To install `jupyter-repl` search for it in the Install pane of the Lumine settings, or run the command `lumine --install lumine-code/jupyter-repl`.

@@ -1,0 +1,16 @@
+{
+  "title": "jupyter-repl",
+  "description": "Execute Python in a real Jupyter kernel and inspect the inline results.",
+  "recordedOn": "2026-10-13",
+  "sourceRevision": "854305ced410f6ec9472a8cc8d8cc38a532ef4ea",
+  "mode": "normal",
+  "fontSettings": "default",
+  "images": [
+    {
+      "file": "demo.png",
+      "label": "Execute Python in a real Jupyter kernel and inspect the inline results.",
+      "width": 1200,
+      "height": 760
+    }
+  ]
+}
