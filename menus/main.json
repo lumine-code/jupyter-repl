@@ -1,6 +1,29 @@
 {
   "menu": [
     {
+      "label": "View",
+      "submenu": [
+        {
+          "label": "Toggle View",
+          "submenu": [
+            {
+              "label": "Jupyter Output",
+              "command": "jupyter-repl:toggle-output-area"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Help",
+      "submenu": [
+        {
+          "label": "Jupyter Examples",
+          "command": "jupyter-repl:open-examples"
+        }
+      ]
+    },
+    {
       "label": "Packages",
       "submenu": [
         {
