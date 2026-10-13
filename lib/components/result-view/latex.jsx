@@ -5,6 +5,7 @@
  * this component only displays the placeholder and patches the completed DOM.
  */
 const etch = require("@lumine-code/etch");
+const { renderSpinner } = require("./status");
 
 function renderLatexRuns(source) {
   return require("../../mathjax-client").renderLatexRuns(source);
@@ -73,12 +74,7 @@ class LaTeX {
       );
     }
 
-    // Loading state
-    return (
-      <div className="output-latex output-latex-loading">
-        <span>Rendering...</span>
-      </div>
-    );
+    return renderSpinner(undefined, "output-latex output-latex-loading spinner");
   }
 
   update(props) {
