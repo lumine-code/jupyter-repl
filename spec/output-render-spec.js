@@ -504,6 +504,33 @@ describe("vega lifecycle", () => {
     expect(loaded).toBe(embedder);
   });
 
+  it("shares the actual imported embed function with its CommonJS vendor export", async () => {
+    const first = loadVegaEmbed();
+    expect(loadVegaEmbed()).toBe(first);
+    const embedder = await first;
+    const vendor = require("../lib/vendor/vega-embed");
+    expect(embedder).toBe(vendor.default || vendor);
+  });
+
+  it("does not create a Vega view after destruction while its runtime is loading", async () => {
+    let finishImport;
+    const pending = new Promise((resolve) => {
+      finishImport = resolve;
+    });
+    const embedder = jasmine.createSpy("retired Vega embed");
+    spyOn(vegaRuntime, "load").and.returnValue(pending);
+    const component = new VegaEmbed({
+      mediaType: "application/vnd.vegalite.v6+json",
+      spec: { mark: "bar" },
+    });
+    component.destroy();
+    finishImport(embedder);
+    await pending;
+    await Promise.resolve();
+    expect(embedder).not.toHaveBeenCalled();
+    expect(component.embedResult).toBeNull();
+  });
+
   it("finalizes a superseded asynchronous result and the current result", async () => {
     let resolveFirst;
     const firstPromise = new Promise((resolve) => (resolveFirst = resolve));

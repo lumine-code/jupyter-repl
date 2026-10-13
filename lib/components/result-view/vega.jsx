@@ -7,7 +7,8 @@ const { VEGA_MEDIA_TYPES: MEDIA_TYPES } = require("../../output-media");
 let embedPromise = null;
 
 function loadVegaEmbed(
-  importer = () => Promise.resolve().then(() => require("../../vendor/vega-embed")),
+  importer = () =>
+    import("../../vendor/vega-embed.js").then((namespace) => namespace.default ?? namespace),
 ) {
   if (!embedPromise) {
     embedPromise = importer()
@@ -38,12 +39,13 @@ const runtime = {
   },
 };
 
-async function embed(anchor, mediaType, spec, options = {}) {
+async function embed(anchor, mediaType, spec, options = {}, isCurrent = () => true) {
   const format = MEDIA_TYPES[mediaType];
   if (!format) {
     throw new TypeError(`Unsupported Vega media type: ${mediaType}`);
   }
   const embedVega = await runtime.load();
+  if (!isCurrent()) return null;
   return embedVega(anchor, spec, {
     ...options,
     actions: false,
@@ -106,9 +108,13 @@ class VegaEmbed {
     this.embedError = null;
 
     try {
-      const result = await embed(anchor, this.props.mediaType, this.props.spec, {
-        ...this.props.options,
-      });
+      const result = await embed(
+        anchor,
+        this.props.mediaType,
+        this.props.spec,
+        { ...this.props.options },
+        () => !this.destroyed && token === this.renderToken,
+      );
       if (this.destroyed || token !== this.renderToken) {
         finalizeResult(result);
         return;
