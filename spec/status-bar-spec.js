@@ -180,7 +180,7 @@ describe("status bar consumer", () => {
     expect(tile.destroy).toHaveBeenCalled();
   });
 
-  it("dispatches the primary command and keeps the tooltip free of shortcut badges", () => {
+  it("shows only the primary command's keyboard hint in the tooltip", () => {
     const store = fakeStore(fakeKernel());
     store.subscriptions = { add: jasmine.createSpy("add") };
     const tile = { destroy: jasmine.createSpy("destroy") };
@@ -198,7 +198,7 @@ describe("status bar consumer", () => {
     const [tooltipElement, tooltipOptions] = tooltipSpy.calls.mostRecent().args;
     expect(tooltipElement).toBe(statusBarElement);
     expect(tooltipOptions.title()).toBe("Python 3: idle. Click for kernel commands.");
-    expect(tooltipOptions.keyBindingCommand).toBeUndefined();
+    expect(tooltipOptions.keyBindingCommand).toBe("jupyter-repl:toggle-kernel-commands");
     expect(tooltipOptions.keyBindingExtra).toBeUndefined();
 
     // The tile itself, not the span inside it: the span is only as tall as its
