@@ -71,7 +71,10 @@ Rendered in the editor under Settings, and readable here:
 
 - [Kernels](docs/1_kernels.md) — installing kernels, choosing between them, and remote gateways.
 - [Running code](docs/2_running.md) — what a run sends, what the results do, and the console launcher.
-- [Integration](docs/3_integration.md) — the notebook adapter and the kernel object a service hands over.
+- [Jupyter services and lifecycle](docs/3_integration.md) — package responsibilities, owned requests, notebook adapters and provider/view teardown.
+- [IPython and Jupyter cells](docs/4_ipython.md) — write cell documents, use magics, configure Python analysis and convert notebooks.
+- [Tracebacks](docs/tracebacks.md) — follow verified source links and inspect folded library frames.
+- [Bokeh and Panel](docs/bokeh-and-panel.md) — configure isolated interactive chart output.
 - [Widgets](docs/5_widgets.md) — which `ipywidgets` controls render, and what happens to them when the kernel restarts.
 - [MCP tools](docs/mcp-tools.md) — explicit kernel selection, live notebook execution, progress, cancellation and operation receipts.
 - [jupyter.kernel](docs/jupyter.kernel.md), [jupyter.output](docs/jupyter.output.md), [jupyter.execution](docs/jupyter.execution.md) — the service contracts.
