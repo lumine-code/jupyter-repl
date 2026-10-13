@@ -8,7 +8,9 @@
           "submenu": [
             {
               "label": "Jupyter Output",
-              "command": "jupyter-repl:toggle-output-area"
+              "command": "jupyter-repl:toggle-output-area",
+              "group": "panels",
+              "order": 10
             }
           ]
         }
@@ -19,7 +21,9 @@
       "submenu": [
         {
           "label": "Jupyter Examples",
-          "command": "jupyter-repl:open-examples"
+          "command": "jupyter-repl:open-examples",
+          "group": "examples",
+          "order": 10
         }
       ]
     },
