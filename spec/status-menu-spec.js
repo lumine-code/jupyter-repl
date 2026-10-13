@@ -1,7 +1,12 @@
 describe("kernel status action menu", () => {
   let consumer, lease, element, store;
-  beforeEach(() => {
-    const { StatusBarConsumer } = require("../lib/services/consumed/status-bar/status-bar");
+  beforeEach(async () => {
+    jasmine.attachToDOM(lumine.workspace.getElement());
+    const pack = await lumine.packages.activatePackage("jupyter-repl");
+    const requireCurrent = require("node:module").createRequire(
+      require("node:path").join(pack.path, "package.json"),
+    );
+    const { StatusBarConsumer } = requireCurrent("./lib/services/consumed/status-bar/status-bar");
     consumer = new StatusBarConsumer();
     store = {
       kernel: {
@@ -15,13 +20,46 @@ describe("kernel status action menu", () => {
     lease = consumer.addStatusBar(store, {
       addLeftTile({ item }) {
         element = item;
+        lumine.workspace.getElement().appendChild(item);
         return { destroy: () => item.remove() };
       },
     });
   });
-  afterEach(() => {
+  afterEach(async () => {
     lease.dispose();
     consumer.dispose();
+    await lumine.packages.deactivatePackage("jupyter-repl");
+  });
+  it("shows the owned public signal shortcuts while retaining captured menu execution", () => {
+    const items = lumine.contextMenu.templateForElement(element);
+    const keys = (letter) =>
+      process.platform === "darwin" ? `⌥J K ${letter}` : `Alt+J K ${letter}`;
+    expect(
+      items.find((item) => item.command === "jupyter-repl:toggle-kernel-commands").keyBindingLabel,
+    ).toBe(keys("M"));
+    for (const [command, letter] of [
+      ["interrupt-kernel", "I"],
+      ["restart-kernel", "R"],
+      ["shutdown-kernel", "S"],
+    ]) {
+      const item = items.find((item) => item.commandDetail?.command === command);
+      expect(item.command).toBe("jupyter-repl:run-kernel-command");
+      expect(item.commandDetail.kernelContext.kernel).toBe(store.kernel);
+      expect(item.keyBindingLabel).toBe(keys(letter));
+    }
+    expect(
+      items.find((item) => item.commandDetail?.command === "copy-console-command").keyBindingLabel,
+    ).toBeUndefined();
+    const popup = lumine.contextMenu.show(element, items);
+    try {
+      expect(
+        popup.rootList.items.find(
+          (item) => item.template.commandDetail?.command === "interrupt-kernel",
+        ).keystrokeElement.textContent,
+      ).toBe(keys("I"));
+    } finally {
+      popup.close();
+    }
   });
   it("shares availability with the picker and captures the kernel in menu actions", () => {
     const menu = () => lumine.contextMenu.templateForElement(element);
