@@ -1,4 +1,12 @@
-const ZMQKernel = require("../lib/zmq-kernel");
+const path = require("node:path");
+const { createRequire } = require("node:module");
+let ZMQKernel;
+
+function currentPackageRequire(request) {
+  const root =
+    lumine.packages.getLoadedPackage("jupyter-repl")?.path ?? path.resolve(__dirname, "..");
+  return createRequire(path.join(root, "package.json"))(request);
+}
 
 // A launch used to complete only when the zeromq socket monitor delivered its
 // connect events. The monitor is telemetry riding an inproc socket — after a
@@ -68,6 +76,9 @@ function bareKernel() {
 }
 
 describe("kernel launch readiness", () => {
+  beforeEach(() => {
+    ZMQKernel = currentPackageRequire("./lib/zmq-kernel");
+  });
   let kernel;
 
   afterEach(() => {
@@ -234,7 +245,7 @@ describe("kernel launch readiness", () => {
     // in "loading" forever, its display name stuck in startingKernels, and
     // every later attempt to start that spec was refused without a word.
     spyOn(lumine.notifications, "addError");
-    const store = require("../lib/store");
+    const store = currentPackageRequire("./lib/store");
     store.startingKernels.set("Python 3", true);
     kernel = bareKernel();
     kernel.kernelSpec = { display_name: "Python 3" };
@@ -267,7 +278,7 @@ describe("kernel launch readiness", () => {
     // Only a first launch ever holds a marker of its own; during a restart
     // the display name can only belong to a same-spec kernel still starting.
     spyOn(lumine.notifications, "addError");
-    const store = require("../lib/store");
+    const store = currentPackageRequire("./lib/store");
     store.startingKernels.set("Python 3", true);
     kernel = bareKernel();
     kernel.kernelSpec = { display_name: "Python 3" };
@@ -377,6 +388,9 @@ describe("kernel launch readiness", () => {
 // long as it runs. A process that has exited answers neither, so both have to
 // stop with it, or a session accumulates one immortal kernel per death.
 describe("kernel process exit", () => {
+  beforeEach(() => {
+    ZMQKernel = currentPackageRequire("./lib/zmq-kernel");
+  });
   let kernel;
 
   function exitingKernel(lifecycle) {
@@ -538,7 +552,7 @@ describe("kernel process exit", () => {
     // kernel dying during its sibling's startup window was classed as a
     // failed start: no lose event — its cells spun forever — and the
     // sibling's starting marker deleted from under it.
-    const store = require("../lib/store");
+    const store = currentPackageRequire("./lib/store");
     store.startingKernels.set("Python 3", true);
     const { instance, childProcess } = exitingKernel("ready");
     kernel = instance;
@@ -554,7 +568,7 @@ describe("kernel process exit", () => {
   });
 
   it("cleans up its own failed start", () => {
-    const store = require("../lib/store");
+    const store = currentPackageRequire("./lib/store");
     store.startingKernels.set("Python 3", true);
     const { instance, childProcess } = exitingKernel("loading");
     kernel = instance;
