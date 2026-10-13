@@ -13,11 +13,7 @@
 const etch = require("@lumine-code/etch");
 const cloneDeep = require("lodash/cloneDeep");
 
-const runtime = {
-  load() {
-    return require("plotly.js-dist");
-  },
-};
+const runtime = require("../../plotly-loader");
 const htmlFigures = new WeakMap();
 
 const CLOSING_DELIMITER = { "(": ")", "[": "]", "{": "}" };
@@ -153,7 +149,9 @@ class PlotlyTransform {
         return;
       }
       try {
-        this.Plotly ||= runtime.load();
+        const plotly = this.Plotly || (await runtime.load());
+        if (this.destroyed || token !== this.renderToken) return;
+        this.Plotly = plotly;
         const layout = {
           ...figure.layout,
           paper_bgcolor: "rgba(0,0,0,0)",

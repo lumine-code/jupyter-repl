@@ -102,7 +102,7 @@ describe("Plotly output lifecycle", () => {
     plotly.newPlot.and.returnValue(new Promise((resolve) => (finishFirst = resolve)));
     component = new PlotlyTransform({ data: figure(1) });
     const first = component.plotPromise;
-    await Promise.resolve();
+    await window.conditionPromise(() => plotly.newPlot.calls.count() === 1);
     const next = component.update({ data: figure(3) });
     await Promise.resolve();
 
@@ -123,7 +123,7 @@ describe("Plotly output lifecycle", () => {
     let finishPlot;
     plotly.newPlot.and.returnValue(new Promise((resolve) => (finishPlot = resolve)));
     component = new PlotlyTransform({ data: figure() });
-    await Promise.resolve();
+    await window.conditionPromise(() => plotly.newPlot.calls.count() === 1);
     const anchor = component.refs.plot;
     component.destroy();
     expect(plotly.purge).toHaveBeenCalledWith(anchor);
@@ -144,5 +144,54 @@ describe("Plotly output lifecycle", () => {
     expect(notification).toHaveBeenCalledWith("Failed to download plot", {
       detail: "cannot export canvas",
     });
+  });
+
+  it("does not retain or draw a runtime imported after its view closes", async () => {
+    let finishImport;
+    runtime.load.and.returnValue(
+      new Promise((resolve) => {
+        finishImport = resolve;
+      }),
+    );
+    component = new PlotlyTransform({ data: figure() });
+    await window.conditionPromise(() => runtime.load.calls.count() > 0);
+    component.destroy();
+    finishImport(plotly);
+    await component.plotPromise;
+    expect(component.Plotly).toBeUndefined();
+    expect(plotly.newPlot).not.toHaveBeenCalled();
+    expect(plotly.purge).not.toHaveBeenCalled();
+    component = null;
+  });
+
+  it("draws only the latest figure after a pending runtime import", async () => {
+    let finishImport;
+    runtime.load.and.returnValue(
+      new Promise((resolve) => {
+        finishImport = resolve;
+      }),
+    );
+    component = new PlotlyTransform({ data: figure(1) });
+    await window.conditionPromise(() => runtime.load.calls.count() > 0);
+    const updating = component.update({ data: figure(3) });
+    finishImport(plotly);
+    await updating;
+    expect(plotly.newPlot).toHaveBeenCalledTimes(1);
+    expect(plotly.newPlot.calls.mostRecent().args[1][0].x).toEqual([3]);
+    expect(plotly.react).not.toHaveBeenCalled();
+  });
+
+  it("contains an import failure and retries when a new figure arrives", async () => {
+    runtime.load.and.returnValues(
+      Promise.reject(new Error("Cannot import Plotly")),
+      Promise.resolve(plotly),
+    );
+    component = new PlotlyTransform({ data: figure(1) });
+    await component.plotPromise;
+    expect(component.element.textContent).toContain("Cannot import Plotly");
+    expect(component.Plotly).toBeUndefined();
+    await component.update({ data: figure(3) });
+    expect(component.plotError).toBeNull();
+    expect(plotly.newPlot).toHaveBeenCalledTimes(1);
   });
 });
