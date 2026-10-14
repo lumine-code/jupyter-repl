@@ -18,5 +18,11 @@
   "lumine-workspace .jupyter-repl.kernel-picker lumine-text-editor[mini]": {
     "ctrl-enter": "jupyter-repl:insert-kernel-comment",
     "f5": "jupyter-repl:refresh-kernel-list"
+  },
+  ".jupyter-repl.example-list lumine-text-editor[mini]": {
+    "alt-enter": "jupyter-repl:open-example-with",
+    "shift-enter": "jupyter-repl:open-example-pending",
+    "ctrl-alt-enter": "jupyter-repl:open-example-external",
+    "ctrl-shift-enter": "jupyter-repl:show-example-in-folder"
   }
 }
