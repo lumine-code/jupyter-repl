@@ -65,7 +65,6 @@ describe("jupyter-repl example picker", () => {
     expect(picker.selectList.getAvailableActions().map((action) => action.command)).toEqual([
       "jupyter-repl:open-example",
       "jupyter-repl:open-example-with",
-      "jupyter-repl:open-example-pending",
       "jupyter-repl:open-example-external",
       "jupyter-repl:show-example-in-folder",
     ]);
@@ -189,7 +188,7 @@ describe("jupyter-repl example picker", () => {
     });
   }
 
-  it("uses the registered default opener and forces the text editor only for preview", async () => {
+  it("uses the registered default opener", async () => {
     const picker = new ExampleList();
     await picker.show();
     const item = picker.selectList.getSelectedItem();
@@ -211,16 +210,6 @@ describe("jupyter-repl example picker", () => {
 
       expect(viewer).toHaveBeenCalledTimes(1);
       expect(picker.openingPane.getActiveItem().getText()).toBe("Opened by the example viewer");
-      lumine.config.set("core.allowPendingPaneItems", false);
-      await picker.show();
-      await picker.selectList.runAction("jupyter-repl:open-example-pending");
-
-      const preview = picker.openingPane.getActiveItem();
-      expect(preview.getPath()).toBe(item.filePath);
-      expect(preview.getText()).toBe(fs.readFileSync(item.filePath, "utf8"));
-      expect(picker.openingPane.getPendingItem()).toBe(preview);
-      expect(preview.getSaveConfirmation().message).toBe(`Save changes to ${item.fileName}?`);
-      expect(viewer).toHaveBeenCalledTimes(1);
     } finally {
       registration.dispose();
     }
@@ -247,17 +236,18 @@ describe("jupyter-repl example picker", () => {
     pane.splitRight().activate();
     const open = spyOn(lumine.workspace, "open").and.resolveTo();
 
-    await picker.selectList.runAction("jupyter-repl:open-example-pending");
+    await picker.selectList.runAction("jupyter-repl:open-example");
 
     expect(open.calls.mostRecent().args[1].pane).toBe(pane);
-    expect(open.calls.mostRecent().args[1].forcePending).toBe(true);
+    expect(open.calls.mostRecent().args[1].pending).toBe(
+      lumine.config.get("core.allowPendingPaneItems"),
+    );
   });
 
   for (const [command, modifiers] of [
     ["jupyter-repl:open-example-with", { altKey: true }],
-    ["jupyter-repl:open-example-pending", { shiftKey: true }],
     ["jupyter-repl:open-example-external", { ctrlKey: true, altKey: true }],
-    ["jupyter-repl:show-example-in-folder", { ctrlKey: true, shiftKey: true }],
+    ["jupyter-repl:show-example-in-folder", { altKey: true, shiftKey: true }],
   ]) {
     it(`dispatches only ${command} from its row gesture`, async () => {
       const picker = new ExampleList();
@@ -273,9 +263,8 @@ describe("jupyter-repl example picker", () => {
 
   for (const [command, key, code, modifiers] of [
     ["jupyter-repl:open-example-with", "Enter", "Enter", { altKey: true }],
-    ["jupyter-repl:open-example-pending", "Enter", "Enter", { shiftKey: true }],
     ["jupyter-repl:open-example-external", "Enter", "Enter", { ctrlKey: true, altKey: true }],
-    ["jupyter-repl:show-example-in-folder", "Enter", "Enter", { ctrlKey: true, shiftKey: true }],
+    ["jupyter-repl:show-example-in-folder", "Enter", "Enter", { altKey: true, shiftKey: true }],
   ]) {
     it(`dispatches ${command} from the query editor's keymap`, async () => {
       const picker = new ExampleList();
@@ -300,6 +289,23 @@ describe("jupyter-repl example picker", () => {
       expect(
         lumine.keymaps.findKeyBindings({ target: lumine.workspace.getElement(), command }),
       ).toEqual([]);
+    });
+  }
+
+  for (const modifiers of [{ shiftKey: true }, { ctrlKey: true, shiftKey: true }]) {
+    it(`selects another example without opening it on ${modifiers.ctrlKey ? "Ctrl-Shift" : "Shift"} click`, async () => {
+      const picker = new ExampleList();
+      await picker.show();
+      const [first, other] = picker.selectList.getItems();
+      await picker.selectList.setItems([first, other]);
+      const run = spyOn(picker.selectList, "runAction").and.resolveTo();
+      const rows = picker.selectList.getElement().querySelectorAll("li");
+
+      rows[1].dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0, ...modifiers }));
+
+      expect(picker.selectList.getSelectedItem()).toBe(other);
+      expect(run).not.toHaveBeenCalled();
+      expect(picker.selectListHost.isVisible()).toBe(true);
     });
   }
 

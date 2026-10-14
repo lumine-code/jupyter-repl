@@ -21,8 +21,7 @@
   },
   ".jupyter-repl.example-list lumine-text-editor[mini]": {
     "alt-enter": "jupyter-repl:open-example-with",
-    "shift-enter": "jupyter-repl:open-example-pending",
     "ctrl-alt-enter": "jupyter-repl:open-example-external",
-    "ctrl-shift-enter": "jupyter-repl:show-example-in-folder"
+    "alt-shift-enter": "jupyter-repl:show-example-in-folder"
   }
 }

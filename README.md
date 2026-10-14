@@ -71,7 +71,6 @@ Commands available in `.jupyter-repl.example-list`:
 
 - `jupyter-repl:open-example`: open the selected example with its default opener in the initiating window,
 - `jupyter-repl:open-example-with`: choose how and where to open the selected example,
-- `jupyter-repl:open-example-pending`: preview the selected example as a pending Text Editor tab,
 - `jupyter-repl:open-example-external`: open the selected example in its default external program,
 - `jupyter-repl:show-example-in-folder`: reveal the selected example in the system file manager.
 
