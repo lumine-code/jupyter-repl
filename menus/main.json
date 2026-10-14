@@ -20,8 +20,8 @@
       "label": "Help",
       "submenu": [
         {
-          "label": "Jupyter Examples",
-          "command": "jupyter-repl:open-examples",
+          "label": "Jupyter Examples…",
+          "command": "jupyter-repl:show-examples",
           "group": "examples",
           "order": 10
         }
@@ -165,8 +165,8 @@
               "type": "separator"
             },
             {
-              "label": "Open Examples",
-              "command": "jupyter-repl:open-examples"
+              "label": "Browse Examples…",
+              "command": "jupyter-repl:show-examples"
             },
             {
               "label": "Toggle Debug Logging",

@@ -45,7 +45,7 @@ Commands available in `lumine-workspace`:
 - `jupyter-repl:shutdown-kernel`: shutdown the kernel,
 - `jupyter-repl:rename-remote-session`: rename remote session,
 - `jupyter-repl:disconnect-remote-session`: disconnect remote session,
-- `jupyter-repl:open-examples`: open example files,
+- `jupyter-repl:show-examples`: choose an example file from a searchable list,
 - `jupyter-repl:edit-gateways`: open `gateways.json`,
 - `jupyter-repl:shutdown-all-kernels`: shutdown all running kernels,
 - `jupyter-repl:debug-toggle`: toggle debug logging,
@@ -66,6 +66,10 @@ Commands available in `.jupyter-repl.kernel-picker`:
 - `jupyter-repl:select-kernel`: choose the selected kernel for the request that opened the picker,
 - `jupyter-repl:insert-kernel-comment`: insert or update the kernel magic comment on the first line,
 - `jupyter-repl:refresh-kernel-list`: rescan kernel specs and reload the list.
+
+Commands available in `.jupyter-repl.example-list`:
+
+- `jupyter-repl:open-example`: open the selected example in the window that showed the list.
 
 ## Documentation
 
