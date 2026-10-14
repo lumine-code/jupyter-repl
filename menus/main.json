@@ -4,12 +4,12 @@
       "label": "View",
       "submenu": [
         {
-          "label": "Toggle View",
+          "label": "Jupyter",
           "submenu": [
             {
-              "label": "Jupyter Output",
+              "label": "Toggle Output Panel",
               "command": "jupyter-repl:toggle-output-area",
-              "group": "panels",
+              "group": "toggle",
               "order": 10
             }
           ]
@@ -24,6 +24,22 @@
           "command": "jupyter-repl:show-examples",
           "group": "examples",
           "order": 10
+        }
+      ]
+    },
+    {
+      "label": "File",
+      "submenu": [
+        {
+          "label": "Configuration Files",
+          "submenu": [
+            {
+              "label": "Jupyter Gateways",
+              "command": "jupyter-repl:edit-gateways",
+              "group": "packages",
+              "order": 10
+            }
+          ]
         }
       ]
     },
