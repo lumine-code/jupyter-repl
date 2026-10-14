@@ -84,3 +84,24 @@ describe("the output service bootstrap", () => {
     expect(dataLoads).toBe(0);
   });
 });
+
+describe("the output data bootstrap", () => {
+  it("accumulates terminal text without loading JSX, Etch or ANSI rendering", () => {
+    const requested = [];
+    const isolatedModule = { exports: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../lib/output-utils.js"), "utf8"), {
+      module: isolatedModule,
+      require: (request) => {
+        requested.push(request);
+        if (request === "path" || request === "url") return require(request);
+        if (request === "./stream-text") return require("../lib/stream-text");
+        throw new Error(`Unexpected output data dependency: ${request}`);
+      },
+    });
+    const accumulator = isolatedModule.exports.createOutputAccumulator();
+    accumulator.append({ output_type: "stream", name: "stdout", text: "progress 0%\r" });
+    accumulator.append({ output_type: "stream", name: "stdout", text: "done\n" });
+    expect(accumulator.outputs.map(({ text }) => text)).toEqual(["doneress 0%\n"]);
+    expect(requested).toEqual(["path", "url", "./stream-text"]);
+  });
+});
