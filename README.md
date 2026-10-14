@@ -71,6 +71,8 @@ Commands available in `.jupyter-repl.example-list`:
 
 - `jupyter-repl:open-example`: open the selected example in the window that showed the list.
 
+Saving an example asks for confirmation before overwriting the original file. Use Save As to keep a separate copy.
+
 ## Documentation
 
 Left click the kernel status item to open its command picker, or middle click to interrupt execution. Its context menu includes the picker, kernel lifecycle and remote-session actions, and console commands. Actions target the kernel shown in that window; recovering or unresponsive kernels offer restart and shutdown only.
