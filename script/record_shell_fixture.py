@@ -13,21 +13,26 @@ asserts under plain Node, and a spec renderer cannot construct a real socket
 at all (see spec/jmp-socket-spec.js). What matters is what the kernel sends,
 and that is the same whoever asks.
 
-Not part of any build or CI: the fixture is committed, and this exists to
-regenerate it when the premise needs re-verifying against a newer kernel.
+Builds and CI use the committed fixture. CI also exercises the recorder's
+privacy tests without rewriting it; regenerate it manually when the premise
+needs re-verifying against a newer kernel.
 
     python script/record_shell_fixture.py
 """
 
 import json
+import os
 import queue
 import sys
+import tempfile
+import time
 import uuid
 from pathlib import Path
 
 from jupyter_client.manager import start_new_kernel
 
 FIXTURE_PATH = Path(__file__).resolve().parent.parent / "spec" / "fixtures" / "shell-introspection-traffic.json"
+HISTORY_CODE = "1 + 1"
 
 # One request per non-cell type a plain kernel can answer without a comm
 # target. The comm_* messages are excluded: opening a comm needs a registered
@@ -39,8 +44,31 @@ REQUESTS = [
     ("inspect_request", {"code": "print", "cursor_pos": 5, "detail_level": 0}),
     ("comm_info_request", {}),
     ("is_complete_request", {"code": "print(1)"}),
-    ("history_request", {"output": False, "raw": True, "hist_access_type": "tail", "n": 1}),
+    (
+        "history_request",
+        {"output": False, "raw": True, "hist_access_type": "range", "session": 0, "start": 1, "stop": 2},
+    ),
 ]
+
+
+def fixture_history(content):
+    """Reject unexpected history before any source code reaches the fixture."""
+    history = content.get("history")
+    if content.get("status") != "ok" or not isinstance(history, list) or len(history) != 1:
+        raise ValueError("Refusing to record unexpected kernel history")
+    row = history[0]
+    if (
+        not isinstance(row, (list, tuple))
+        or len(row) != 3
+        or type(row[0]) is not int
+        or row[0] != 0
+        or type(row[1]) is not int
+        or row[1] != 1
+        or row[2] != HISTORY_CODE
+    ):
+        # Do not include the rejected payload in an exception or console output.
+        raise ValueError("Refusing to record code other than the fixture cell")
+    return {"status": "ok", "history": [list(row)]}
 
 
 def slim(message, channel):
@@ -48,6 +76,8 @@ def slim(message, channel):
     content = message["content"]
     if message["header"]["msg_type"] == "kernel_info_reply":
         content = {**content, "banner": ""}
+    elif message["header"]["msg_type"] == "history_reply":
+        content = fixture_history(content)
     return {
         "channel": channel,
         "header": {
@@ -63,70 +93,106 @@ def slim(message, channel):
     }
 
 
-def drain(get_msg, wanted, recorded, channel, deadline_each=1.0):
-    """Pull every queued message parented to a request we sent."""
-    while True:
-        try:
-            message = get_msg(timeout=deadline_each)
-        except queue.Empty:
-            return
-        if message["parent_header"].get("msg_id") in wanted:
+def round_trip(client, request_id, timeout=15.0):
+    """Wait for this request's shell reply and iopub idle, ignoring startup traffic."""
+    recorded = []
+    deadline = time.monotonic() + timeout
+    # Drain shell before iopub as the original recorder did. The fixture
+    # deliberately exercises reply-before-idle, not the kernel's wire order.
+    for channel, get_msg in [("shell", client.get_shell_msg), ("iopub", client.get_iopub_msg)]:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeError("Timed out waiting for the fixture request")
+            try:
+                message = get_msg(timeout=remaining)
+            except queue.Empty as error:
+                raise RuntimeError("Timed out waiting for the fixture request") from error
+            if message["parent_header"].get("msg_id") != request_id:
+                continue
             recorded.append(slim(message, channel))
+            if channel == "shell" or message["content"].get("execution_state") == "idle":
+                break
+    return recorded
+
+
+def validate_fixture(fixture):
+    """A partial capture must never overwrite the known working fixture."""
+    for request in fixture["requests"]:
+        mine = [message for message in fixture["messages"] if message["parent_header"]["msg_id"] == request["msg_id"]]
+        replies = [message for message in mine if message["channel"] == "shell"]
+        busy = [message for message in mine if message["content"].get("execution_state") == "busy"]
+        idle = [message for message in mine if message["content"].get("execution_state") == "idle"]
+        if (
+            len(replies) != 1
+            or replies[0]["header"]["msg_type"] != request["msg_type"].replace("_request", "_reply")
+            or len(busy) != 1
+            or len(idle) != 1
+        ):
+            raise RuntimeError(f"Incomplete fixture round trip: {request['msg_type']}")
+
+
+def record_fixture():
+    # A fresh kernel alone still reads the user's durable IPython history and
+    # startup configuration. Isolate both, and pass explicit command-line
+    # paths so a kernelspec cannot override the environment's IPYTHONDIR.
+    with tempfile.TemporaryDirectory(prefix="lumine-shell-fixture-") as directory:
+        ipython_directory = Path(directory) / "ipython"
+        profile = ipython_directory / "profile_fixture"
+        profile.mkdir(parents=True)
+        environment = {**os.environ, "IPYTHONDIR": str(ipython_directory)}
+        environment.pop("PYTHONSTARTUP", None)
+        manager, client = start_new_kernel(
+            kernel_name="python3",
+            cwd=directory,
+            env=environment,
+            extra_arguments=[
+                f"--IPKernelApp.ipython_dir={ipython_directory}",
+                "--IPKernelApp.profile=fixture",
+                f"--HistoryManager.hist_file={profile / 'history.sqlite'}",
+            ],
+        )
+        try:
+            # Execute a real, harmless cell. Only this session and execution
+            # number are requested, regardless of durable history elsewhere.
+            seed_id = client.execute(HISTORY_CODE, store_history=True)
+            seed = round_trip(client, seed_id)
+            if seed[0]["content"].get("status") != "ok":
+                raise RuntimeError("The fixture cell did not execute successfully")
+            recorded = []
+            requests = []
+            for msg_type, content in REQUESTS:
+                short = msg_type.removesuffix("_request")
+                msg = client.session.msg(msg_type, content)
+                msg_id = f"{short}_{uuid.uuid4().hex[:8]}"
+                msg["header"]["msg_id"] = msg_id
+                msg["msg_id"] = msg_id
+                requests.append({"msg_id": msg_id, "msg_type": msg_type})
+                client.shell_channel.send(msg)
+                recorded.extend(round_trip(client, msg_id))
+
+            import ipykernel
+            import jupyter_client
+
+            fixture = {
+                "recordedWith": f"ipykernel {ipykernel.__version__}, jupyter_client {jupyter_client.__version__}",
+                "session": client.session.session,
+                "requests": requests,
+                "messages": recorded,
+            }
+            validate_fixture(fixture)
+            return fixture
+        finally:
+            client.stop_channels()
+            manager.shutdown_kernel(now=True)
 
 
 def main():
-    manager, client = start_new_kernel(kernel_name="python3")
-    try:
-        recorded = []
-        wanted = set()
-        requests = []
-
-        for msg_type, content in REQUESTS:
-            short = msg_type.removesuffix("_request")
-            msg = client.session.msg(msg_type, content)
-            msg_id = f"{short}_{uuid.uuid4().hex[:8]}"
-            msg["header"]["msg_id"] = msg_id
-            msg["msg_id"] = msg_id
-            wanted.add(msg_id)
-            requests.append({"msg_id": msg_id, "msg_type": msg_type})
-            client.shell_channel.send(msg)
-            # One at a time, drained to quiet, so a slow reply cannot
-            # interleave with the next request. Shell is drained before iopub,
-            # which is why the fixture shows each reply before its status pair
-            # — a drain artifact, not the wire order.
-            drain(client.get_shell_msg, wanted, recorded, "shell")
-            drain(client.get_iopub_msg, wanted, recorded, "iopub")
-
-        import ipykernel
-        import jupyter_client
-
-        fixture = {
-            "recordedWith": f"ipykernel {ipykernel.__version__}, jupyter_client {jupyter_client.__version__}",
-            "session": client.session.session,
-            "requests": requests,
-            "messages": recorded,
-        }
-        FIXTURE_PATH.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8", newline="\n")
-        print(f"Recorded {len(recorded)} messages for {len(requests)} requests")
-        print(f"Wrote {FIXTURE_PATH}")
-
-        missing = []
-        for request in requests:
-            mine = [m for m in recorded if m["parent_header"]["msg_id"] == request["msg_id"]]
-            has_reply = any(m["channel"] == "shell" for m in mine)
-            has_idle = any(
-                m["channel"] == "iopub" and m["content"].get("execution_state") == "idle"
-                for m in mine
-            )
-            if not (has_reply and has_idle):
-                missing.append(request["msg_type"])
-        if missing:
-            print(f"INCOMPLETE: {missing}", file=sys.stderr)
-            return 1
-        return 0
-    finally:
-        client.stop_channels()
-        manager.shutdown_kernel(now=True)
+    fixture = record_fixture()
+    FIXTURE_PATH.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8", newline="\n")
+    print(f"Recorded {len(fixture['messages'])} messages for {len(fixture['requests'])} requests")
+    print(f"Wrote {FIXTURE_PATH}")
+    return 0
 
 
 if __name__ == "__main__":

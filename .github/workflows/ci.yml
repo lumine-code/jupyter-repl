@@ -72,6 +72,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Install the real kernel lifecycle test dependency
         run: python -m pip install "ipykernel==7.4.0"
+      - name: Verify fixture recording cannot read the user profile or history
+        run: python -B -m unittest discover -s script -p test_record_shell_fixture.py
       - name: Exercise real kernel starts, restarts and request cleanup
         timeout-minutes: 3
         env:

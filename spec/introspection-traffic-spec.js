@@ -11,8 +11,9 @@ const ZMQKernel = require("../lib/zmq-kernel");
 // assumes the pair was published at all.
 //
 // The fixture is a capture from ipykernel (script/record_shell_fixture.py
-// regenerates it): one round trip per non-cell request type. The recorder
-// drains shell before iopub, so the fixture's reply-before-pair ordering is
+// regenerates it in an isolated IPython profile): one round trip per non-cell
+// request type. The recorder drains shell before iopub, so the fixture's
+// reply-before-pair ordering is
 // a drain artifact — on the wire ipykernel sends busy, then the reply, then
 // idle — and the assertions below are order-agnostic on purpose. The replay
 // still exercises reply-before-idle, the ordering that used to strand the
@@ -49,6 +50,15 @@ function deliver(kernel, message) {
 }
 
 describe("replaying real introspection traffic", () => {
+  it("retains only the recorder's harmless cell in kernel history", () => {
+    const reply = fixture.messages.find((message) => message.header.msg_type === "history_reply");
+    expect(reply.content.status).toBe("ok");
+    expect(reply.content.history.length).toBe(1);
+    expect(reply.content.history[0][0]).toBe(0);
+    expect(reply.content.history[0][1]).toBe(1);
+    expect(reply.content.history[0][2]).toBe("1 + 1");
+  });
+
   it("covers every request type the suppression floor names", () => {
     // The floor is a list; a request type recorded here but missing from the
     // list would drive the status bar again. comm_* are exercised by their
