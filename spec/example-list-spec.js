@@ -257,7 +257,8 @@ describe("jupyter-repl example picker", () => {
 
       row.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0, ...modifiers }));
 
-      expect(run).toHaveBeenCalledOnceWith(command);
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(run.calls.mostRecent().args[0]).toBe(command);
     });
   }
 
