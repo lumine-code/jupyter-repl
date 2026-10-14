@@ -4,3 +4,4 @@ examples
 assets
 package-lock.json
 lib/vendor
+demo/

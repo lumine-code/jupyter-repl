@@ -70,7 +70,7 @@ const jsx = {
 module.exports = [
   {
     // Vendored kernel examples and the local dev sandbox ship as-is.
-    ignores: ["node_modules/**", ".dev/**", "examples/**", "assets/**", "lib/vendor/**"],
+    ignores: ["node_modules/**", ".dev/**", "examples/**", "assets/**", "lib/vendor/**", "demo/**"],
   },
   js.configs.recommended,
   {
