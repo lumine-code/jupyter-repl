@@ -34,81 +34,6 @@
           "label": "Jupyter REPL",
           "submenu": [
             {
-              "label": "Kernel",
-              "submenu": [
-                {
-                  "label": "Kernel Commands",
-                  "command": "jupyter-repl:toggle-kernel-commands"
-                },
-                {
-                  "label": "Start Local Kernel",
-                  "command": "jupyter-repl:start-local-kernel"
-                },
-                {
-                  "label": "Connect to Remote Kernel",
-                  "command": "jupyter-repl:connect-to-remote-kernel"
-                },
-                {
-                  "label": "Connect to Existing Kernel",
-                  "command": "jupyter-repl:connect-to-existing-kernel"
-                },
-                {
-                  "label": "Edit Gateways Config",
-                  "command": "jupyter-repl:edit-gateways"
-                },
-                {
-                  "type": "separator"
-                },
-                {
-                  "label": "Interrupt Kernel",
-                  "command": "jupyter-repl:interrupt-kernel"
-                },
-                {
-                  "label": "Restart Kernel",
-                  "command": "jupyter-repl:restart-kernel"
-                },
-                {
-                  "label": "Shutdown Kernel",
-                  "command": "jupyter-repl:shutdown-kernel"
-                },
-                {
-                  "label": "Shutdown All Kernels",
-                  "command": "jupyter-repl:shutdown-all-kernels"
-                },
-                {
-                  "type": "separator"
-                },
-                {
-                  "label": "Rename Remote Session…",
-                  "command": "jupyter-repl:rename-remote-session"
-                },
-                {
-                  "label": "Disconnect Remote Session",
-                  "command": "jupyter-repl:disconnect-remote-session"
-                }
-              ]
-            },
-            {
-              "label": "Console",
-              "submenu": [
-                {
-                  "label": "Open Console in Terminal",
-                  "command": "jupyter-repl:open-terminal"
-                },
-                {
-                  "label": "Spawn Console in System Terminal",
-                  "command": "jupyter-repl:spawn-terminal"
-                },
-                {
-                  "label": "Copy Console Command",
-                  "command": "jupyter-repl:copy-console-command"
-                }
-              ]
-            },
-            {
-              "type": "separator"
-            },
-            {
               "label": "Run",
               "submenu": [
                 {
@@ -160,6 +85,81 @@
             {
               "label": "Toggle Output Area",
               "command": "jupyter-repl:toggle-output-area"
+            },
+            {
+              "type": "separator"
+            },
+            {
+              "label": "Kernel",
+              "submenu": [
+                {
+                  "label": "Kernel Commands…",
+                  "command": "jupyter-repl:toggle-kernel-commands"
+                },
+                {
+                  "label": "Start Local Kernel…",
+                  "command": "jupyter-repl:start-local-kernel"
+                },
+                {
+                  "label": "Connect to Remote Kernel…",
+                  "command": "jupyter-repl:connect-to-remote-kernel"
+                },
+                {
+                  "label": "Connect to Existing Kernel…",
+                  "command": "jupyter-repl:connect-to-existing-kernel"
+                },
+                {
+                  "type": "separator"
+                },
+                {
+                  "label": "Interrupt Kernel",
+                  "command": "jupyter-repl:interrupt-kernel"
+                },
+                {
+                  "label": "Restart Kernel",
+                  "command": "jupyter-repl:restart-kernel"
+                },
+                {
+                  "label": "Shutdown Kernel",
+                  "command": "jupyter-repl:shutdown-kernel"
+                },
+                {
+                  "label": "Shutdown All Kernels",
+                  "command": "jupyter-repl:shutdown-all-kernels"
+                },
+                {
+                  "type": "separator"
+                },
+                {
+                  "label": "Rename Remote Session…",
+                  "command": "jupyter-repl:rename-remote-session"
+                },
+                {
+                  "label": "Disconnect Remote Session",
+                  "command": "jupyter-repl:disconnect-remote-session"
+                },
+                {
+                  "label": "Edit Gateways Config",
+                  "command": "jupyter-repl:edit-gateways"
+                }
+              ]
+            },
+            {
+              "label": "Console",
+              "submenu": [
+                {
+                  "label": "Open Console in Terminal",
+                  "command": "jupyter-repl:open-terminal"
+                },
+                {
+                  "label": "Spawn Console in System Terminal",
+                  "command": "jupyter-repl:spawn-terminal"
+                },
+                {
+                  "label": "Copy Console Command",
+                  "command": "jupyter-repl:copy-console-command"
+                }
+              ]
             },
             {
               "type": "separator"
