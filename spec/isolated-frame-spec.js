@@ -77,6 +77,8 @@ describe("an isolated rich output", () => {
     state.dispose();
     const previousPort = frame.port;
     const previousNonce = frame.nonce;
+    const previousFrame = frame.refs.frame;
+    const previousFrameWindow = frame.refs.frame.contentWindow;
     spyOn(previousPort, "close").and.callThrough();
 
     // didAttachToWindow may already have bound the destination document and
@@ -87,6 +89,12 @@ describe("an isolated rich output", () => {
     expect(frame.nonce).not.toBe(previousNonce);
     expect(frame.port).toBeNull();
     frame._connect({
+      source: previousFrameWindow,
+      origin: "null",
+      data: { type: "lumine-output-connect", nonce: frame.nonce },
+    });
+    expect(frame.port).toBeNull();
+    frame._connect({
       source: frame.refs.frame.contentWindow,
       origin: "null",
       data: { type: "lumine-output-connect", nonce: previousNonce },
@@ -94,6 +102,8 @@ describe("an isolated rich output", () => {
     expect(frame.port).toBeNull();
     await changed;
 
+    expect(frame.refs.frame).toBe(previousFrame);
+    expect(frame.refs.frame.contentWindow === previousFrameWindow).toBeFalse();
     expect(frame.ready).toBeTrue();
     const restored = await frame.prepareWindowChange();
     expect(restored.checkpoint.handlers[0].state).toEqual({ count: 42 });
@@ -143,6 +153,16 @@ describe("an isolated rich output", () => {
     } finally {
       await lumine.workspace.discardEditorWindows();
     }
+  });
+
+  it("rejects a stale window transfer after its output is destroyed", async () => {
+    mount({});
+    await frame.destroy();
+    await expectAsync(frame.didChangeWindow({ state: { checkpoint: null } })).toBeRejectedWithError(
+      "The output was closed during a window transfer.",
+    );
+    expect(frame.port).toBeNull();
+    expect(frame.windowChange).toBeUndefined();
   });
 
   it("reconnects the last captured interactive state after the native host disappears", async () => {
