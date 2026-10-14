@@ -55,6 +55,10 @@ class ResultViewComponent {
     this.outputScroll = new OutputScroll();
 
     etch.initialize(this);
+    this.windowParticipant = lumine.views.addWindowParticipant(this.element, {
+      prepareWindowChange: () => this.endResize(),
+      didAttachToWindow: () => this.endResize(),
+    });
 
     this.watchStore();
     this.watchLayout();
@@ -114,7 +118,7 @@ class ResultViewComponent {
   // A click that ends a text selection is the user selecting, not asking for a
   // copy of everything.
   checkForSelection = (event) => {
-    const selection = document.getSelection();
+    const selection = this.element.ownerDocument.getSelection();
     if (selection && selection.toString()) {
       return;
     }
@@ -166,6 +170,7 @@ class ResultViewComponent {
     if (event.button !== 0 || !display) {
       return;
     }
+    this.endResize();
     // The editor ignores a mousedown inside a block decoration, so nothing
     // upstream starts a selection — but the press must not reach the bubble's
     // own handlers, and the default drag-select has to go.
@@ -191,8 +196,10 @@ class ResultViewComponent {
       height: display.offsetHeight,
       maxWidth: editorWidth > 0 ? editorWidth - 2 * charWidth : Infinity,
     };
-    window.addEventListener("mousemove", this.moveResize);
-    window.addEventListener("mouseup", this.endResize);
+    this.resizeWindow = this.element.ownerDocument.defaultView;
+    this.resizeWindow.addEventListener("mousemove", this.moveResize);
+    this.resizeWindow.addEventListener("mouseup", this.endResize);
+    this.resizeWindow.addEventListener("blur", this.endResize);
     // The owner relaxes its re-measure budget for the duration: a drag is a
     // hand, and a hand cannot oscillate.
     this.props.onUserResize?.(true);
@@ -222,8 +229,10 @@ class ResultViewComponent {
       return;
     }
     this.resizeOrigin = null;
-    window.removeEventListener("mousemove", this.moveResize);
-    window.removeEventListener("mouseup", this.endResize);
+    this.resizeWindow.removeEventListener("mousemove", this.moveResize);
+    this.resizeWindow.removeEventListener("mouseup", this.endResize);
+    this.resizeWindow.removeEventListener("blur", this.endResize);
+    this.resizeWindow = null;
     this.props.onUserResize?.(false);
   };
 
@@ -468,6 +477,7 @@ class ResultViewComponent {
     // A bubble closed mid-drag would otherwise leave its window listeners
     // behind, still writing to a component nobody can see.
     this.endResize();
+    this.windowParticipant.dispose();
     this.outputScroll.destroy();
     if (this.wheelElement && this.wheelHandler) {
       this.wheelElement.removeEventListener("wheel", this.wheelHandler);
