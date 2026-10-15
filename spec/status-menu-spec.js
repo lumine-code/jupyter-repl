@@ -2,6 +2,7 @@ describe("kernel status action menu", () => {
   let consumer, lease, element, store;
   beforeEach(async () => {
     jasmine.attachToDOM(lumine.workspace.getElement());
+    lumine.workspace.getElement().focus();
     const pack = await lumine.packages.activatePackage("jupyter-repl");
     const requireCurrent = require("node:module").createRequire(
       require("node:path").join(pack.path, "package.json"),
