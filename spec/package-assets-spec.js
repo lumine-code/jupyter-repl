@@ -30,6 +30,13 @@ describe("jupyter-repl package assets", () => {
     expect(editorBlock["alt-shift-enter"]).toBeUndefined();
     expect(editorBlock["cmdorctrl-alt-shift-enter"]).toBeUndefined();
     expect(editorBlock["cmdorctrl-shift-enter"]).toBeUndefined();
+    expect(editorBlock["cmdorctrl-enter"]).toBeUndefined();
+    expect(editorBlock["shift-enter"]).toBeUndefined();
+    expect(editorBlock["alt-j r"]).toBe("jupyter-repl:run");
+    expect(editorBlock["alt-j s"]).toBe("jupyter-repl:run-and-move-down");
+    expect(editorBlock["alt-j x"]).toBe("jupyter-repl:clear-results");
+    expect(editorBlock["cmdorctrl-shift-backspace"]).toBeUndefined();
+    expect(editorBlock["cmdorctrl-alt-backspace"]).toBeUndefined();
     expect(keymap["lumine-workspace"]["alt-j k m"]).toBe("jupyter-repl:toggle-kernel-commands");
 
     const menu = JSON.parse(fs.readFileSync(path.join(root, "menus/main.json"), "utf8"));

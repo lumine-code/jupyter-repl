@@ -10,13 +10,12 @@
     "alt-j k l": "jupyter-repl:start-local-kernel"
   },
   "lumine-workspace lumine-text-editor:not([mini]):not(lumine-dock lumine-text-editor)": {
-    "cmdorctrl-enter": "jupyter-repl:run",
-    "shift-enter": "jupyter-repl:run-and-move-down",
-    "ctrl-shift-backspace": "jupyter-repl:clear-results",
-    "cmdorctrl-alt-backspace": "jupyter-repl:clear-results"
+    "alt-j r": "jupyter-repl:run",
+    "alt-j s": "jupyter-repl:run-and-move-down",
+    "alt-j x": "jupyter-repl:clear-results"
   },
   "lumine-workspace .jupyter-repl.kernel-picker lumine-text-editor[mini]": {
-    "ctrl-enter": "jupyter-repl:insert-kernel-comment",
+    "cmdorctrl-enter": "jupyter-repl:insert-kernel-comment",
     "f5": "jupyter-repl:refresh-kernel-list"
   },
   ".jupyter-repl.example-list lumine-text-editor[mini]": {
