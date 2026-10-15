@@ -215,15 +215,15 @@ describe("jupyter-repl example picker", () => {
     }
   });
 
-  it("passes the example path and captured pane to Open With", async () => {
+  it("passes the example path and captured pane to Launcher", async () => {
     const picker = new ExampleList();
     await picker.show();
     const item = picker.selectList.getSelectedItem();
     const dispatch = spyOn(lumine.commands, "dispatch").and.resolveTo(true);
 
-    await picker.openExample(item, "open-with");
+    await picker.openExample(item, "choose-opener");
 
-    expect(dispatch).toHaveBeenCalledOnceWith(picker.window.getElement(), "open-with:toggle", {
+    expect(dispatch).toHaveBeenCalledOnceWith(picker.window.getElement(), "launcher:open", {
       path: item.filePath,
       pane: picker.openingPane,
     });
