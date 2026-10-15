@@ -1,6 +1,9 @@
 const { ipcRenderer } = require("electron");
 
-jasmine.describeWithDocumentFocus("pane commands from isolated notebook output", () => {
+// Offscreen documents can report focus without a focused native window. The
+// native keyboard broker deliberately requires both; CI uses the real compositor
+// and must exercise this suite rather than bypassing that ownership guard.
+jasmine.describeWithNativeWindowFocus("pane commands from isolated notebook output", () => {
   let frame, owner, subscriptions, messages, requests, nextRequest, workspaceStyle;
 
   const directions = ["up", "down", "left", "right"];
