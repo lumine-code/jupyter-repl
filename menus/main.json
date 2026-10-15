@@ -136,11 +136,11 @@
                   "command": "jupyter-repl:restart-kernel"
                 },
                 {
-                  "label": "Shutdown Kernel",
+                  "label": "Shut Down Kernel",
                   "command": "jupyter-repl:shutdown-kernel"
                 },
                 {
-                  "label": "Shutdown All Kernels",
+                  "label": "Shut Down All Kernels",
                   "command": "jupyter-repl:shutdown-all-kernels"
                 },
                 {
