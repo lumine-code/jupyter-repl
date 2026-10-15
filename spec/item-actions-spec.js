@@ -45,7 +45,9 @@ describe("jupyter-repl kernel picker item actions", () => {
     expect(insertComment.description).toBe(
       "Insert or update the kernel magic comment on the first line of the editor.",
     );
-    expect(insertComment.keystrokes).toEqual(["ctrl-enter"]);
+    expect(insertComment.keystrokes).toEqual([
+      process.platform === "darwin" ? "cmd-enter" : "ctrl-enter",
+    ]);
 
     const updateKernels = byCommand.get("jupyter-repl:refresh-kernel-list");
     expect(updateKernels.description).toBe("Rescan the kernel specs on disk and reload the list.");

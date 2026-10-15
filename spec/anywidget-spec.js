@@ -5,6 +5,8 @@ let references;
 let validBuffers;
 
 describe("isolated anywidget", () => {
+  let etch;
+  let previousScheduler;
   let manager;
   let model;
   let view;
@@ -14,6 +16,11 @@ describe("isolated anywidget", () => {
 
   beforeEach(async () => {
     jasmine.useRealClock();
+    // These isolated components bypass activation's renderer setup. Give them
+    // the production scheduler instead of inheriting another suite's RAF queue.
+    etch = require("@lumine-code/etch");
+    previousScheduler = etch.getScheduler();
+    etch.setScheduler(lumine.views);
     ({ LumineWidgetManager } = require("../lib/widget-manager"));
     ({ canWriteTrait, references, validBuffers } = require("../lib/anywidget"));
     registry = require("../lib/widget-registry");
@@ -80,6 +87,7 @@ describe("isolated anywidget", () => {
     manager?.disconnect();
     registry.releaseHost(manager?.hostId);
     manager = model = view = null;
+    etch.setScheduler(previousScheduler);
   });
 
   function waitFor(predicate) {
