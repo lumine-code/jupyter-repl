@@ -21,7 +21,7 @@ Describes notebook documents and execution targets to the Jupyter runtime.
 }
 ```
 
-Consumers declare the same name under `consumedServices` with `^1.0.0`. Consumption is passive: registration publishes a lightweight resolver without starting a kernel.
+Consumers declare the same name under `consumedServices` with `^1.0.0`. Consumption is passive: registration publishes a lightweight resolver without starting a kernel. `handlesItem` is synchronous and side-effect-free: read cached item identity or metadata only, without constructing an adapter, parsing source or initializing the runtime. Command availability uses that optional metadata port to recognize a cold notebook; resolvers that omit it become eligible once their document exposes an embedded editor.
 
 ## Contract
 

@@ -40,6 +40,8 @@ describe("run commands capture notebook adapter controls", () => {
     knownAdapters = new Set();
     activeAdapter = adapter("first");
     registration = main.consumeJupyterAdapter({
+      handlesItem: (item) =>
+        [...knownAdapters].some((candidate) => candidate.getPaneItem() === item),
       getActiveAdapter: () => activeAdapter,
       getAdapterForItem: (item) =>
         [...knownAdapters].find((candidate) => candidate.getPaneItem() === item) || null,
