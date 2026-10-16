@@ -51,14 +51,20 @@ describe("kernel commands picker command", () => {
     expect(typeof handleKernelCommand).toBe("function");
   });
 
-  it("does not attach another console to a quarantined kernel", () => {
+  it("does not attach another console to a quarantined kernel", async () => {
     const kernel = {
       executionState: "busy",
       transport: { lifecycle: "recovering" },
       destroy: jasmine.createSpy("destroy"),
     };
     store.runningKernels = [kernel];
-    store.updateActivePaneItem({ getJupyterKernel: () => kernel });
+    const item = {
+      getJupyterKernel: () => kernel,
+      getTitle: () => "Kernel Client",
+      element: document.createElement("div"),
+    };
+    await lumine.workspace.open(item);
+    store.updateActivePaneItem(item);
     const launcher = require("../lib/launch-jupyter");
     const open = spyOn(launcher, "openJupyterConsole");
     const warning = spyOn(lumine.notifications, "addWarning");
@@ -77,7 +83,13 @@ describe("kernel commands picker command", () => {
       destroy: jasmine.createSpy("destroy"),
     };
     store.runningKernels = [kernel];
-    store.updateActivePaneItem({ getJupyterKernel: () => kernel });
+    const item = {
+      getJupyterKernel: () => kernel,
+      getTitle: () => "Kernel Client",
+      element: document.createElement("div"),
+    };
+    await lumine.workspace.open(item);
+    store.updateActivePaneItem(item);
     const mainModule = lumine.packages.getLoadedPackage("jupyter-repl").mainModule;
     const terminalService = {};
     let deliverService;
@@ -101,10 +113,18 @@ describe("kernel commands picker command", () => {
 
     expect(request).toHaveBeenCalledWith("terminal", "^1.0.0");
     expect(open).not.toHaveBeenCalled();
+    const otherKernel = { executionState: "idle", destroy() {} };
+    store.runningKernels = [kernel, otherKernel];
+    await lumine.workspace.open({
+      getJupyterKernel: () => otherKernel,
+      getTitle: () => "Other Kernel Client",
+      element: document.createElement("div"),
+    });
     deliverService();
     await dispatched;
 
-    expect(open).toHaveBeenCalledWith(terminalService);
+    expect(open.calls.mostRecent().args[0]).toBe(terminalService);
+    expect(open.calls.mostRecent().args[1].kernel).toBe(kernel);
     delivery.dispose();
   });
 });

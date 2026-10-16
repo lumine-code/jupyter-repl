@@ -1,12 +1,20 @@
 describe("public kernel signal command context", () => {
-  let store, AdapterKernelBinding;
+  let store, AdapterKernelBinding, mainModule, requireCurrent, inputController;
   beforeEach(async () => {
     jasmine.useRealClock();
     jasmine.attachToDOM(lumine.workspace.getElement());
-    const pack = await lumine.packages.activatePackage("jupyter-repl");
-    const requireCurrent = require("node:module").createRequire(
+    const pack = lumine.packages.loadPackage("jupyter-repl");
+    pack.requireMainModule();
+    mainModule = pack.mainModule;
+    requireCurrent = require("node:module").createRequire(
       require("node:path").join(pack.path, "package.json"),
     );
+    const createInput = spyOn(
+      requireCurrent("./lib/ui/input-controller"),
+      "createInputController",
+    ).and.callThrough();
+    await lumine.packages.activatePackage("jupyter-repl");
+    inputController = createInput.calls.mostRecent().returnValue;
     store = requireCurrent("./lib/store");
     AdapterKernelBinding = requireCurrent("./lib/adapter-kernel-binding");
   });
@@ -74,6 +82,78 @@ describe("public kernel signal command context", () => {
       await lumine.commands.dispatch(other.getElement(), `jupyter-repl:${command}`);
       expect(first[method]).toHaveBeenCalledTimes(1);
       expect(second[method]).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  for (const command of ["rename-remote-session", "disconnect-remote-session"]) {
+    it(`routes ${command} to the invoking window's remote session`, async () => {
+      const rename = spyOn(inputController, "renameSession");
+      const session = () => ({
+        capabilities: { rename: true, disconnect: true },
+        disconnect: jasmine.createSpy("disconnect session"),
+      });
+      const firstSession = session();
+      const otherSession = session();
+      const first = { executionState: "idle", getPluginWrapper: () => firstSession, destroy() {} };
+      const second = { executionState: "idle", getPluginWrapper: () => otherSession, destroy() {} };
+      store.runningKernels = [first, second];
+      const item = (kernel) => ({
+        getTitle: () => "Kernel Client",
+        getJupyterKernel: () => kernel,
+        element: document.createElement("div"),
+      });
+      await lumine.workspace.open(item(first));
+      const main = lumine.workspace.getMainWindow();
+      const otherItem = item(second);
+      await lumine.workspace.open(otherItem, { split: "right" });
+      await lumine.workspace.detachPane(lumine.workspace.paneForItem(otherItem));
+      store.updateActivePaneItem(otherItem);
+
+      await lumine.commands.dispatch(main.getElement(), `jupyter-repl:${command}`);
+
+      if (command === "rename-remote-session") {
+        expect(rename).toHaveBeenCalledWith(firstSession);
+        expect(rename).toHaveBeenCalledTimes(1);
+      } else {
+        expect(firstSession.disconnect).toHaveBeenCalledTimes(1);
+        expect(otherSession.disconnect).not.toHaveBeenCalled();
+      }
+    });
+  }
+
+  for (const [command, method] of [
+    ["open-terminal", "openJupyterConsole"],
+    ["spawn-terminal", "spawnJupyterConsole"],
+    ["copy-console-command", "copyJupyterConsoleCommand"],
+  ]) {
+    it(`captures the invoking window's kernel for ${command}`, async () => {
+      const kernel = () => ({ executionState: "idle", destroy() {} });
+      const first = kernel();
+      const second = kernel();
+      store.runningKernels = [first, second];
+      const item = (value) => ({
+        getTitle: () => "Kernel Client",
+        getJupyterKernel: () => value,
+        element: document.createElement("div"),
+      });
+      await lumine.workspace.open(item(first));
+      const main = lumine.workspace.getMainWindow();
+      const otherItem = item(second);
+      await lumine.workspace.open(otherItem, { split: "right" });
+      await lumine.workspace.detachPane(lumine.workspace.paneForItem(otherItem));
+      store.updateActivePaneItem(otherItem);
+      const terminal = mainModule.consumeTerminal({});
+      const spawn = mainModule.consumeTerminalSpawn({});
+      const launch = spyOn(requireCurrent("./lib/launch-jupyter"), method).and.resolveTo();
+      try {
+        await lumine.commands.dispatch(main.getElement(), `jupyter-repl:${command}`);
+        const args = launch.calls.mostRecent().args;
+        const context = args[args.length - 1];
+        expect(context.kernel).toBe(first);
+      } finally {
+        terminal.dispose();
+        spawn.dispose();
+      }
     });
   }
 });
