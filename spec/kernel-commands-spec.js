@@ -16,15 +16,26 @@ describe("kernel commands picker command", () => {
     await lumine.packages.deactivatePackage("jupyter-repl");
   });
 
-  it("warns when the current editor has no running kernel", () => {
+  it("disables kernel controls without blocking kernel setup when no kernel is running", () => {
     const warning = spyOn(lumine.notifications, "addWarning");
 
-    lumine.commands.dispatch(
+    const result = lumine.commands.dispatch(
       lumine.views.getView(lumine.workspace),
       "jupyter-repl:toggle-kernel-commands",
     );
 
-    expect(warning).toHaveBeenCalledWith("No running kernel for the current editor");
+    expect(result).toBeNull();
+    expect(warning).not.toHaveBeenCalled();
+    const target = lumine.workspace.getElement();
+    for (const command of [
+      "interrupt-kernel",
+      "restart-kernel",
+      "shutdown-kernel",
+      "rename-remote-session",
+      "copy-console-command",
+    ])
+      expect(lumine.commands.canDispatch(target, `jupyter-repl:${command}`)).toBe(false);
+    expect(lumine.commands.canDispatch(target, "jupyter-repl:start-local-kernel")).toBe(true);
   });
 
   it("opens the same kernel command picker used by the status bar", async () => {
@@ -54,7 +65,7 @@ describe("kernel commands picker command", () => {
   it("does not attach another console to a quarantined kernel", async () => {
     const kernel = {
       executionState: "busy",
-      transport: { lifecycle: "recovering" },
+      transport: { lifecycle: "recovering", connectionFile: "kernel.json" },
       destroy: jasmine.createSpy("destroy"),
     };
     store.runningKernels = [kernel];
@@ -72,8 +83,17 @@ describe("kernel commands picker command", () => {
     lumine.commands.dispatch(lumine.views.getView(lumine.workspace), "jupyter-repl:open-terminal");
 
     expect(open).not.toHaveBeenCalled();
-    expect(warning).toHaveBeenCalled();
-    expect(warning.calls.mostRecent().args[0]).toBe("Jupyter console connection blocked");
+    expect(warning).not.toHaveBeenCalled();
+    expect(
+      lumine.commands.canDispatch(lumine.workspace.getElement(), "jupyter-repl:open-terminal"),
+    ).toBe(false);
+    expect(
+      lumine.commands.canDispatch(lumine.workspace.getElement(), "jupyter-repl:restart-kernel"),
+    ).toBe(true);
+    kernel.transport.lifecycle = "ready";
+    expect(
+      lumine.commands.canDispatch(lumine.workspace.getElement(), "jupyter-repl:open-terminal"),
+    ).toBe(true);
   });
 
   it("waits for the terminal service before completing the first open command", async () => {

@@ -94,8 +94,18 @@ describe("public kernel signal command context", () => {
       });
       const firstSession = session();
       const otherSession = session();
-      const first = { executionState: "idle", getPluginWrapper: () => firstSession, destroy() {} };
-      const second = { executionState: "idle", getPluginWrapper: () => otherSession, destroy() {} };
+      const first = {
+        executionState: "idle",
+        transport: { rename() {}, ownsKernelProcess: false },
+        getPluginWrapper: () => firstSession,
+        destroy() {},
+      };
+      const second = {
+        executionState: "idle",
+        transport: { rename() {}, ownsKernelProcess: false },
+        getPluginWrapper: () => otherSession,
+        destroy() {},
+      };
       store.runningKernels = [first, second];
       const item = (kernel) => ({
         getTitle: () => "Kernel Client",
@@ -127,7 +137,11 @@ describe("public kernel signal command context", () => {
     ["copy-console-command", "copyJupyterConsoleCommand"],
   ]) {
     it(`captures the invoking window's kernel for ${command}`, async () => {
-      const kernel = () => ({ executionState: "idle", destroy() {} });
+      const kernel = () => ({
+        executionState: "idle",
+        transport: { connectionFile: "kernel.json" },
+        destroy() {},
+      });
       const first = kernel();
       const second = kernel();
       store.runningKernels = [first, second];

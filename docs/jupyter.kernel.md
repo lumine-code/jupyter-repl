@@ -26,7 +26,21 @@ Consumption is passive. The provider is published synchronously during the packa
 ## Contract
 
 ```ts
+type KernelState = {
+  id: string;
+  language: string | null;
+  executionState: string | null;
+  connectionState: string | null;
+  capabilities: { rename: boolean; disconnect: boolean; localSource: boolean; console: boolean };
+};
+
 type SessionProvider = {
+  peekKernelState(context?: {
+    item?: object;
+    editor?: TextEditor;
+    window?: EditorWindow;
+  }): KernelState | null;
+  onDidChangeKernelState(callback: () => void): Disposable;
   getActiveKernel(): Session | null;
   getKernelForEditor(editor: TextEditor): Session | null;
   getKernelForItem(item: object): Session | null;
@@ -119,6 +133,8 @@ type Session = {
   getConnectionFile(): string | null;
 };
 ```
+
+`peekKernelState` reads already-known bindings and cached kernel metadata. It returns a frozen `{id, language, executionState, connectionState, capabilities: {rename, disconnect, localSource}}` snapshot, or `null` when no live kernel is known for that item/editor/window. Use the captured command's `documentItem`, `embeddedEditor` and `window`; the query does not discover adapters, start the runtime, create session wrappers, parse source or add observers. `onDidChangeKernelState` is a passive, non-replaying subscription for changes to kernels, bindings and cached execution/connection state. Consumers can invalidate command availability from this signal without retaining an execution session.
 
 All listed members are required. A session is a stable public handle; it exposes no transport, internal kernel, middleware chain or mutable request registry. Its opaque UUID identity remains readable after destruction. Generation identifies the connection/process lifetime that produced a request or source receipt and changes when that lifetime retires. Compare complete identities; display names and execution counts alone are not identities.
 

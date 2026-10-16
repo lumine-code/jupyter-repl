@@ -134,6 +134,7 @@ class ResultViewComponent {
     // A dragged height is a statement about this one box; fitting it to the
     // content, or putting it back under the cap, replaces that statement.
     this.resizedHeight = null;
+    lumine.commands.invalidateAvailability();
     etch.update(this);
   };
 
@@ -151,6 +152,7 @@ class ResultViewComponent {
     }
     this.resizedWidth = null;
     this.resizedHeight = null;
+    lumine.commands.invalidateAvailability();
     etch.update(this);
   };
 
@@ -391,7 +393,10 @@ class ResultViewComponent {
       this.probedOutputCount = outputCount;
       this.probedOutputIdentity = outputIdentity;
       this.probedDisplay = display;
-      this.hasImage = display ? actions.getImage(display) !== null : false;
+      const hasImage = display ? actions.getImage(display) !== null : false;
+      const imageChanged = hasImage !== this.hasImage;
+      this.hasImage = hasImage;
+      if (imageChanged) lumine.commands.invalidateAvailability();
     }
 
     // Not cacheable the same way: a growing stream merges into one output, so
@@ -404,6 +409,7 @@ class ResultViewComponent {
       this.resizedHeight != null ? scrollHeight > clientHeight : scrollHeight > SCROLL_HEIGHT;
     let changed = showExpandButton !== this.showExpandButton;
     this.showExpandButton = showExpandButton;
+    if (changed) lumine.commands.invalidateAvailability();
 
     // A gutter appears and disappears with the content, so the offsets are
     // state like the flag above. The overlays are out of the layout and cannot

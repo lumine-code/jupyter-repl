@@ -30,9 +30,12 @@ describe("the output service bootstrap", () => {
     const mainModule = { exports: {} };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../lib/main.js"), "utf8"), {
       module: mainModule,
+      __dirname: path.resolve(__dirname, "../lib"),
       require: (request) => {
         if (request === "lumine") return {};
         if (request === "./code-manager-state") return {};
+        if (request === "node:path") return path;
+        if (request === "./kernel-availability") return require("../lib/kernel-availability");
         if (request === "./output-accumulator") return factory;
         if (request === "./output-service") {
           rendererLoads++;
@@ -42,6 +45,13 @@ describe("the output service bootstrap", () => {
       },
     });
     main = mainModule.exports;
+  });
+
+  it("keeps a cold kernel availability query independent of the runtime and session wrappers", () => {
+    const service = main.provideJupyterKernel();
+    expect(service.peekKernelState({ item: {} })).toBeNull();
+    expect(rendererLoads).toBe(0);
+    expect(dataLoads).toBe(0);
   });
 
   it("connects the accumulator factory without loading data or renderer modules", () => {
