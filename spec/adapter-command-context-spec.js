@@ -107,6 +107,19 @@ describe("adapter command ownership", () => {
     expect(allTargets).not.toHaveBeenCalled();
   });
 
+  it("uses the captured notebook in command mode without consulting the active notebook", () => {
+    const scope = capture(getAdapters, integration, null, panes[0]);
+    expect(scope.context.owner).toBe(panes[0].owner);
+    expect(shim(scope).getActiveAdapter().getPaneItem()).toBe(panes[0]);
+    expect(provider.getActiveAdapter).not.toHaveBeenCalled();
+    expect(allTargets).not.toHaveBeenCalled();
+  });
+
+  it("does not substitute the global notebook for an explicitly empty document context", () => {
+    expect(capture(getAdapters, integration, null, null)).toBeNull();
+    expect(provider.getActiveAdapter).not.toHaveBeenCalled();
+  });
+
   it("uses the addressed cell without changing the notebook's active cell", () => {
     activePane = panes[0];
     const editor = activePane.targets.get("a-second").editor;

@@ -48,6 +48,13 @@ describe("run commands capture notebook adapter controls", () => {
     spyOn(lumine.workspace, "getFocusedTextEditor").and.returnValue(null);
     store.updateEditor(null);
     store.updateActivePaneItem(activeAdapter.getPaneItem());
+    const resolveContext = lumine.commands.resolveContext;
+    spyOn(lumine.commands, "resolveContext").and.callFake((event) => ({
+      ...resolveContext(event),
+      documentItem: activeAdapter.getPaneItem(),
+      editor: null,
+      embeddedEditor: null,
+    }));
     kernel = {
       restart: jasmine.createSpy("restart notebook kernel").and.resolveTo(true),
     };
@@ -110,6 +117,17 @@ describe("run commands capture notebook adapter controls", () => {
     expect(run).not.toHaveBeenCalled();
     expect(single).not.toHaveBeenCalled();
     expect(batch).not.toHaveBeenCalled();
+  });
+
+  it("runs the captured notebook document when a different notebook is globally active", async () => {
+    const captured = adapter("captured-window");
+    store.kernelMapping.set(captured.getPath(), kernel);
+    const receipt = await main.run(false, {
+      target: lumine.workspace.getElement(),
+      context: { documentItem: captured.getPaneItem(), window: lumine.workspace.getMainWindow() },
+    });
+    expect((await receipt.done).status).toBe("ok");
+    expect(run.calls.mostRecent().args[2].adapter.getKernelOwner()).toBe(captured.getKernelOwner());
   });
 
   it("runs the captured notebook after focus changes without falling back to text", async () => {

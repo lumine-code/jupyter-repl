@@ -50,4 +50,10 @@ describe("Result owner cleanup focus", () => {
     expect(view.destroyed).toBe(true);
     expect(lumine.workspace.getFocusedTextEditor()).toBe(first);
   });
+
+  it("closes the result owned by a nonactive editor command target", async () => {
+    expect(lumine.workspace.getActiveTextEditor()).toBe(second);
+    await lumine.commands.dispatch(first.element, "jupyter-repl:close-result");
+    expect(view.destroyed).toBe(true);
+  });
 });
