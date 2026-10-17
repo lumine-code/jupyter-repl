@@ -67,7 +67,9 @@ describe("the LaTeX waiting indicator", () => {
       for (let index = 0; index < waiting.length; index++) {
         const animation = getComputedStyle(waiting[index]);
         const kernelAnimation = getComputedStyle(kernelWaiting[index]);
-        expect(animation.animationName).toBe("stretchdelay");
+        expect(animation.animationName).toBe(
+          matchMedia("(prefers-reduced-motion: reduce)").matches ? "none" : "stretchdelay",
+        );
         expect(animation.animationDuration).toBe(kernelAnimation.animationDuration);
         expect(animation.animationDelay).toBe(kernelAnimation.animationDelay);
       }
