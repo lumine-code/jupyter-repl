@@ -92,6 +92,18 @@ describe("responsive HTML frames", () => {
     stylesheet.dispose();
   });
 
+  it("reveals native result buttons when reached by keyboard focus", () => {
+    const result = mount("inline", "<div>Rendered output</div>");
+    const close = result.host.querySelector(".result-close");
+    const actions = result.host.querySelector(".result-actions");
+    expect(close.tagName).toBe("BUTTON");
+    expect(close.type).toBe("button");
+    expect(close.getAttribute("aria-label")).toBe("Close result");
+    close.focus();
+    expect(document.activeElement).toBe(close);
+    expect(getComputedStyle(actions).opacity).toBe("1");
+  });
+
   for (const surface of ["inline", "history", "list"]) {
     it(`fills the available ${surface} width and follows wide and narrow hosts`, () => {
       const mounted = mount(surface);

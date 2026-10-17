@@ -28,29 +28,23 @@ function truncateOutput(text, maxLength) {
   };
 }
 
-/**
- * Adjust RGB color for better contrast when it matches the background.
- * Lightens dark colors and darkens light colors.
- *
- * @param {string} rgbValues - RGB values as "r, g, b" string
- * @returns {string} - Adjusted RGB values
- */
-function adjustColorForContrast(rgbValues) {
-  const parts = rgbValues.split(",").map((p) => parseInt(p.trim(), 10));
-  if (parts.length !== 3) return rgbValues;
-
-  const [r, g, b] = parts;
-  // Calculate relative luminance
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-  // Adjust by 100 in the opposite direction of luminance
-  if (luminance < 0.5) {
-    // Dark color - lighten it
-    return `${Math.min(255, r + 100)}, ${Math.min(255, g + 100)}, ${Math.min(255, b + 100)}`;
-  } else {
-    // Light color - darken it
-    return `${Math.max(0, r - 100)}, ${Math.max(0, g - 100)}, ${Math.max(0, b - 100)}`;
+// The first sixteen ANSI colors belong to the active terminal palette. Explicit
+// RGB and extended indexed colors belong to the output and keep their values.
+function ansiColor(name, trueColor) {
+  if (!name) return null;
+  if (name === "ansi-truecolor") return `rgb(${trueColor})`;
+  const indexed = /^ansi-palette-(\d+)$/.exec(name);
+  if (indexed) {
+    const index = Number(indexed[1]);
+    if (index >= 232) {
+      const channel = 8 + (index - 232) * 10;
+      return `rgb(${channel}, ${channel}, ${channel})`;
+    }
+    const value = index - 16;
+    const levels = [0, 95, 135, 175, 215, 255];
+    return `rgb(${levels[Math.floor(value / 36)]}, ${levels[Math.floor(value / 6) % 6]}, ${levels[value % 6]})`;
   }
+  return `var(--terminal-color-${name.slice("ansi-".length)})`;
 }
 
 /**
@@ -67,23 +61,23 @@ function ansiNodes(text) {
     return [];
   }
 
-  const parsed = Anser.ansiToJson(text, { remove_empty: true });
+  const parsed = Anser.ansiToJson(text, { remove_empty: true, use_classes: true });
 
   return parsed.map((part) => {
     const { content, fg, bg, decoration } = part;
     if (!content) return null;
 
     const style = {};
-    let fgValue = fg || null;
-    const bgValue = bg || null;
+    let fgValue = ansiColor(fg, part.fg_truecolor);
+    const bgValue = ansiColor(bg, part.bg_truecolor);
 
     // Fix matching foreground/background colors
     if (fgValue && bgValue && fgValue === bgValue) {
-      fgValue = adjustColorForContrast(fgValue);
+      fgValue = `lch(from ${bgValue} calc((49.44 - l) * infinity) 0 0)`;
     }
 
-    if (fgValue) style.color = `rgb(${fgValue})`;
-    if (bgValue) style.backgroundColor = `rgb(${bgValue})`;
+    if (fgValue) style.color = fgValue;
+    if (bgValue) style.backgroundColor = bgValue;
     if (decoration === "bold") style.fontWeight = "bold";
     else if (decoration === "italic") style.fontStyle = "italic";
     else if (decoration === "underline") style.textDecoration = "underline";

@@ -327,10 +327,20 @@ class ResultViewComponent {
           // is here — copy, open, save and reset are words in the context menu,
           // which needs neither room nor hover to find.
           <div className="result-actions" style={{ right: `${this.gutterRight}px` }}>
-            <div className="result-close icon icon-x" onClick={this.props.destroy} />
+            <button
+              type="button"
+              className="result-close icon icon-x"
+              attributes={{ "aria-label": "Close result" }}
+              onClick={this.props.destroy}
+            />
             {this.showExpandButton ? (
-              <div
+              <button
+                type="button"
                 className={`result-expand icon icon-${this.expanded ? "fold" : "unfold"}`}
+                attributes={{
+                  "aria-label": this.expanded ? "Collapse result" : "Expand result",
+                  "aria-expanded": String(this.expanded),
+                }}
                 onClick={this.toggleExpand}
               />
             ) : null}

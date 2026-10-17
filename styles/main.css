@@ -455,19 +455,31 @@
     border-bottom-left-radius: var(--ui-border-radius);
   }
 
-  /* One border around the column, divided between the buttons. */
-  .multiline-container .result-actions > :not(:first-child) {
-    border-top: solid 1px var(--base-border-color);
-  }
-
   .multiline-container .result-actions:hover,
+  .multiline-container .result-actions:focus-within,
   .multiline-container .result-resize:hover,
   .multiline-container .result-resize:active {
     opacity: 1;
   }
 
   .multiline-container .result-actions .icon {
+    appearance: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
     cursor: default;
+  }
+
+  .multiline-container .result-actions .icon:focus-visible {
+    outline: 2px solid var(--accent-indicator-color);
+    outline-offset: -2px;
+  }
+
+  /* One border around the column, divided between the buttons. */
+  .multiline-container .result-actions > :not(:first-child) {
+    border-top: solid 1px var(--base-border-color);
   }
 
   .multiline-container .result-actions .icon::before {
@@ -755,4 +767,11 @@ autocomplete-suggestion-list.select-list.popover-list .suggestion-description {
 
 .output-latex-loading {
   display: inline-block;
+}
+
+/* Respect reduced motion while retaining visible status indicators. */
+@media (prefers-reduced-motion: reduce) {
+  :is(.jupyter-repl .spinner, .output-latex-loading.spinner) > div {
+    animation: none;
+  }
 }
