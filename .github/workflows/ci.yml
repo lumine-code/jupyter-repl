@@ -44,6 +44,8 @@ jobs:
         run: npm run lint
       - name: Check formatting
         run: npm run format:check
+      - name: Test frozen runtime fixture adapters
+        run: node --test script/prepare-original-view-fixture.test.js
       - name: Check package contents
         run: npm pack --dry-run
       - name: Check native ZeroMQ startup and socket cleanup

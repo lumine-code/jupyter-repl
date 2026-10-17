@@ -19,6 +19,28 @@ function prepare(source) {
   );
 }
 
+// The frozen picker contributes refresh, while the current core also supplies
+// its dialog-level keep-open control. Preserve the exact empty-list assertion
+// and explicitly include that one core contribution, without allowing extras.
+function prepareKernelPickerActions(source) {
+  const newline = source.includes("\r\n") ? "\r\n" : "\n";
+  const original = [
+    "    expect(picker.selectList.getAvailableActions().map((action) => action.command)).toEqual([",
+    '      "jupyter-repl:refresh-kernel-list",',
+    "    ]);",
+  ].join(newline);
+  if (source.split(original).length !== 2) {
+    throw new Error("Expected exactly one frozen empty-kernel action assertion.");
+  }
+  return source.replace(
+    original,
+    original.replace(
+      `${newline}    ]);`,
+      `${newline}      "select-list:toggle-keep-open",${newline}    ]);`,
+    ),
+  );
+}
+
 // The frozen suite predates package module generations. Refresh its imported
 // constructors and helper singletons after activation, without changing any
 // original implementation or assertion. Relative fixture imports stay intact.
@@ -213,6 +235,8 @@ if (require.main === module) {
   const root = path.resolve(process.argv[2]);
   const file = path.join(root, "spec/runtime-source-provenance-spec.js");
   fs.writeFileSync(file, prepare(fs.readFileSync(file, "utf8")));
+  const pickerFile = path.join(root, "spec/item-actions-spec.js");
+  fs.writeFileSync(pickerFile, prepareKernelPickerActions(fs.readFileSync(pickerFile, "utf8")));
   // The CI control runs from the editor checkout, which owns its parser.
   const parser = createRequire(path.join(process.cwd(), "package.json"))("@babel/parser");
   console.log(
@@ -220,4 +244,9 @@ if (require.main === module) {
   );
 }
 
-module.exports = { prepare, prepareGenerationImports, prepareGenerationFixtures };
+module.exports = {
+  prepare,
+  prepareKernelPickerActions,
+  prepareGenerationImports,
+  prepareGenerationFixtures,
+};
