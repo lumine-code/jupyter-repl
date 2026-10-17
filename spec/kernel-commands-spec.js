@@ -3,6 +3,7 @@ let services = require("../lib/services");
 let store = require("../lib/store");
 
 const PACKAGE_PATH = path.join(__dirname, "..");
+/* global conditionPromise */
 
 describe("kernel commands picker command", () => {
   beforeEach(async () => {
@@ -147,4 +148,46 @@ describe("kernel commands picker command", () => {
     expect(open.calls.mostRecent().args[1].kernel).toBe(kernel);
     delivery.dispose();
   });
+
+  for (const [command, method] of [
+    ["restart-kernel", "restart"],
+    ["shutdown-kernel", "shutdownAndDestroy"],
+    ["disconnect-kernel", "disconnect"],
+  ]) {
+    it(`keeps the picker callback pending until ${command} finishes`, async () => {
+      let finish;
+      const operation = jasmine
+        .createSpy(method)
+        .and.returnValue(new Promise((resolve) => (finish = resolve)));
+      const session = { capabilities: { disconnect: true }, disconnect: operation };
+      const kernel = {
+        executionState: "idle",
+        transport: { lifecycle: "ready" },
+        [method]: operation,
+        getPluginWrapper: () => session,
+        destroy() {},
+      };
+      store.runningKernels = [kernel];
+      await lumine.workspace.open({
+        getJupyterKernel: () => kernel,
+        getTitle: () => "Kernel Client",
+        element: document.createElement("div"),
+      });
+      const show = spyOn(services.consumed.statusBar, "showKernelCommands");
+      await lumine.commands.dispatch(
+        lumine.workspace.getElement(),
+        "jupyter-repl:toggle-kernel-commands",
+      );
+      const [context, handle] = show.calls.mostRecent().args;
+      let settled = false;
+      const pending = handle({ command }, context).then((result) => {
+        settled = true;
+        return result;
+      });
+      await conditionPromise(() => operation.calls.count() === 1);
+      expect(settled).toBe(false);
+      finish("completed");
+      expect(await pending).toBe("completed");
+    });
+  }
 });
