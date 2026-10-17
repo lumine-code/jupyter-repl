@@ -4,7 +4,7 @@
  * https://github.com/nteract/nteract/blob/master/packages/transform-plotly/src/index.tsx
  * Copyright (c) 2016 - present, nteract contributors All rights reserved.
  *
- * This source code is licensed under the license found in the LICENSE file in
+ * This source code is licensed under the license found in the THIRD_PARTY_NOTICES file in
  * the root directory of this source tree.
  *
  * Same as the upstream transform, plus the ability to download a plot from an
