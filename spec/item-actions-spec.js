@@ -71,6 +71,7 @@ describe("jupyter-repl kernel picker item actions", () => {
 
     expect(picker.selectList.getAvailableActions().map((action) => action.command)).toEqual([
       "jupyter-repl:refresh-kernel-list",
+      "select-list:toggle-keep-open",
     ]);
   });
 
@@ -84,13 +85,44 @@ describe("jupyter-repl kernel picker item actions", () => {
 
   it("selects the highlighted kernel exactly once through its semantic action", async () => {
     picker.onConfirmed = jasmine.createSpy("onConfirmed");
+    picker.onCancelled = jasmine.createSpy("onCancelled");
     await picker.selectListHost.show();
     await picker.selectList.selectIndex(1);
+    await picker.selectList.runAction("select-list:toggle-keep-open");
 
     await picker.selectList.runAction("jupyter-repl:select-kernel", { source: "spec" });
 
     expect(picker.onConfirmed).toHaveBeenCalledOnceWith(picker.kernelSpecs[1]);
+    expect(picker.onCancelled).not.toHaveBeenCalled();
     expect(picker.selectListHost.isVisible()).toBe(false);
+    const cancelled = picker.onCancelled;
+    picker.destroy();
+    expect(cancelled).not.toHaveBeenCalled();
+  });
+
+  it("keeps the initiating editor and request alive for repeated kernel-comment actions", async () => {
+    await lumine.packages.activatePackage("language-python");
+    const openingEditor = await lumine.workspace.open("opening-repeat-kernel-comment.py");
+    const otherEditor = await lumine.workspace.open("other-repeat-kernel-comment.py");
+    picker.onCancelled = jasmine.createSpy("onCancelled");
+    await picker.toggle({ editor: openingEditor });
+    await picker.selectList.runAction("select-list:toggle-keep-open");
+
+    for (let index = 0; index < picker.kernelSpecs.length; index++) {
+      await picker.selectList.selectIndex(index);
+      await picker.selectList.runAction("jupyter-repl:insert-kernel-comment");
+      expect(openingEditor.lineTextForBufferRow(0)).toBe(`#:: ${picker.kernelSpecs[index].name}`);
+      expect(picker.selectListHost.isVisible()).toBe(true);
+      expect(picker._context.editor).toBe(openingEditor);
+      expect(picker.onCancelled).not.toHaveBeenCalled();
+    }
+
+    picker.selectListHost.cancel();
+    expect(picker._context).toBeNull();
+    expect(picker.onCancelled).toHaveBeenCalledTimes(1);
+    expect(otherEditor.getText()).toBe("");
+    openingEditor.destroy();
+    otherEditor.destroy();
   });
 
   it("runs a staying dialog action against the kernel list", async () => {

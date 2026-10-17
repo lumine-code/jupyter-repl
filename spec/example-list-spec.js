@@ -67,6 +67,7 @@ describe("jupyter-repl example picker", () => {
       "jupyter-repl:open-example-with",
       "jupyter-repl:open-example-external",
       "jupyter-repl:show-example-in-folder",
+      "select-list:toggle-keep-open",
     ]);
     mainPane.activateItem(first, { activatePane: true });
 

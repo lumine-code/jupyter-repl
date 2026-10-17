@@ -40,6 +40,29 @@ describe("ws-kernel-picker modal flow", () => {
     expect(picker.gatewayList.getItems().map((item) => item.name)).toEqual(["local", "tokened"]);
   });
 
+  for (const [field, method, item] of [
+    ["sessionList", "connectToSession", { id: "running", name: "Running", model: {} }],
+    ["specList", "startSession", { id: "python3", name: "Python 3" }],
+  ]) {
+    it(`completes the remote kernel choice through ${method} without offering a repeat mode`, async () => {
+      const chosen = spyOn(picker, method).and.resolveTo(true);
+      const list = picker[field];
+      const host = picker[`${field}Host`];
+      await list.setItems([item]);
+      await host.show();
+      expect(list.supportsKeepOpen()).toBe(false);
+      expect(list.getAvailableActions().map(({ command }) => command)).not.toContain(
+        "select-list:toggle-keep-open",
+      );
+
+      const result = await list.confirmSelection();
+
+      expect(chosen).toHaveBeenCalledOnceWith(item);
+      expect(result.action.disposition).toBe("complete");
+      expect(host.isVisible()).toBe(false);
+    });
+  }
+
   it("asks for an authentication method when the gateway has no token", async () => {
     await picker.toggle(() => true);
     await confirmItem(picker.gatewayList, "local");

@@ -47,4 +47,17 @@ describe("SignalListView", () => {
       ]);
     });
   }
+
+  it("runs repeated kernel actions in keep-open mode", async () => {
+    await view.selectListHost.show();
+    await view.selectList.runAction("select-list:toggle-keep-open");
+
+    for (const command of ["interrupt-kernel", "restart-kernel"]) {
+      await view.selectList.selectItemById(command);
+      await view.selectList.confirmSelection();
+      expect(handler.calls.mostRecent().args[0].command).toBe(command);
+      expect(view.selectListHost.isVisible()).toBe(true);
+    }
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
 });

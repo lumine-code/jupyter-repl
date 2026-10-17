@@ -13,11 +13,13 @@ describe("existing kernel picker", () => {
       {
         id: "python",
         displayName: "Python 3",
+        transport: {},
         kernelSpec: { name: "python3", language: "python" },
       },
       {
         id: "r",
         displayName: "R",
+        transport: {},
         kernelSpec: { name: "ir", language: "R" },
       },
     ];
@@ -66,5 +68,26 @@ describe("existing kernel picker", () => {
     picker.selectKernel(store.runningKernels[0]);
 
     expect(store.newKernel).not.toHaveBeenCalled();
+  });
+
+  it("reuses the captured adapter for repeated selections until the picker closes", async () => {
+    jasmine.attachToDOM(lumine.workspace.getElement());
+    const context = { adapter: { name: "captured adapter" } };
+    spyOn(adapterIntegration, "bindAdapterKernel").and.resolveTo(true);
+    await picker.toggle(context);
+    await picker.selectList.runAction("select-list:toggle-keep-open");
+
+    for (const kernel of store.runningKernels) {
+      await picker.selectList.selectItem(kernel);
+      await picker.selectList.confirmSelection();
+      expect(adapterIntegration.bindAdapterKernel.calls.mostRecent().args).toEqual([
+        context,
+        kernel,
+      ]);
+      expect(picker.selectListHost.isVisible()).toBe(true);
+    }
+
+    picker.selectListHost.cancel();
+    expect(picker._context).toBeNull();
   });
 });
