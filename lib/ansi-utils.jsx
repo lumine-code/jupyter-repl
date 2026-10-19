@@ -28,25 +28,6 @@ function truncateOutput(text, maxLength) {
   };
 }
 
-// The first sixteen ANSI colors belong to the active terminal palette. Explicit
-// RGB and extended indexed colors belong to the output and keep their values.
-function ansiColor(name, trueColor) {
-  if (!name) return null;
-  if (name === "ansi-truecolor") return `rgb(${trueColor})`;
-  const indexed = /^ansi-palette-(\d+)$/.exec(name);
-  if (indexed) {
-    const index = Number(indexed[1]);
-    if (index >= 232) {
-      const channel = 8 + (index - 232) * 10;
-      return `rgb(${channel}, ${channel}, ${channel})`;
-    }
-    const value = index - 16;
-    const levels = [0, 95, 135, 175, 215, 255];
-    return `rgb(${levels[Math.floor(value / 36)]}, ${levels[Math.floor(value / 6) % 6]}, ${levels[value % 6]})`;
-  }
-  return `var(--terminal-color-${name.slice("ansi-".length)})`;
-}
-
 /**
  * Render text containing ANSI escape sequences as etch virtual nodes.
  *
@@ -61,15 +42,18 @@ function ansiNodes(text) {
     return [];
   }
 
-  const parsed = Anser.ansiToJson(text, { remove_empty: true, use_classes: true });
+  // Output colors belong to the kernel's ANSI stream. Mapping them to syntax
+  // theme colors changes yellow labels into brown and recolors diagnostics.
+  // Unstyled output still inherits the active editor palette.
+  const parsed = Anser.ansiToJson(text, { remove_empty: true });
 
   return parsed.map((part) => {
     const { content, fg, bg, decoration } = part;
     if (!content) return null;
 
     const style = {};
-    let fgValue = ansiColor(fg, part.fg_truecolor);
-    const bgValue = ansiColor(bg, part.bg_truecolor);
+    let fgValue = fg ? `rgb(${fg})` : null;
+    const bgValue = bg ? `rgb(${bg})` : null;
 
     // Fix matching foreground/background colors
     if (fgValue && bgValue && fgValue === bgValue) {
