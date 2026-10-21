@@ -94,14 +94,17 @@ describe("kernel source navigation through hyperclick", () => {
   });
 
   it("reads dotted symbols at the mouse range and rejects calls and subscripts", async () => {
-    const { expressionAt } = require("../lib/services/provided/hyperclick");
+    const expressionAt = (editor, range) =>
+      editor.analyzeSyntax(require.resolve("../lib/source-analysis/hyperclick"), "expression", {
+        range,
+      });
     editor.setText("mod . alias");
     const word = new Range([0, 6], [0, 11]);
-    expect(expressionAt(editor, word)).toBe("mod.alias");
+    expect(await expressionAt(editor, word)).toBe("mod.alias");
     editor.setText("obj[0].alias");
-    expect(expressionAt(editor, new Range([0, 7], [0, 12]))).toBeNull();
+    expect(await expressionAt(editor, new Range([0, 7], [0, 12]))).toBeNull();
     editor.setText("factory().alias");
-    expect(expressionAt(editor, new Range([0, 10], [0, 15]))).toBeNull();
+    expect(await expressionAt(editor, new Range([0, 10], [0, 15]))).toBeNull();
   });
 
   it("leaves function-local references to lexical providers", async () => {

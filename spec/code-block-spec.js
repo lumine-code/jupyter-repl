@@ -91,7 +91,7 @@ describe("code block detection for multiline strings", () => {
     editor.setGrammar(lumine.grammars.grammarForScopeName("source.python"));
     editor.setText("def f():\n    value = 1\noutside = 2\n");
     await editor.getBuffer().getLanguageMode().atTransactionEnd();
-    const block = findCodeBlockAtRow(editor, 0, pythonContext);
+    const block = await findCodeBlockAtRow(editor, 0, pythonContext);
 
     expect(block.code.trimEnd()).toBe("def f():\n    value = 1");
     expect(block.row).toBe(1);
@@ -104,9 +104,17 @@ describe("code block detection for multiline strings", () => {
     editor.setGrammar(lumine.grammars.grammarForScopeName("source.python"));
     editor.setText("def f():\n    value = 1\noutside = 2\n");
     await editor.getBuffer().getLanguageMode().atTransactionEnd();
-    spyOn(editor, "getSyntaxNodeAtBufferPosition").and.returnValue(null);
-
-    const block = findCodeBlockAtRow(editor, 0, pythonContext);
+    const result = await editor.analyzeSyntax(
+      require.resolve("./helpers/source-analysis"),
+      "inspectBlocks",
+      {
+        rows: [0],
+        tabLength: editor.getTabLength(),
+        language: "python",
+        syntax: false,
+      },
+    );
+    const block = result.blocks[0];
 
     expect(block.code.trimEnd()).toBe("def f():\n    value = 1");
     expect(block.row).toBe(1);
