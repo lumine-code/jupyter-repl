@@ -67,7 +67,7 @@ jobs:
           cache: npm
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.15.1"
       - name: Use HTTPS for GitHub git dependencies
         run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
       - name: Install package dependencies
@@ -125,7 +125,7 @@ jobs:
         run: mkdir -p "$TEMP"
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.15.1"
       - name: Install Linux build and headless-display dependencies
         if: runner.os == 'Linux'
         run: |
