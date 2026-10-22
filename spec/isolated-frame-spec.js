@@ -222,6 +222,36 @@ describe("an isolated rich output", () => {
     expect(frame.ready).toBeTrue();
   });
 
+  it("keeps dynamic opaque-origin output within its height bounds", async () => {
+    mount({
+      html: '<div id="sized" style="height:120px"></div>',
+      script: `window.lumineOutput.onMessage(data => {
+        if (data.type === "set-size") {
+          document.getElementById("sized").style.height = data.height + "px";
+        }
+      });`,
+      minHeight: 48,
+      maxHeight: 240,
+    });
+    const received = spyOn(frame, "_receive").and.callThrough();
+    await globalThis.conditionPromise(() => frame.ready);
+    const iframe = frame.refs.frame;
+    await globalThis.conditionPromise(
+      () => Math.round(iframe.getBoundingClientRect().height) === 120,
+    );
+    frame.postMessage({ type: "set-size", height: 600 });
+    // Dynamic widget updates must resize even after the document has loaded.
+    await globalThis.conditionPromise(
+      () => Math.round(frame.refs.frame.getBoundingClientRect().height) === 240,
+    );
+    frame.postMessage({ type: "set-size", height: 0 });
+    await globalThis.conditionPromise(
+      () => Math.round(frame.refs.frame.getBoundingClientRect().height) === 48,
+    );
+    expect(received.calls.allArgs().map(([data]) => data.type)).toContain("lumine-output-resize");
+    expect(frame.refs.frame.getAttribute("sandbox")).toBe("allow-scripts");
+  });
+
   it("bounds iframe height and ignores malformed measurements", () => {
     mount({ maxHeight: 800 });
     frame._receive({ type: "lumine-output-resize", height: 900000 });
