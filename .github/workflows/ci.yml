@@ -45,7 +45,7 @@ jobs:
       - name: Check formatting
         run: npm run format:check
       - name: Test frozen runtime fixture adapters
-        run: node --test script/prepare-original-view-fixture.test.js
+        run: node --test script/prepare-original-view-fixture.test.js script/check-original-runtime.test.js
       - name: Check package contents
         run: npm pack --dry-run
       - name: Check native ZeroMQ startup and socket cleanup
@@ -189,12 +189,7 @@ jobs:
           original_status=$?
           set -e
           cat "$RUNNER_TEMP/jupyter-original.log"
-          test "$original_status" -eq 1
-          grep -E '[0-9]+ specs, 6 failures' "$RUNNER_TEMP/jupyter-original.log"
-          if grep '\[FAIL\]' "$RUNNER_TEMP/jupyter-original.log" | grep -Ev '^(Jupyter completion code-point offsets|converting between character and code-unit indices) '; then
-            echo "Unexpected original-runtime regression"
-            exit 1
-          fi
+          node ../jupyter-repl/script/check-original-runtime.js "$RUNNER_TEMP/jupyter-original.log" "$original_status"
       - name: Run the Jasmine spec suite
         working-directory: lumine
         timeout-minutes: 20

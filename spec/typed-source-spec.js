@@ -150,6 +150,27 @@ describe("typed source preparation", () => {
     ]);
   });
 
+  it("preserves later magic cells when earlier analysis retires the cells cache", async () => {
+    editor.setText("# %% Code\nfirst()\n# %% Magic\n%%bash -e\nprintf 'once'\n");
+    const getCell = cells.getCell.bind(cells);
+    let available = true;
+    spyOn(cells, "getCell").and.callFake((...args) => (available ? getCell(...args) : null));
+    const codeManager = require("../lib/code-manager");
+    const method = editor.getBuffer().getLanguageMode().asynchronousSyntax
+      ? "findCodeBlocksInRange"
+      : "findCodeBlockAtRow";
+    const plan = codeManager[method].bind(codeManager);
+    spyOn(codeManager, method).and.callFake((...args) => {
+      available = false;
+      return plan(...args);
+    });
+
+    const blocks = await source.inlineBlocks(editor, 0, editor.getLastBufferRow(), () => cells);
+
+    expect(available).toBe(false);
+    expect(blocks.map((block) => block.code)).toEqual(["first()", "%%bash -e\nprintf 'once'\n"]);
+  });
+
   it("cancels selected execution when text moves while preparation awaits parsing", async () => {
     editor.setText("# %% Code\nextra()\nharmless()\n# %% Next\ndangerous()\n");
     editor.setSelectedBufferRange([
