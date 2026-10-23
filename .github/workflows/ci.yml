@@ -170,6 +170,7 @@ jobs:
           ln -s "$GITHUB_WORKSPACE/jupyter-repl/node_modules" "$GITHUB_WORKSPACE/jupyter-repl-original/node_modules"
           cp ../jupyter-repl/spec/unicode-completion-offsets-spec.js ../jupyter-repl-original/spec/
           cp ../jupyter-repl/spec/text-index-spec.js ../jupyter-repl-original/spec/
+          cp ../jupyter-repl/spec/typed-source-spec.js ../jupyter-repl-original/spec/
           # Preserve the frozen suite's cases while making isolated renderer
           # and pane fixtures use core's scheduler, item, dock and view contracts.
           for specification in adapter-provider-lifecycle-spec.js anywidget-spec.js output-pane-serialization-spec.js pane-teardown-spec.js; do

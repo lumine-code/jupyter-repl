@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 
 const typedSourceFailure =
-  "typed source preparation does not reinterpret empty cell bodies as the next executable cell";
+  "typed source preparation preserves later magic cells when earlier analysis retires the cells cache";
 const expectedFailures = [
   "converting between character and code-unit indices converts code-unit indices to protocol code-point boundaries",
   "converting between character and code-unit indices converts protocol code-point indices to the recorded UTF-16 boundaries",
@@ -23,11 +23,11 @@ function checkOriginalRuntime(output, status) {
   const summaries = [...text.matchAll(/^\s*(\d+) specs, (\d+) failures\s*$/gm)];
   if (
     summaries.length !== 1 ||
-    Number(summaries[0][1]) !== 1215 ||
+    Number(summaries[0][1]) !== 1216 ||
     Number(summaries[0][2]) !== expected.length
   )
     throw new Error(
-      "The original-runtime summary must report 1215 specs and the expected seven failures",
+      "The original-runtime summary must report 1216 specs and the expected seven failures",
     );
   // ListReporter prints the full failed name again before its assertion
   // details, without the ConsoleReporter's separate "Failures:" heading.
@@ -42,8 +42,7 @@ function checkOriginalRuntime(output, status) {
     .join(" ")
     .replace(/\s+/g, " ");
   for (const message of [
-    "Expected [ 'code' ] to equal [ 'code', 'code' ].",
-    "Expected [ 'dangerous()' ] to equal [ 'dangerous()', '%%bash -e printf 'once' ' ].",
+    "Expected [ 'first()' ] to equal [ 'first()', '%%bash -e printf 'once' ' ].",
   ]) {
     if (!typedSourceDetail.includes(message))
       throw new Error("The original missing-magic failure changed its assertion message");
