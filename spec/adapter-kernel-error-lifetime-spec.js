@@ -4,6 +4,8 @@ describe("Notebook kernel discovery error lifetime", () => {
     for (let index = 0; index < 20; index++) await Promise.resolve();
   };
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     await lumine.packages.activatePackage("jupyter-repl");
     integration = require("../lib/adapter-integration");
     integration.activateAdapterIntegration();

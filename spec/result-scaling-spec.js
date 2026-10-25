@@ -7,6 +7,11 @@ const MarkerStore = require("../lib/store/markers");
 // every bubble's position. These pin the three properties that keep those
 // costs off the common paths.
 describe("inline result scaling", () => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
+  });
+
   const withStubbedResizeObserver = async (body) => {
     const previous = global.ResizeObserver;
     global.ResizeObserver = class {

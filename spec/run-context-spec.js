@@ -4,6 +4,8 @@ describe("run command context", () => {
   let main, store, result, first, second, firstKernel, secondKernel, cells;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.attachToDOM(lumine.views.getView(lumine.workspace));
     const pack = await lumine.packages.activatePackage(path.resolve(__dirname, ".."));
     main = pack.mainModule;

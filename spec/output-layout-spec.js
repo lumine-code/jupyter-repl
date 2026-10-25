@@ -260,6 +260,8 @@ describe("result view layout observer lifetime", () => {
   let ResultView, MarkerStore, editor, view, observers, previousObserver, markerCallbacks;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     ResultView = require("../lib/components/result-view");
     MarkerStore = require("../lib/store/markers");
     observers = [];

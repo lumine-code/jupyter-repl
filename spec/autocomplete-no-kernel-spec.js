@@ -6,6 +6,8 @@ const root = path.resolve(__dirname, "..");
 describe("autocomplete without a running kernel", () => {
   let pack, facade, store, editor, oldGlobal, oldMinimum;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     oldMinimum = lumine.config.get("autocomplete.minimumWordLength");
     lumine.config.set("autocomplete.minimumWordLength", 1);
     if (lumine.packages.isPackageLoaded("jupyter-repl"))

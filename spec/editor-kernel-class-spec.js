@@ -20,6 +20,8 @@ describe("the jupyter-kernel editor class", () => {
   let kernels;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     editors = [];
     kernels = [];
     directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "jupyter-repl-class-")));

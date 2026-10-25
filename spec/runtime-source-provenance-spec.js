@@ -9,7 +9,9 @@ describe("executed editor source provenance", () => {
     generation: 1,
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     context = require("../lib/traceback-context");
     text = "before\n@identity\ndef fn():\n    return 1\nfn()";
     editor = {

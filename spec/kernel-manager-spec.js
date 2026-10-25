@@ -3,7 +3,9 @@ const path = require("path");
 describe("KernelManager kernel selection", () => {
   let manager;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     // Bootstrap specs unload the package and its module graph. Pair the
     // manager with the same current store generation this case observes.
     const { KernelManager } = require("../lib/kernel-manager");

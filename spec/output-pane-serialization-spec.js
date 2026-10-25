@@ -14,7 +14,9 @@ const DESERIALIZER = "jupyter-repl/OutputPane";
 describe("restoring the Output Area pane", () => {
   let loadedPackage = null;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     main = require("../lib/main");
     commands = require("../lib/commands");
     result = require("../lib/result");

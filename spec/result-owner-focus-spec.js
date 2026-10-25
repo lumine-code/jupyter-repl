@@ -1,6 +1,8 @@
 describe("Result owner cleanup focus", () => {
   let main, markers, first, second, view;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.attachToDOM(lumine.views.getView(lumine.workspace));
     main = (await lumine.packages.activatePackage("jupyter-repl")).mainModule;
     main.deserializeOutputPane();

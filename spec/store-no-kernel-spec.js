@@ -2,6 +2,8 @@ describe("empty kernel store lookup", () => {
   let store, editor, Kernel;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     // A preceding package lifecycle spec can replace this whole module graph.
     const Store = require("../lib/store").constructor;
     Kernel = require("../lib/kernel");

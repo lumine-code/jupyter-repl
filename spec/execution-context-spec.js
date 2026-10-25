@@ -31,6 +31,8 @@ describe("editor kernel resolution", () => {
 describe("worker execution grammar", () => {
   let editor, previous, store, python;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.useRealClock();
     previous = lumine.grammars.syntaxExecution;
     lumine.grammars.syntaxExecution = "worker";

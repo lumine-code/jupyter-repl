@@ -18,6 +18,8 @@ describe("source assistance in the addressed editor's session", () => {
     globalMode,
     settings;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     if (lumine.packages.isPackageLoaded("jupyter-repl"))
       await lumine.packages.unloadPackage("jupyter-repl");
     const language = await lumine.packages.activatePackage("language-python");

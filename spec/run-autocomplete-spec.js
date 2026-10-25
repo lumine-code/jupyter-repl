@@ -5,6 +5,8 @@ describe("Run autocomplete cancellation boundary", () => {
   let main, store, integration, editor, commands, events, calls, executions;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.attachToDOM(lumine.views.getView(lumine.workspace));
     const pkg = await lumine.packages.activatePackage(path.join(__dirname, ".."));
     main = pkg.mainModule;

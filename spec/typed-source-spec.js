@@ -9,6 +9,8 @@ describe("typed source preparation", () => {
   let source;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     await lumine.packages.activatePackage(path.resolve(__dirname, "../../language-ipython"));
     const provider = await lumine.packages.activatePackage(
       path.resolve(__dirname, "../../jupyter-cells"),

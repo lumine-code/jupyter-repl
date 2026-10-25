@@ -19,6 +19,8 @@ describe("the explicit jupyter.execution service", () => {
     adapters;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     main = require(path.join(__dirname, "..", manifest.main));
     result = require("../lib/result");
     store = require("../lib/store");
@@ -357,7 +359,9 @@ describe("the explicit jupyter.execution service", () => {
 describe("the optional jupyter.cells consumption", () => {
   let codeManager;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     main = require(path.join(__dirname, "..", manifest.main));
     store = require("../lib/store");
     codeManager = require("../lib/code-manager");

@@ -92,6 +92,8 @@ describe("kernel status action menu", () => {
 describe("kernel menu execution context", () => {
   let store;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.attachToDOM(lumine.workspace.getElement());
     const pack = await lumine.packages.activatePackage("jupyter-repl");
     const requireCurrent = require("node:module").createRequire(

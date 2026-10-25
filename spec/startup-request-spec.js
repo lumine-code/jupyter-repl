@@ -7,6 +7,8 @@ describe("kernel startup invocation ownership", () => {
   const spec = { name: "python3", display_name: "Python", language: "python", argv: ["python"] };
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     const { KernelManager } = require("../lib/kernel-manager");
     store = require("../lib/store");
     manager = new KernelManager();

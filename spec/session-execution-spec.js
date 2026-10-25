@@ -3,6 +3,8 @@ const path = require("node:path");
 describe("public editorless session execution", () => {
   let main, store, editor, kernels;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     const pkg = await lumine.packages.activatePackage(path.resolve(__dirname, ".."));
     main = pkg.mainModule;
     store = require("../lib/store");
@@ -56,6 +58,17 @@ describe("public editorless session execution", () => {
     expect(outcome.requestId).toBeTruthy();
     expect(kernels[1].outputStore.outputs[0].text).toBe("requested\n");
     expect(kernels[0].outputStore.outputs).toEqual([]);
+  });
+
+  it("keeps explicit session execution available while the source editor has None", async () => {
+    lumine.grammars.assignGrammar(editor, lumine.grammars.nullGrammar);
+    const receipt = await submit();
+    expect(receipt.accepted).toBe(true);
+    await Promise.resolve();
+    expect(kernels[1].code).toBe("print('requested')");
+    kernels[1].receive({ stream: "status", data: "ok" });
+    kernels[1].receive({ output_type: "status", execution_state: "idle" });
+    expect((await receipt.done).status).toBe("ok");
   });
 
   it("refuses a stale captured generation without sending code", async () => {

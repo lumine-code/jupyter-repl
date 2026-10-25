@@ -26,6 +26,8 @@ describe("batch inline feedback", () => {
     );
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     const pack = await lumine.packages.activatePackage(
       require("node:path").resolve(__dirname, ".."),
     );

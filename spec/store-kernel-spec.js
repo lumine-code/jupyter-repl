@@ -19,6 +19,8 @@ describe("store kernel tracking", () => {
   }
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     previousEditor = store.editor;
     previousActivePaneItem = store.activePaneItem;
     editor = await lumine.workspace.open();

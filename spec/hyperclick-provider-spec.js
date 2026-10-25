@@ -10,6 +10,8 @@ describe("kernel source navigation through hyperclick", () => {
   const source = () => ({ filename, line: 2, source: "def target():\n    return 1\n" });
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.attachToDOM(lumine.views.getView(lumine.workspace));
     const language = await lumine.packages.activatePackage("language-python");
     await language.resourceLoadPromise;

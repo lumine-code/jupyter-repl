@@ -7,6 +7,8 @@ describe("jupyter-repl bootstrap", () => {
   let pack, previousDebug;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.attachToDOM(lumine.views.getView(lumine.workspace));
     if (lumine.packages.isPackageLoaded(PACKAGE_NAME)) {
       await lumine.packages.unloadPackage(PACKAGE_NAME);

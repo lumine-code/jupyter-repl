@@ -29,6 +29,8 @@ describe("traceback navigation through the published hyperclick provider", () =>
   let previousDelay;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.useRealClock();
     previousDelay = lumine.config.get("hyperclick.hoverDelay");
     const sibling = path.resolve(__dirname, "..", "..", "hyperclick");

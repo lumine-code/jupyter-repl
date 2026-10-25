@@ -3,7 +3,9 @@ const { Disposable } = require("lumine");
 describe("store resource ownership", () => {
   let store;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     // The singleton may have been reloaded by a lifecycle spec; always create
     // this case's store from the current module generation.
     const Store = require("../lib/store").constructor;

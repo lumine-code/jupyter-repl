@@ -4,6 +4,11 @@ const { findCodeBlockAtRow } = require("../lib/code-manager");
 // the file. These pin both parts of the replacement contract: Jupyter asks the
 // public exact-row API only for foldable rows, and still returns real folds.
 describe("code-manager scaling", () => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
+  });
+
   let editor;
 
   const open = async (text) => {

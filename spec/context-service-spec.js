@@ -1,4 +1,9 @@
 describe("source context ownership", () => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
+  });
+
   it("observes a reentrant active session change during its initial callback", () => {
     const { Emitter } = require("lumine");
     const Provider = require("../lib/plugin-api/jupyter-provider");

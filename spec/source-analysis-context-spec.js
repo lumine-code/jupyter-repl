@@ -3,6 +3,8 @@ describe("source analysis keeps the execution's kernel context", () => {
   const compound = "if ready:\n    run()\nelse:\n    wait()";
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     source = require("../lib/run-source");
     resolveKernel = spyOn(require("../lib/execution-context"), "kernelForEditor").and.returnValue({
       language: "python",

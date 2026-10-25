@@ -450,6 +450,11 @@ describe("the result bubble", () => {
 });
 
 describe("measuring after attachment", () => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
+  });
+
   // The bubble lives in a block decoration the editor attaches asynchronously.
   // A final output that patches first measures a detached element: zero
   // scrollHeight, so no expand button and no auto-scroll — and with no more
@@ -880,6 +885,8 @@ describe("a bubble whose content resizes itself", () => {
   let previousResizeObserver;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     previousResizeObserver = global.ResizeObserver;
     // Capture the callback so an observation can be delivered by hand, with a
     // height — which is what the gate reads.

@@ -1,5 +1,7 @@
 describe("concurrent kernel pickers in editor windows", () => {
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.useRealClock();
     jasmine.attachToDOM(lumine.workspace.getElement());
     await lumine.packages.activatePackage("jupyter-repl");

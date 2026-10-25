@@ -1,6 +1,8 @@
 describe("public kernel signal command context", () => {
   let store, AdapterKernelBinding, mainModule, requireCurrent, inputController;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.useRealClock();
     jasmine.attachToDOM(lumine.workspace.getElement());
     const pack = lumine.packages.loadPackage("jupyter-repl");

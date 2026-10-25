@@ -81,6 +81,8 @@ describe("passive kernel availability", () => {
 describe("kernel availability service notifications", () => {
   let main, service, store, events, editor;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     main = (await lumine.packages.activatePackage("jupyter-repl")).mainModule;
     service = main.provideJupyterKernel();
     service.getRunningKernels();

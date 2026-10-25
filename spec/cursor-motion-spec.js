@@ -3,7 +3,9 @@ const { moveDown } = require("../lib/source-analysis/cursor-motion");
 describe("execution cursor scrolling", () => {
   let editor;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     editor = lumine.workspace.buildTextEditor();
     editor.setText("first\n\nnext\nlast");
   });

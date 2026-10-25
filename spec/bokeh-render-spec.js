@@ -2,7 +2,9 @@ describe("isolated Bokeh and Panel output", () => {
   let etch, Emitter, Session, renderDisplay, MEDIA_RENDERERS, captureExecution;
   let BokehView, BOKEH_LOAD, BOKEH_EXEC, PANEL_LOAD, PANEL_EXEC;
   let component, sessions;
-  beforeEach(() => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     // Lifecycle suites may have unloaded the package since these specs were
     // registered. Keep the renderer, public Session and output context together.
     etch = require("@lumine-code/etch");

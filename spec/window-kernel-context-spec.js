@@ -6,6 +6,8 @@ const path = require("node:path");
 describe("window-local kernel status and command pickers", () => {
   let owner, consumer, notebook, notebookDocument, directory;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.useRealClock();
     jasmine.attachToDOM(lumine.workspace.getElement());
     await lumine.packages.activatePackage("status-bar");

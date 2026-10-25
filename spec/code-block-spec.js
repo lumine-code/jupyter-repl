@@ -21,7 +21,9 @@ describe("code block detection for multiline strings", () => {
     return editor;
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     lumine.packages.deactivatePackages();
     refreshPackageModules();
   });
@@ -142,6 +144,8 @@ describe("Python compound blocks without syntax-tree or fold support", () => {
   let editor;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     refreshPackageModules();
     editor = await lumine.workspace.open();
     spyOn(editor, "getGrammar").and.returnValue({ scopeName: "source.python", name: "Python" });

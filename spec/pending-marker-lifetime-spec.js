@@ -1,6 +1,8 @@
 describe("Pending result marker ownership", () => {
   let store, markers, editor, kernel, result;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     await lumine.packages.activatePackage("jupyter-repl");
     store = require("../lib/store");
     result = require("../lib/result");

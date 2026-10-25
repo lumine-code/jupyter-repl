@@ -7,6 +7,8 @@ const PACKAGE_PATH = path.join(__dirname, "..");
 
 describe("kernel commands picker command", () => {
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.attachToDOM(lumine.views.getView(lumine.workspace));
     await lumine.packages.activatePackage(PACKAGE_PATH);
     services = require("../lib/services");

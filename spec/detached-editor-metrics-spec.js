@@ -1,4 +1,9 @@
 describe("Inline output measurement across editor windows", () => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
+  });
+
   let lease, bubble, markerStore;
 
   afterEach(async () => {

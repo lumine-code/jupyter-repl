@@ -5,6 +5,8 @@ describe("Jupyter completion code-point offsets", () => {
   let editor, kernel, store, provider, requests, inspections, reply;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     for (const method of ["openExternal", "openPath", "showItemInFolder", "openApplication"])
       spyOn(lumine.shell, method).and.resolveTo();
     spyOn(lumine.application, "openWindow").and.resolveTo();

@@ -3,7 +3,9 @@ let IsolatedFrame;
 describe("an isolated rich output", () => {
   let frame;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.useRealClock();
     ({ IsolatedFrame } = require("../lib/components/result-view/isolated-frame"));
   });

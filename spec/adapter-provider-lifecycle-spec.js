@@ -9,6 +9,8 @@ describe("notebook adapter provider edge ownership", () => {
   let main, integration, kernel, transport, owner, adapter, service, item, editor, leases, jobs;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     if (lumine.packages.isPackageLoaded("jupyter-repl"))
       await lumine.packages.unloadPackage("jupyter-repl");
     const pack = await lumine.packages.activatePackage(path.resolve(__dirname, ".."));

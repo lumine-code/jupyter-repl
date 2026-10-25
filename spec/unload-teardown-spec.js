@@ -19,6 +19,8 @@ describe("teardown with a running kernel", () => {
   // an async beforeEach is shared with whatever the rest of the suite left
   // pending, and a full run can spend it before this even starts.
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     store = require("../lib/store");
     // The package activates on its commands, so dispatch one to trigger it.
     const activation = lumine.packages.activatePackage(PACKAGE_PATH);

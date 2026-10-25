@@ -5,6 +5,8 @@ const path = require("node:path");
 describe("Kernel bindings for saved placeholder-shaped paths", () => {
   let directory, temporaryRoot, editors, store, Kernel, KernelTransport, kernels;
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     jasmine.useRealClock();
     temporaryRoot = fs.realpathSync.native(os.tmpdir());
     directory = fs.realpathSync.native(

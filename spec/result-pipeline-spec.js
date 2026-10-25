@@ -2,6 +2,8 @@ describe("the shared result pipeline", () => {
   let result, editor, markers, kernel, session, previousDefault, previousResizeObserver;
 
   beforeEach(async () => {
+    const textGrammarPackage = await lumine.packages.activatePackage("language-text");
+    await textGrammarPackage.resourceLoadPromise;
     result = require("../lib/result");
     const OutputStore = require("../lib/store/output");
     const MarkerStore = require("../lib/store/markers");
