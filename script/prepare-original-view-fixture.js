@@ -41,6 +41,33 @@ function prepareKernelPickerActions(source) {
   );
 }
 
+// The frozen runtime consumes v1 string targets. Current notebook providers
+// advertise v2 and carry that same source in an immutable snapshot. Translate
+// only this wire shape; keep the historical implementation and assertions.
+function prepareAdapterTargets(source) {
+  const original = 'const code = target.source || "";';
+  if (source.split(original).length !== 2)
+    throw new Error("Expected exactly one frozen target source read.");
+  return source.replace(
+    original,
+    'const code = target.source ?? target.sourceSnapshot?.toString() ?? "";',
+  );
+}
+
+function prepareAdapterManifest(manifest) {
+  const versions = manifest.consumedServices?.["jupyter.adapter"]?.versions;
+  if (
+    !versions ||
+    Object.keys(versions).length !== 1 ||
+    versions["^1.0.0"] !== "consumeJupyterAdapter"
+  )
+    throw new Error("Expected the frozen v1 adapter service declaration.");
+  manifest.consumedServices["jupyter.adapter"].versions = {
+    "^2.0.0": "consumeJupyterAdapter",
+  };
+  return manifest;
+}
+
 // The frozen suite predates package module generations. Refresh its imported
 // constructors and helper singletons after activation, without changing any
 // original implementation or assertion. Relative fixture imports stay intact.
@@ -237,6 +264,17 @@ if (require.main === module) {
   fs.writeFileSync(file, prepare(fs.readFileSync(file, "utf8")));
   const pickerFile = path.join(root, "spec/item-actions-spec.js");
   fs.writeFileSync(pickerFile, prepareKernelPickerActions(fs.readFileSync(pickerFile, "utf8")));
+  const manifestFile = path.join(root, "package.json");
+  fs.writeFileSync(
+    manifestFile,
+    JSON.stringify(
+      prepareAdapterManifest(JSON.parse(fs.readFileSync(manifestFile, "utf8"))),
+      null,
+      2,
+    ) + "\n",
+  );
+  const targetsFile = path.join(root, "lib/adapter-target-execution.js");
+  fs.writeFileSync(targetsFile, prepareAdapterTargets(fs.readFileSync(targetsFile, "utf8")));
   // The CI control runs from the editor checkout, which owns its parser.
   const parser = createRequire(path.join(process.cwd(), "package.json"))("@babel/parser");
   console.log(
@@ -247,6 +285,8 @@ if (require.main === module) {
 module.exports = {
   prepare,
   prepareKernelPickerActions,
+  prepareAdapterTargets,
+  prepareAdapterManifest,
   prepareGenerationImports,
   prepareGenerationFixtures,
 };

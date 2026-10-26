@@ -1,6 +1,34 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { prepare, prepareKernelPickerActions } = require("./prepare-original-view-fixture");
+const {
+  prepare,
+  prepareKernelPickerActions,
+  prepareAdapterTargets,
+  prepareAdapterManifest,
+} = require("./prepare-original-view-fixture");
+
+test("translates snapshot source delivery while preserving the frozen string behavior", () => {
+  const source = prepareAdapterTargets(
+    'return function(target) { const code = target.source || ""; return code; }',
+  );
+  const read = Function(source)();
+  assert.equal(read({ source: "legacy" }), "legacy");
+  assert.equal(read({ sourceSnapshot: { toString: () => "notebook source" } }), "notebook source");
+  assert.equal(read({ source: "", sourceSnapshot: { toString: () => "unused" } }), "");
+  assert.equal(read({}), "");
+  assert.throws(() => prepareAdapterTargets(""), /exactly one/);
+});
+
+test("adapts only the frozen service declaration and rejects a drifted control", () => {
+  const manifest = {
+    consumedServices: { "jupyter.adapter": { versions: { "^1.0.0": "consumeJupyterAdapter" } } },
+  };
+  assert.deepEqual(prepareAdapterManifest(manifest).consumedServices["jupyter.adapter"].versions, {
+    "^2.0.0": "consumeJupyterAdapter",
+  });
+  assert.throws(() => prepareAdapterManifest(manifest), /frozen v1/);
+  assert.throws(() => prepareAdapterManifest({}), /frozen v1/);
+});
 
 test("changes only the original view mock and preserves both original navigation assertions", () => {
   const before =
