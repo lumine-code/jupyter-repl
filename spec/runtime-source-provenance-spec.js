@@ -1,7 +1,7 @@
-const { Disposable, Emitter } = require("lumine");
+const { Disposable, Emitter, TextBuffer } = require("lumine");
 
 describe("executed editor source provenance", () => {
-  let context, text, editor, kernel, events;
+  let context, text, editor, kernel, events, buffer;
   const frame = () => ({
     filename: "<ipython-input-17-a1b2>",
     line: 1,
@@ -14,8 +14,17 @@ describe("executed editor source provenance", () => {
     await textGrammarPackage.resourceLoadPromise;
     context = require("../lib/traceback-context");
     text = "before\n@identity\ndef fn():\n    return 1\nfn()";
+    buffer = new TextBuffer({ text });
+    let capturedText = text;
     editor = {
       getText: () => text,
+      getBuffer() {
+        if (capturedText !== text) {
+          capturedText = text;
+          buffer.setText(text);
+        }
+        return buffer;
+      },
       isDestroyed: () => false,
       setSelectedBufferRange: jasmine.createSpy("select executed source"),
       scrollToBufferPosition: jasmine.createSpy("scroll executed source"),
@@ -36,7 +45,10 @@ describe("executed editor source provenance", () => {
       3,
     )({ stream: "execution_count", data: 17 });
   });
-  afterEach(() => events.dispose());
+  afterEach(() => {
+    events.dispose();
+    buffer.destroy();
+  });
 
   it("uses the captured execution count and decorator line to open its source", async () => {
     spyOn(lumine.workspace, "open").and.returnValue(Promise.resolve(editor));

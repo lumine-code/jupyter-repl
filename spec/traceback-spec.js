@@ -10,6 +10,25 @@ let getSuggestionForElement;
 
 describe("traceback navigation", () => {
   let view;
+  let sourceBuffers = [];
+  function sourceEditor(getText, options = {}) {
+    const { TextBuffer } = require("lumine");
+    let text = getText();
+    const buffer = new TextBuffer({ text });
+    sourceBuffers.push(buffer);
+    return {
+      ...options,
+      getText,
+      getBuffer() {
+        const current = getText();
+        if (current !== text) {
+          text = current;
+          buffer.setText(current);
+        }
+        return buffer;
+      },
+    };
+  }
   beforeEach(() => {
     Traceback = require("../lib/components/result-view/traceback");
     ({ parseTraceback } = require("../lib/traceback"));
@@ -25,6 +44,8 @@ describe("traceback navigation", () => {
   afterEach(() => {
     view?.destroy();
     view = null;
+    for (const buffer of sourceBuffers) buffer.destroy();
+    sourceBuffers = [];
   });
 
   it("recognizes ANSI IPython frames and classic quoted Windows paths", () => {
@@ -100,7 +121,7 @@ describe("traceback navigation", () => {
     );
     expect(part.location.column).toBe(8);
     expect(part.location.endColumn).toBe(13);
-    const editor = { getText: () => "if True print('x')" };
+    const editor = sourceEditor(() => "if True print('x')");
     expect(rangeFor(captureSource(editor, editor.getText(), 0), part.location)).toEqual([
       [0, 8],
       [0, 13],
@@ -108,7 +129,7 @@ describe("traceback navigation", () => {
   });
 
   it("maps dedented execution rows back to the original selected block", () => {
-    const editor = { getText: () => "before\n    x = 1\n    y = x / 0\nafter" };
+    const editor = sourceEditor(() => "before\n    x = 1\n    y = x / 0\nafter");
     const snapshot = captureSource(editor, "x = 1\ny = x / 0", 2);
     expect(rangeFor(snapshot, { line: 2, column: 8, endColumn: 9 })).toEqual([
       [2, 12],
@@ -118,7 +139,7 @@ describe("traceback navigation", () => {
 
   it("refuses source links after source edits and for unmappable magic transformations", () => {
     let text = "x = 1\nx / 0";
-    const editor = { getText: () => text };
+    const editor = sourceEditor(() => text);
     const snapshot = captureSource(editor, text, 1);
     text = "different()\nx / 0";
     expect(rangeFor(snapshot, { line: 2 })).toBe(null);
@@ -128,7 +149,7 @@ describe("traceback navigation", () => {
   });
 
   it("maps normalized Python source back into a CRLF buffer", () => {
-    const editor = { getText: () => "before\r\nx = 1\r\nx / 0\r\nafter" };
+    const editor = sourceEditor(() => "before\r\nx = 1\r\nx / 0\r\nafter");
     const snapshot = captureSource(editor, "x = 1\nx / 0", 2);
     expect(rangeFor(snapshot, { line: 2 })).toEqual([
       [2, 0],
@@ -138,7 +159,7 @@ describe("traceback navigation", () => {
 
   it("binds older frame counts to executed snapshots instead of the newest source", () => {
     const kernel = {};
-    const editor = { getText: () => "def f():\n    return 1 / 0\nf()" };
+    const editor = sourceEditor(() => "def f():\n    return 1 / 0\nf()");
     const first = captureExecution(editor, kernel, "def f():\n    return 1 / 0", 1);
     first({ stream: "execution_count", data: 17 });
     const second = captureExecution(editor, kernel, "f()", 2);
@@ -153,7 +174,7 @@ describe("traceback navigation", () => {
 
   it("does not reuse a previous kernel generation's count for new outputs", () => {
     const kernel = {};
-    const editor = { getText: () => "first()\nsecond()" };
+    const editor = sourceEditor(() => "first()\nsecond()");
     const first = captureExecution(editor, kernel, "first()", 0);
     first({ stream: "execution_count", data: 1 });
     first({ stream: "execution_count", data: 1 });
@@ -166,7 +187,7 @@ describe("traceback navigation", () => {
 
   it("clears old provenance on restart even after the first count left the history limit", () => {
     const kernel = {};
-    const editor = { getText: () => "work()" };
+    const editor = sourceEditor(() => "work()");
     for (let count = 1; count <= 201; count++) {
       captureExecution(editor, kernel, "work()", 0)({ stream: "execution_count", data: count });
     }
@@ -202,7 +223,7 @@ describe("traceback navigation", () => {
   it("does not reuse a suggestion after source edits or source-editor destruction", async () => {
     let code = "work()";
     let destroyed = false;
-    const editor = { getText: () => code, isDestroyed: () => destroyed };
+    const editor = sourceEditor(() => code, { isDestroyed: () => destroyed });
     const snapshot = captureSource(editor, code, 0);
     const open = spyOn(lumine.workspace, "open");
     view = new Traceback({

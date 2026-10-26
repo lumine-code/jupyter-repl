@@ -75,7 +75,7 @@ describe("source context ownership", () => {
       editor.setText("alpha.beta");
       lumine.grammars.assignGrammar(editor, lumine.grammars.nullGrammar);
       const text = spyOn(editor, "getText").and.throwError("None must not read source");
-      const selected = spyOn(editor, "getSelectedText").and.throwError(
+      const selected = spyOn(editor, "getTextInBufferRange").and.throwError(
         "None must not read selections",
       );
       const row = spyOn(editor, "lineTextForBufferRow").and.throwError("None must not read rows");
@@ -120,7 +120,7 @@ describe("source context ownership", () => {
 
       lumine.grammars.assignGrammar(editor, lumine.grammars.nullGrammar);
       editor.setText("gamma.delta");
-      const selected = spyOn(editor, "getSelectedText").and.throwError(
+      const selected = spyOn(editor, "getTextInBufferRange").and.throwError(
         "None must not read selections",
       );
       const row = spyOn(editor, "lineTextForBufferRow").and.throwError("None must not read rows");

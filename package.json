@@ -151,6 +151,13 @@
     }
   },
   "configSchema": {
+    "maxExecutionSize": {
+      "title": "Maximum execution source size",
+      "description": "Maximum UTF-16 source size in Mi units for one execution preparation. The JSON transport runtime ceiling always applies. Smaller selections remain executable in larger documents.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 32
+    },
     "autocomplete": {
       "title": "Enable autocomplete",
       "description": "If enabled, use autocomplete options provided by the current kernel. This applies to the main editor and the expression editors other jupyter packages watch through this service.",

@@ -61,6 +61,8 @@ Commands available in `lumine-workspace`:
 
 The last six act on the result the command was dispatched from — its own context menu or its chrome — and otherwise on the result at the cursor's line.
 
+Execution preparation has a default budget of 32 Mi UTF-16 units, configurable through `jupyter-repl.maxExecutionSize` and always bounded by the JSON transport's runtime ceiling. The budget applies to the code being prepared, so a small selected block remains executable in a much larger document. Oversized code or encoded messages fail explicitly before materialization or transport; code is never truncated. Kernel completion uses at most a 64 Ki prefix, and kernel magic-header detection uses at most 4,096 units from the first line. Traceback navigation retains only the executed rows, up to 1 Mi units and 4,096 rows, plus a source revision; larger executions remain runnable but omit that optional mapping.
+
 Commands available in `.jupyter-repl.kernel-picker`:
 
 - `jupyter-repl:select-kernel`: choose the selected kernel for the request that opened the picker,

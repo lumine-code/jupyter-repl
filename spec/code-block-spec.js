@@ -132,6 +132,7 @@ describe("comment delimiter lookup", () => {
     const editor = {
       getCursorBufferPosition: () => ({ row: 3, column: 14 }),
       lineTextForBufferRow: () => "\t  value",
+      getBuffer: () => ({ lineLengthForRow: () => 8 }),
       getCommentDelimitersForBufferPosition,
     };
 
