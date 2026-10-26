@@ -26,6 +26,8 @@ liveSuite("a real Python notebook session", () => {
 
   it("executes, persists rich output, recovers from errors and restarts without old state", async () => {
     jasmine.useRealClock();
+    const pythonPackage = await lumine.packages.activatePackage("language-python");
+    await pythonPackage.resourceLoadPromise;
     previousRuntime = process.env.JUPYTER_RUNTIME_DIR;
     directory = fs.mkdtempSync(path.join(os.tmpdir(), "lumine-live-notebook-"));
     const ipythonDirectory = path.join(directory, "ipython");
@@ -74,6 +76,12 @@ liveSuite("a real Python notebook session", () => {
     );
     const provider = view.mainModule.provideJupyterAdapter();
     const adapter = provider.getAdapterForItem(notebook);
+    for (const [index, source] of sources.entries()) {
+      const target = adapter.getRunTarget(`live-cell-${index}`);
+      expect(target.grammar.scopeName).toBe("source.python");
+      expect(target.executable).toBeTrue();
+      expect(target.source).toBe(source);
+    }
     const ZMQKernel = require("../lib/zmq-kernel");
     const Kernel = require("../lib/kernel");
     await new Promise((resolve, reject) => {
