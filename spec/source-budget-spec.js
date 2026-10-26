@@ -4,6 +4,25 @@ describe("Jupyter source budgets", () => {
     budget = require("../lib/source-budget");
   });
 
+  it("checks adapter snapshot length before requesting its legacy string", () => {
+    const source = {
+      length: 512 * 1024 * 1024,
+      toString: jasmine.createSpy("large source").and.throwError("must not read"),
+    };
+    const target = { sourceSnapshot: source };
+    Object.defineProperty(target, "source", {
+      get() {
+        throw new Error("legacy getter");
+      },
+    });
+    expect(() => budget.readTargetSource(target)).toThrowError(/Execution source exceeds/);
+    expect(source.toString).not.toHaveBeenCalled();
+    const text = "a😀\r\ne\u0301";
+    expect(
+      budget.readTargetSource({ sourceSnapshot: { length: text.length, toString: () => text } }),
+    ).toBe(text);
+  });
+
   it("checks selected-range metadata before reading an oversized source", () => {
     const editor = {
       getBuffer: () => ({

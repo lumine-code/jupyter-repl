@@ -43,7 +43,8 @@ type Owner = {
 type Target = {
   id: string;
   index?: number;
-  source: string;
+  source?: string;
+  sourceSnapshot?: { readonly length: number; toString(): string; equals(other: object): boolean };
   editor: TextEditor;
   grammar: Grammar;
   type: "code" | "markdown" | "raw";
@@ -113,6 +114,8 @@ module.exports = {
 The resolver is the service. Its adapters describe individual pane items; consumers resolve the item named by an invocation before asynchronous preparation. A run submits that explicit item, its owner and captured target snapshots through [`jupyter.execution`](jupyter.execution.md). Changing the active pane or selected cells does not redirect a captured request.
 
 The owner is the document shared by all splits. Its identity and kernel binding survive closing one pane and end when the last view closes. Target IDs are stable cell identities; an index is only a position snapshot. Output and completion callbacks resolve IDs again, so a reordered cell keeps its output and a deleted cell receives none. Concurrent requests to one cell have independent timing and completion, while its running indicator remains set until all accepted executions finish.
+
+Targets may carry an immutable `sourceSnapshot` instead of an eager `source` string. The runtime checks its UTF-16 length against `jupyter-repl.maxExecutionSize` and the hard JSON transport ceiling before materializing code. Providers may retain a nonenumerable legacy `source` getter for explicit callers; spreading a target must preserve its snapshot without reading that getter. Snapshots identify the captured revision and must remain unchanged after edits. Legacy string targets remain supported.
 
 `grammar` describes syntax and language tooling for one target. Kernel selection uses the document's `getKernelLanguage()` or `getKernelGrammar()`, independently of cell syntax overrides. `setKernelSpec()` is the successful-binding commit point and atomically replaces kernelspec and the complete language-info object; cancelled or failed connections leave metadata unchanged.
 
