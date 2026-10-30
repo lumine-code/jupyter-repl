@@ -59,6 +59,7 @@
     "test": "lumine --test spec",
     "test:zeromq": "node script/check-zeromq.js",
     "test:kernel-lifecycle": "node script/check-kernel-lifecycle.js",
+    "test:process-diagnostics": "node --test script/process-diagnostics.test.js",
     "build:vega": "node script/build-vega.js",
     "build:widgets": "node script/build-widgets.js",
     "build:isolated-frame": "node script/build-isolated-frame.js",

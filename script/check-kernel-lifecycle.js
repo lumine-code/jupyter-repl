@@ -53,7 +53,12 @@ global.lumine = {
     ["addError", "addWarning", "addInfo"].map((method) => [
       method,
       (title, options) => {
-        notifications.push({ method, title, detail: options?.detail });
+        notifications.push({
+          method,
+          title,
+          description: options?.description,
+          detail: options?.detail,
+        });
         return { dismiss() {} };
       },
     ]),
@@ -75,6 +80,21 @@ require.extensions[".jsx"] = (module, filename) => {
 };
 
 const ZMQKernel = require("../lib/zmq-kernel");
+// Pipe data boundaries are arbitrary. Exercise the real process diagnostics
+// with deliberately small fragments on every platform, rather than relying on
+// the OS to happen to split ipykernel's startup logging in a revealing place.
+const monitorNotifications = ZMQKernel.prototype.monitorNotifications;
+ZMQKernel.prototype.monitorNotifications = function (child) {
+  const emit = child.stderr.emit;
+  child.stderr.emit = function (event, data, ...args) {
+    if (event !== "data" || !Buffer.isBuffer(data)) return emit.call(this, event, data, ...args);
+    let emitted = false;
+    for (let offset = 0; offset < data.length; offset += 13)
+      emitted = emit.call(this, event, data.subarray(offset, offset + 13), ...args) || emitted;
+    return emitted;
+  };
+  return monitorNotifications.call(this, child);
+};
 const Kernel = require("../lib/kernel");
 const { queryRuntimeSource } = require("../lib/runtime-source");
 const live = new Set();
