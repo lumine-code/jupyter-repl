@@ -28,7 +28,7 @@ describe("Kernel input presentation ownership", () => {
     const extra = await lumine.workspace.openEditorWindow({ show: false });
     const InputView = require("../lib/input-view");
     const confirmed = jasmine.createSpy("confirmed");
-    view = new InputView({ prompt: "Value?" }, confirmed);
+    view = new InputView({ prompt: "Value?", allowCancel: true }, confirmed);
     view.attach({ window: extra });
     expect(view.element.ownerDocument).toBe(extra.getDocument());
     view.miniEditor.setText("pending answer");
@@ -80,6 +80,24 @@ describe("Kernel input presentation ownership", () => {
     expect(cancelled).not.toHaveBeenCalled();
     submit.click();
     expect(confirmed).toHaveBeenCalledOnceWith("answer");
+  });
+
+  it("cancels an optional request when focus leaves its action button", async () => {
+    const InputView = require("../lib/input-view");
+    const cancelled = jasmine.createSpy("cancelled");
+    view = new InputView({ allowCancel: true }, null, cancelled);
+    const outside = document.createElement("button");
+    jasmine.attachToDOM(view.element);
+    jasmine.attachToDOM(outside);
+    spyOn(document, "hasFocus").and.returnValue(true);
+    view.miniEditor.getElement().focus();
+    view.element.querySelector(".btn-primary").focus();
+    await Promise.resolve();
+    expect(view.closed).not.toBeTrue();
+    outside.focus();
+    await Promise.resolve();
+    expect(view.closed).toBeTrue();
+    expect(cancelled).toHaveBeenCalledTimes(1);
   });
 
   it("does not attach a retired input view to a new modal host", () => {
