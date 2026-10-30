@@ -610,6 +610,13 @@
     flex-direction: column;
     height: 100%;
 
+    .output-area-toolbar {
+      flex: 0 0 auto;
+      margin-inline: -10px;
+      padding: 0 10px 10px;
+      border-bottom: 1px solid var(--base-border-color);
+    }
+
     .multiline-container {
       font-family: monospace;
 

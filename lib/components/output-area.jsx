@@ -72,7 +72,7 @@ class OutputArea {
 
   renderToolbar(outputStore) {
     return (
-      <div className="block">
+      <div className="block output-area-toolbar">
         <div className="btn-group">
           <button
             className={`btn icon icon-clock${this.showHistory ? " selected" : ""}`}
