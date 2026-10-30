@@ -48,6 +48,40 @@ describe("Kernel input presentation ownership", () => {
     expect(cancelled).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps a required password request open on Escape and submits its masked draft once", () => {
+    const InputView = require("../lib/input-view");
+    const confirmed = jasmine.createSpy("confirmed");
+    const cancelled = jasmine.createSpy("cancelled");
+    const baseline = lumine.textEditors.getEditors().length;
+    view = new InputView({ password: true, allowCancel: false }, confirmed, cancelled);
+    view.attach();
+    const editor = view.miniEditor;
+    editor.setText("kernel secret");
+    expect(editor.getElement().style.webkitTextSecurity).toBe("disc");
+    lumine.commands.dispatch(editor.getElement(), "core:cancel");
+    expect(view.closed).not.toBeTrue();
+    expect(cancelled).not.toHaveBeenCalled();
+    lumine.commands.dispatch(editor.getElement(), "core:confirm");
+    view.confirm();
+    expect(confirmed).toHaveBeenCalledOnceWith("kernel secret");
+    expect(lumine.textEditors.getEditors().length).toBe(baseline);
+  });
+
+  it("keeps a cancellable request alive while focus moves to its Submit button", async () => {
+    const InputView = require("../lib/input-view");
+    const confirmed = jasmine.createSpy("confirmed");
+    const cancelled = jasmine.createSpy("cancelled");
+    view = new InputView({ allowCancel: true }, confirmed, cancelled);
+    view.attach();
+    view.miniEditor.setText("answer");
+    const submit = view.element.querySelector(".btn-primary");
+    submit.focus();
+    await Promise.resolve();
+    expect(cancelled).not.toHaveBeenCalled();
+    submit.click();
+    expect(confirmed).toHaveBeenCalledOnceWith("answer");
+  });
+
   it("does not attach a retired input view to a new modal host", () => {
     const InputView = require("../lib/input-view");
     view = new InputView({ prompt: "Retired" });

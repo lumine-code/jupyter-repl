@@ -641,21 +641,6 @@
     }
   }
 
-  /* -------------- Input view ----------------- */
-
-  &.input-view {
-    .label {
-      padding-bottom: var(--ui-spacing);
-    }
-
-    &.password {
-      /* Mask password input - target the actual text spans */
-      .line span {
-        -webkit-text-security: disc;
-      }
-    }
-  }
-
   /* -------------- Output Truncation ----------------- */
 
   .output-truncated {
