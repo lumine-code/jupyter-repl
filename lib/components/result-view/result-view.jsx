@@ -304,6 +304,7 @@ class ResultViewComponent {
         <div
           className="jupyter_cell_display"
           ref="display"
+          attributes={{ "data-scrollbar": "auto" }}
           style={{
             // Empty rather than absent: etch only writes the style keys its
             // vdom names, so a key that comes and goes would leave the last
@@ -368,6 +369,17 @@ class ResultViewComponent {
   afterRender() {
     const display = this.refs.display;
     const isPlain = this.layout.isPlain;
+    if (display !== this.scrollbarElement) {
+      this.scrollbarObservation?.dispose();
+      this.scrollbar?.dispose();
+      this.scrollbarElement = display;
+      this.scrollbar = display && lumine.scrollbars?.attach(display, { policy: "auto" });
+      this.scrollbarObservation =
+        display &&
+        lumine.scrollbars?.observe(display, () => {
+          if (!this.destroyed) this.afterRender();
+        });
+    }
 
     // Every metric is read before anything writes: scrollToBottom sets
     // scrollTop, and reading scrollHeight after that write forces a synchronous
@@ -375,13 +387,23 @@ class ResultViewComponent {
     // streams in.
     const scrollHeight = display ? display.scrollHeight : 0;
     const clientHeight = display ? display.clientHeight : 0;
-    // What the display's own scrollbars take, which is how far in from the
-    // box's edges the overlays sit. Measured rather than assumed: the width is
-    // the platform's, and an overlay scrollbar's is zero. Absolute offsets are
-    // measured from the container's padding box, which is exactly this
-    // element's border box — so these are the offsets directly.
-    const gutterRight = display ? display.offsetWidth - display.clientWidth : 0;
-    const gutterBottom = display ? display.offsetHeight - display.clientHeight : 0;
+    // Overlay tracks reserve no native gutter. Keep the resize grip and action
+    // buttons out of their hit areas using the shared visual geometry instead.
+    const geometry = display && lumine.scrollbars?.getGeometry(display);
+    const gutterRight = geometry
+      ? geometry.canScrollVertically
+        ? geometry.verticalSize
+        : 0
+      : display
+        ? display.offsetWidth - display.clientWidth
+        : 0;
+    const gutterBottom = geometry
+      ? geometry.canScrollHorizontally
+        ? geometry.horizontalSize
+        : 0
+      : display
+        ? display.offsetHeight - display.clientHeight
+        : 0;
 
     this.outputScroll.attach(display);
     this.scrollToBottom(display, scrollHeight, clientHeight, isPlain);
@@ -495,6 +517,9 @@ class ResultViewComponent {
     this.endResize();
     this.windowParticipant.dispose();
     this.outputScroll.destroy();
+    this.scrollbarObservation?.dispose();
+    this.scrollbar?.dispose();
+    this.scrollbar = this.scrollbarElement = null;
     if (this.wheelElement && this.wheelHandler) {
       this.wheelElement.removeEventListener("wheel", this.wheelHandler);
       this.wheelElement = null;

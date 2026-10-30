@@ -64,6 +64,40 @@ describe("an isolated rich output", () => {
     expect(frame.port).toBe(null);
   });
 
+  it("uses the shared overlay inside the sandbox and keeps its chrome out of checkpoints", async () => {
+    let resolve;
+    let reject;
+    const measured = new Promise((yes, no) => {
+      resolve = yes;
+      reject = no;
+    });
+    mount({
+      html: '<div id="scroller" data-scrollbar="auto" style="width:120px;height:80px;overflow:auto"><div style="width:600px;height:600px">Scrollable output</div></div>',
+      script: `
+        window.lumineOutput.registerWindowState("overlay-test", { capture: () => ({}), restore() {} });
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const scroller = document.getElementById("scroller");
+          scroller.scrollTop = 40;
+          window.lumineOutput.send({ type: "overlay-probe", shared: !!window.LumineScrollbars,
+            chrome: document.querySelectorAll("[data-scrollbar-chrome]").length,
+            gutter: scroller.offsetWidth - scroller.clientWidth });
+        }));
+      `,
+      onError: reject,
+      onMessage: (data) => {
+        if (data.type === "overlay-probe") resolve(data);
+      },
+    });
+    const probe = await measured;
+    expect(probe.shared).toBeTrue();
+    expect(probe.chrome).toBeGreaterThan(0);
+    expect(probe.gutter).toBe(0);
+    const state = await frame.prepareWindowChange();
+    expect(state.checkpoint.scroll.length).toBe(2);
+    expect(state.checkpoint.scroll[0].top).toBe(40);
+    state.dispose();
+  });
+
   it("restarts a frame that connected before the window-change callback", async () => {
     let ready;
     const loaded = new Promise((resolve) => {

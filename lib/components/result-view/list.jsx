@@ -22,6 +22,7 @@ class ScrollList {
         tabIndex={-1}
         style={{ fontSize: outputFontSize() }}
         attributes={{
+          "data-scrollbar": "auto",
           "data-wrap-output": String(lumine.config.get("jupyter-repl.wrapOutput") ?? true),
         }}
       >

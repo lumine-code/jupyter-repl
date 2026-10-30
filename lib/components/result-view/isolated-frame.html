@@ -44,7 +44,19 @@
         const windowStates = new Map();
         let executableOutput = false;
         let initialCheckpoint = null;
+        let scrollbars = null;
         const output = document.getElementById("output");
+        const contentNodes = () =>
+          [...output.querySelectorAll("*")].filter(
+            (node) => !node.closest("[data-scrollbar-chrome]"),
+          );
+        const setScrollbarVariables = (variables) => {
+          for (const [name, value] of Object.entries(variables || {})) {
+            if (/^(?:scrollbar-[a-z-]+|text-color)$/.test(name) && typeof value === "string")
+              document.documentElement.style.setProperty(`--${name}`, value);
+          }
+          scrollbars?.refresh();
+        };
         let resizePending = false;
         let resizeFrame;
         const send = (data) => {
@@ -83,6 +95,8 @@
           disposing = true;
           cancelAnimationFrame(resizeFrame);
           observer.disconnect();
+          scrollbars?.dispose();
+          scrollbars = null;
           const pending = [];
           for (const callback of disposers) {
             try {
@@ -143,7 +157,7 @@
               end: node.selectionEnd,
             })),
             details: [...output.querySelectorAll("details")].map((node) => node.open),
-            scroll: [...output.querySelectorAll("*")].map((node) => ({
+            scroll: contentNodes().map((node) => ({
               top: node.scrollTop,
               left: node.scrollLeft,
             })),
@@ -169,7 +183,7 @@
             [...output.querySelectorAll("details")].forEach((node, index) => {
               node.open = !!state.details?.[index];
             });
-            [...output.querySelectorAll("*")].forEach((node, index) => {
+            contentNodes().forEach((node, index) => {
               const value = state.scroll?.[index];
               if (value) {
                 node.scrollTop = value.top;
@@ -199,6 +213,15 @@
           initialized = true;
           initialCheckpoint = data.checkpoint;
           output.innerHTML = String(data.html || "");
+          setScrollbarVariables(data.scrollbarVariables);
+          if (data.scrollbarSource) {
+            // This bootstrap comes from the editor over the authenticated channel.
+            // The opaque-origin frame cannot require core or inspect the parent DOM.
+            const script = document.createElement("script");
+            script.textContent = String(data.scrollbarSource);
+            document.head.appendChild(script);
+            scrollbars = new window.LumineScrollbars.DOMScrollbarManager({ document });
+          }
           executableOutput =
             !!data.script ||
             [...output.querySelectorAll("script")].some(
@@ -272,6 +295,10 @@
             if (data?.type === "lumine-output-dispose") return dispose();
             if (data?.type === "lumine-output-init") {
               initialize(data).catch(error);
+              return;
+            }
+            if (data?.type === "lumine-output-scrollbar-theme") {
+              setScrollbarVariables(data.variables);
               return;
             }
             if (data?.type === "lumine-output-checkpoint") {

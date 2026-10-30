@@ -216,9 +216,15 @@ describe("the result bubble", () => {
     expect(component.element.children.length).toBe(1);
   });
 
-  it("keeps the chrome clear of the display's scrollbars", () => {
+  it("keeps the chrome clear of the overlay scrollbar hit areas", () => {
     // It sits inside the box, so a bar the display grows is a gutter it has to
     // clear — otherwise a button lands on the bar and the grip takes its drag.
+    spyOn(lumine.scrollbars, "getGeometry").and.returnValue({
+      verticalSize: 13,
+      horizontalSize: 11,
+      canScrollVertically: true,
+      canScrollHorizontally: true,
+    });
     const store = blockStore();
     store.appendOutput(stream("line\n".repeat(200)));
     component = build(store);
@@ -227,9 +233,8 @@ describe("the result bubble", () => {
     component.afterRender();
     etch.updateSync(component);
 
-    const display = component.refs.display;
-    expect(component.gutterRight).toBe(display.offsetWidth - display.clientWidth);
-    expect(component.gutterBottom).toBe(display.offsetHeight - display.clientHeight);
+    expect(component.gutterRight).toBe(13);
+    expect(component.gutterBottom).toBe(11);
     for (const part of component.element.querySelectorAll(".result-actions, .result-resize")) {
       expect(part.style.right).toBe(`${component.gutterRight}px`);
     }
