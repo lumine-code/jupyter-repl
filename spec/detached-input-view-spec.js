@@ -87,17 +87,53 @@ describe("Kernel input presentation ownership", () => {
     const cancelled = jasmine.createSpy("cancelled");
     view = new InputView({ allowCancel: true }, null, cancelled);
     const outside = document.createElement("button");
-    jasmine.attachToDOM(view.element);
     jasmine.attachToDOM(outside);
+    view.attach();
     spyOn(document, "hasFocus").and.returnValue(true);
     view.miniEditor.getElement().focus();
     view.element.querySelector(".btn-primary").focus();
     await Promise.resolve();
     expect(view.closed).not.toBeTrue();
-    outside.focus();
-    await Promise.resolve();
+    outside.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
     expect(view.closed).toBeTrue();
     expect(cancelled).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumes a required input after a covering modal closes without losing its draft", async () => {
+    const InputView = require("../lib/input-view");
+    const confirmed = jasmine.createSpy("confirmed");
+    view = new InputView({ allowCancel: false }, confirmed);
+    view.attach();
+    const editor = view.miniEditor;
+    editor.setText("pending answer");
+    const cover = lumine.workspace.addModalPanel({ item: document.createElement("button") });
+    expect(view.panel.isVisible()).toBeFalse();
+    expect(view.closed).not.toBeTrue();
+    cover.destroy();
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
+    expect(view.panel.isVisible()).toBeTrue();
+    expect(view.miniEditor).toBe(editor);
+    expect(editor.getText()).toBe("pending answer");
+    expect(confirmed).not.toHaveBeenCalled();
+  });
+
+  it("recreates an externally destroyed required panel without resolving its request", async () => {
+    const InputView = require("../lib/input-view");
+    const confirmed = jasmine.createSpy("confirmed");
+    view = new InputView({ allowCancel: false }, confirmed);
+    view.attach();
+    const previous = view.panel;
+    const editor = view.miniEditor;
+    editor.setText("preserved answer");
+    previous.destroy();
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
+    expect(view.panel).not.toBe(previous);
+    expect(view.panel.isVisible()).toBeTrue();
+    expect(view.closed).not.toBeTrue();
+    expect(editor.isDestroyed()).toBeFalse();
+    expect(editor.getText()).toBe("preserved answer");
+    expect(confirmed).not.toHaveBeenCalled();
   });
 
   it("does not attach a retired input view to a new modal host", () => {
