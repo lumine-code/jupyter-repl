@@ -304,7 +304,7 @@ class ResultViewComponent {
         <div
           className="jupyter_cell_display"
           ref="display"
-          attributes={{ "data-scrollbar": "auto" }}
+          attributes={{ "data-scrollbar": "always", "data-scrollbar-layout": "gutter" }}
           style={{
             // Empty rather than absent: etch only writes the style keys its
             // vdom names, so a key that comes and goes would leave the last
@@ -373,7 +373,8 @@ class ResultViewComponent {
       this.scrollbarObservation?.dispose();
       this.scrollbar?.dispose();
       this.scrollbarElement = display;
-      this.scrollbar = display && lumine.scrollbars?.attach(display, { policy: "auto" });
+      this.scrollbar =
+        display && lumine.scrollbars?.attach(display, { layout: "gutter", policy: "always" });
       this.scrollbarObservation =
         display &&
         lumine.scrollbars?.observe(display, () => {
@@ -387,8 +388,8 @@ class ResultViewComponent {
     // streams in.
     const scrollHeight = display ? display.scrollHeight : 0;
     const clientHeight = display ? display.clientHeight : 0;
-    // Overlay tracks reserve no native gutter. Keep the resize grip and action
-    // buttons out of their hit areas using the shared visual geometry instead.
+    // Keep the resize grip and action buttons beside the scrollbar's gutter.
+    // The shared viewport already excludes it; only the controls need an inset.
     const geometry = display && lumine.scrollbars?.getGeometry(display);
     const gutterRight = geometry
       ? geometry.canScrollVertically

@@ -64,7 +64,7 @@ describe("an isolated rich output", () => {
     expect(frame.port).toBe(null);
   });
 
-  it("uses the shared overlay inside the sandbox and keeps its chrome out of checkpoints", async () => {
+  it("reserves shared output gutters inside the sandbox and omits chrome from checkpoints", async () => {
     let resolve;
     let reject;
     const measured = new Promise((yes, no) => {
@@ -77,10 +77,14 @@ describe("an isolated rich output", () => {
         window.lumineOutput.registerWindowState("overlay-test", { capture: () => ({}), restore() {} });
         requestAnimationFrame(() => requestAnimationFrame(() => {
           const scroller = document.getElementById("scroller");
+          const track = document.querySelector(".lumine-scrollbar.vertical");
           scroller.scrollTop = 40;
           window.lumineOutput.send({ type: "overlay-probe", shared: !!window.LumineScrollbars,
             chrome: document.querySelectorAll("[data-scrollbar-chrome]").length,
-            gutter: scroller.offsetWidth - scroller.clientWidth });
+            gutter: scroller.offsetWidth - scroller.clientWidth,
+            bottomGutter: scroller.offsetHeight - scroller.clientHeight,
+            inheritedLayout: document.body.dataset.scrollbarLayout,
+            persistent: track.parentElement.classList.contains("is-persistent") });
         }));
       `,
       onError: reject,
@@ -91,7 +95,10 @@ describe("an isolated rich output", () => {
     const probe = await measured;
     expect(probe.shared).toBeTrue();
     expect(probe.chrome).toBeGreaterThan(0);
-    expect(probe.gutter).toBe(0);
+    expect(probe.gutter).toBeGreaterThan(0);
+    expect(probe.bottomGutter).toBeGreaterThan(0);
+    expect(probe.inheritedLayout).toBe("gutter");
+    expect(probe.persistent).toBe(true);
     const state = await frame.prepareWindowChange();
     expect(state.checkpoint.scroll.length).toBe(2);
     expect(state.checkpoint.scroll[0].top).toBe(40);

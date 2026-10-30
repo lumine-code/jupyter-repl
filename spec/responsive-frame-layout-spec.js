@@ -104,6 +104,56 @@ describe("responsive HTML frames", () => {
     expect(getComputedStyle(actions).opacity).toBe("1");
   });
 
+  it("reserves always-visible inline gutters only for overflowing output axes", async () => {
+    jasmine.useRealClock();
+    const { component, host } = mount(
+      "inline",
+      '<div class="scrollbar-extent" style="width:60px;height:20px">Output</div>',
+    );
+    component.resizedWidth = 200;
+    component.resizedHeight = 80;
+    etch.updateSync(component);
+    component.afterRender();
+    const display = component.refs.display;
+    const extent = host.querySelector(".scrollbar-extent");
+    const vertical = lumine.scrollbars.getVerticalTrack(display);
+    const horizontal = vertical.parentElement.querySelector(".lumine-scrollbar.horizontal");
+
+    expect(display.dataset.scrollbarLayout).toBe("gutter");
+    expect(display.dataset.scrollbar).toBe("always");
+
+    for (const [width, height, x, y] of [
+      [60, 20, false, false],
+      [60, 300, false, true],
+      [400, 20, true, false],
+      [400, 300, true, true],
+      [60, 20, false, false],
+    ]) {
+      extent.style.width = `${width}px`;
+      extent.style.height = `${height}px`;
+      component.scrollbar.refresh();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const geometry = lumine.scrollbars.getGeometry(display);
+
+      expect(geometry.canScrollHorizontally).withContext(`${width} × ${height}`).toBe(x);
+      expect(geometry.canScrollVertically).withContext(`${width} × ${height}`).toBe(y);
+      expect(display.offsetWidth - display.clientWidth).toBe(y ? geometry.verticalSize : 0);
+      expect(display.offsetHeight - display.clientHeight).toBe(x ? geometry.horizontalSize : 0);
+      expect(getComputedStyle(vertical).visibility).toBe(y ? "visible" : "hidden");
+      expect(getComputedStyle(horizontal).visibility).toBe(x ? "visible" : "hidden");
+      if (x || y) expect(vertical.parentElement.classList.contains("is-persistent")).toBe(true);
+    }
+  });
+
+  for (const surface of ["history", "list"]) {
+    it(`marks only the primary ${surface} output scroller for automatic overlays`, () => {
+      const mounted = mount(surface);
+      expect(mounted.container.dataset.scrollbarLayout).toBe("overlay");
+      expect(mounted.container.dataset.scrollbar).toBe("auto");
+      expect(mounted.frame.dataset.scrollbarLayout).toBeUndefined();
+    });
+  }
+
   for (const surface of ["inline", "history", "list"]) {
     it(`fills the available ${surface} width and follows wide and narrow hosts`, () => {
       const mounted = mount(surface);

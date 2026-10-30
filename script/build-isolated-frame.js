@@ -17,7 +17,7 @@ async function main() {
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https: blob:; style-src 'unsafe-inline' https:; img-src https: data: blob:; font-src https: data:; connect-src https: wss:; media-src https: data: blob:; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';" />
     <style>html,body{margin:0;padding:0;background:transparent}body{font:13px sans-serif}#output{display:flow-root;min-height:24px}pre.output-error{white-space:pre-wrap;color:#b33}</style>
   </head>
-  <body>
+  <body data-scrollbar-layout="gutter">
     <div id="output"></div>
     <script>${runtime.replace(/<\/script/gi, "<\\/script")}</script>
   </body>

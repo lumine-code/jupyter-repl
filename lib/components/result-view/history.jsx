@@ -70,6 +70,8 @@ class History {
           tabIndex={-1}
           style={{ fontSize: outputFontSize() }}
           attributes={{
+            "data-scrollbar": "auto",
+            "data-scrollbar-layout": "overlay",
             "data-wrap-output": String(lumine.config.get("jupyter-repl.wrapOutput") ?? true),
           }}
         >

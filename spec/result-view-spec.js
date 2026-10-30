@@ -216,7 +216,7 @@ describe("the result bubble", () => {
     expect(component.element.children.length).toBe(1);
   });
 
-  it("keeps the chrome clear of the overlay scrollbar hit areas", () => {
+  it("keeps the chrome beside reserved scrollbar gutters", () => {
     // It sits inside the box, so a bar the display grows is a gutter it has to
     // clear — otherwise a button lands on the bar and the grip takes its drag.
     spyOn(lumine.scrollbars, "getGeometry").and.returnValue({
