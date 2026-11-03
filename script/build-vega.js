@@ -11,6 +11,7 @@
 const fs = require("fs");
 const path = require("path");
 const esbuild = require("esbuild");
+const { updateBundleNotices } = require("./bundle-notices");
 
 const PACKAGE_ROOT = path.join(__dirname, "..");
 const OUTFILE = path.join(PACKAGE_ROOT, "lib", "vendor", "vega-embed.js");
@@ -26,7 +27,7 @@ async function main() {
     .map((name) => `//   ${name}@${versionOf(name)}`)
     .join("\n");
 
-  await esbuild.build({
+  const build = await esbuild.build({
     stdin: {
       contents: ENTRY,
       resolveDir: PACKAGE_ROOT,
@@ -34,6 +35,7 @@ async function main() {
       loader: "js",
     },
     bundle: true,
+    metafile: true,
     format: "cjs",
     platform: "browser",
     outfile: OUTFILE,
@@ -46,6 +48,12 @@ async function main() {
         versions,
     },
   });
+
+  // Vega Embed's published entry already inlines these two packages.
+  updateBundleNotices(PACKAGE_ROOT, "lib/vendor/vega-embed.js", build.metafile, [
+    "fast-json-patch",
+    "tslib",
+  ]);
 
   const { size } = fs.statSync(OUTFILE);
   console.log(`built lib/vendor/vega-embed.js (${(size / 1024).toFixed(0)} KB)`);

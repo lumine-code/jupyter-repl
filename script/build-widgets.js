@@ -27,6 +27,7 @@
 
 const path = require("path");
 const esbuild = require("esbuild");
+const { updateBundleNotices } = require("./bundle-notices");
 
 const PACKAGE_ROOT = path.join(__dirname, "..");
 const OUTFILE = path.join(PACKAGE_ROOT, "lib", "vendor", "jupyter-widgets.js");
@@ -83,7 +84,7 @@ async function main() {
     .map((name) => `//   ${name}@${versionOf(name)}`)
     .join("\n");
 
-  await esbuild.build({
+  const build = await esbuild.build({
     stdin: {
       contents: ENTRY,
       resolveDir: PACKAGE_ROOT,
@@ -91,6 +92,7 @@ async function main() {
       loader: "js",
     },
     bundle: true,
+    metafile: true,
     format: "cjs",
     // The renderer is a browser context; this must not resolve node builtins.
     platform: "browser",
@@ -105,6 +107,18 @@ async function main() {
         "// Built from:\n" +
         versions,
     },
+  });
+
+  // These npm archives omit the monorepo's shared root license.
+  updateBundleNotices(PACKAGE_ROOT, "lib/vendor/jupyter-widgets.js", build.metafile, [], {
+    "@jupyter-widgets/base": "upstream:jupyter-widgets_ipywidgets",
+    "@jupyter-widgets/base-manager": "upstream:jupyter-widgets_ipywidgets",
+    "@jupyter-widgets/controls": "upstream:jupyter-widgets_ipywidgets",
+    "@lumino/collections": "upstream:jupyterlab_lumino",
+    "@lumino/commands": "upstream:jupyterlab_lumino",
+    "@lumino/dragdrop": "upstream:jupyterlab_lumino",
+    "@lumino/keyboard": "upstream:jupyterlab_lumino",
+    "@lumino/widgets": "upstream:jupyterlab_lumino",
   });
 
   const { size } = require("fs").statSync(OUTFILE);
