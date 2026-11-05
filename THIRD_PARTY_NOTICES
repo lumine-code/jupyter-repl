@@ -200,8 +200,8 @@ THIS SOFTWARE.
 ---
 
 Component: d3-delaunay
-Revision: 6.0.5
-Source: https://www.npmjs.com/package/d3-delaunay/v/6.0.5
+Revision: 6.0.6
+Source: https://www.npmjs.com/package/d3-delaunay/v/6.0.6
 Repository: https://github.com/d3/d3-delaunay.git
 
 Original file: LICENSE
@@ -575,13 +575,13 @@ specific language governing permissions and limitations under the License.
 ---
 
 Component: d3-scale
-Revision: 4.0.2
-Source: https://www.npmjs.com/package/d3-scale/v/4.0.2
+Revision: 4.0.3
+Source: https://www.npmjs.com/package/d3-scale/v/4.0.3
 Repository: https://github.com/d3/d3-scale.git
 
 Original file: LICENSE
 
-Copyright 2010-2021 Mike Bostock
+Copyright 2010-2026 Mike Bostock
 
 Permission to use, copy, modify, and/or distribute this software for any purpose
 with or without fee is hereby granted, provided that the above copyright notice
