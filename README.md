@@ -80,7 +80,7 @@ Saving an example in Text Editor asks for confirmation before overwriting the or
 
 ## Documentation
 
-Left click the kernel status item to open its command picker, or middle click to interrupt execution. Its context menu includes the picker, kernel lifecycle and remote-session actions, and console commands. Actions target the kernel shown in that window; recovering or unresponsive kernels offer restart and shutdown only.
+Left click the kernel status item to open its command picker, or middle click to interrupt execution. Its context menu offers only the command picker. Picker actions target the kernel shown in that window; recovering or unresponsive kernels offer restart and shutdown only.
 
 Rendered in the editor under Settings, and readable here:
 

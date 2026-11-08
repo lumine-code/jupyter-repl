@@ -31,51 +31,23 @@ describe("kernel status action menu", () => {
     consumer.dispose();
     await lumine.packages.deactivatePackage("jupyter-repl");
   });
-  it("shows the owned public signal shortcuts while retaining captured menu execution", () => {
+  it("offers only the command picker with its shortcut", () => {
     const items = lumine.contextMenu.templateForElement(element);
-    const keys = (letter) =>
-      process.platform === "darwin" ? `⌥J K ${letter}` : `Alt+J K ${letter}`;
-    expect(
-      items.find((item) => item.command === "jupyter-repl:toggle-kernel-commands").keyBindingLabel,
-    ).toBe(keys("M"));
-    for (const [command, letter] of [
-      ["interrupt-kernel", "I"],
-      ["restart-kernel", "R"],
-      ["shutdown-kernel", "S"],
-    ]) {
-      const item = items.find((item) => item.commandDetail?.command === command);
-      expect(item.command).toBe("jupyter-repl:run-kernel-command");
-      expect(item.commandDetail.kernelContext.kernel).toBe(store.kernel);
-      expect(item.keyBindingLabel).toBe(keys(letter));
-    }
-    expect(
-      items.find((item) => item.commandDetail?.command === "copy-console-command").keyBindingLabel,
-    ).toBeUndefined();
+    const keys = process.platform === "darwin" ? "⌥J K M" : "Alt+J K M";
+    expect(items.map((item) => item.command)).toEqual(["jupyter-repl:toggle-kernel-commands"]);
+    expect(items[0].keyBindingLabel).toBe(keys);
     const popup = lumine.contextMenu.show(element, items);
     try {
-      expect(
-        popup.rootList.items.find(
-          (item) => item.template.commandDetail?.command === "interrupt-kernel",
-        ).keystrokeElement.textContent,
-      ).toBe(keys("I"));
+      expect(popup.rootList.items[0].keystrokeElement.textContent).toBe(keys);
     } finally {
       popup.close();
     }
   });
-  it("shares availability with the picker and captures the kernel in menu actions", () => {
-    const menu = () => lumine.contextMenu.templateForElement(element);
-    expect(menu().some((item) => item.command === "jupyter-repl:toggle-kernel-commands")).toBe(
-      true,
-    );
-    const actions = menu().filter((item) => item.commandDetail);
-    expect(actions.map((item) => item.commandDetail.command)).toContain("interrupt-kernel");
-    expect(actions[0].commandDetail.kernelContext.kernel).toBe(store.kernel);
+  it("keeps recovery actions inside the picker", () => {
     store.kernel.transport = { lifecycle: "recovering" };
-    expect(
-      menu()
-        .filter((item) => item.commandDetail)
-        .map((item) => item.commandDetail.command),
-    ).toEqual(["restart-kernel", "shutdown-kernel"]);
+    expect(lumine.contextMenu.templateForElement(element).map((item) => item.command)).toEqual([
+      "jupyter-repl:toggle-kernel-commands",
+    ]);
   });
   it("keeps right click inert, exposes middle interrupt and removes its menu", () => {
     const dispatch = spyOn(lumine.commands, "dispatch");
