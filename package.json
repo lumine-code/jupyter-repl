@@ -363,7 +363,7 @@
     "node-fetch": "^3.3.2",
     "plotly.js-dist": "^4.3.0",
     "sanitize-html": "^2.18.2",
-    "ws": "^8.22.2",
+    "ws": "^8.23.0",
     "zeromq": "^6.8.0"
   },
   "devDependencies": {
@@ -373,7 +373,7 @@
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.14.0",
-    "prettier": "^3.10.0",
+    "prettier": "^3.10.1",
     "vega": "^6.4.0",
     "vega-embed": "^7.3.0",
     "vega-lite": "^6.5.0"
