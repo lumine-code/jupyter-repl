@@ -11,10 +11,12 @@
 // fails there exactly as it does under plain node.
 //
 // So they are bundled, and only they are: every other dependency in the widget
-// stack — jquery, backbone, d3-color, d3-format, nouislider, sanitize-html,
+// stack — jquery, backbone, d3-color, d3-format, nouislider,
 // base64-js, the rest of @lumino — is ordinary CommonJS and stays an ordinary
 // dependency, resolved from node_modules at runtime. That keeps the artifact to
 // about 700 KB.
+// sanitize-html shares the separate browser-targeted bundle built by
+// build-sanitizer.js so PostCSS does not load its Node-only source-map probe.
 //
 // The result is committed rather than built on install: the editor's CI runs
 // `npm ci --ignore-scripts`, so a prepare script would leave the bundle missing
@@ -66,7 +68,6 @@ const EXTERNAL = [
   "d3-format",
   "jquery",
   "nouislider",
-  "sanitize-html",
   "underscore",
 ];
 
@@ -99,6 +100,17 @@ async function main() {
     // Styles are loaded lazily from their installed sources by widget-styles.
     loader: { ".css": "empty" },
     external: EXTERNAL,
+    plugins: [
+      {
+        name: "shared-browser-sanitizer",
+        setup(build) {
+          build.onResolve({ filter: /^sanitize-html$/ }, () => ({
+            path: "./sanitize-html.js",
+            external: true,
+          }));
+        },
+      },
+    ],
     outfile: OUTFILE,
     banner: {
       js:

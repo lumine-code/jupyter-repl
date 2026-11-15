@@ -28,7 +28,7 @@ function dependency(directory, name, license) {
 }
 
 test("collects the actual nested bundled packages and preserves existing notices", () => {
-  const first = dependency("parent", "parent", "Copyright parent.\nFull parent license.");
+  const first = dependency("parent", "parent", "Copyright parent. \n \t\nFull parent license.\t");
   const nested = dependency(
     "parent/node_modules/child",
     "child",
@@ -43,6 +43,7 @@ test("collects the actual nested bundled packages and preserves existing notices
   assert.match(output, /Full parent license./);
   assert.match(output, /Full child license./);
   assert.doesNotMatch(output, /External license/);
+  assert.doesNotMatch(output, /[ \t]+$/m);
 });
 
 test("replaces one bundle deterministically while retaining another bundle's notices", () => {
@@ -54,6 +55,24 @@ test("replaces one bundle deterministically while retaining another bundle's not
   const first = fs.readFileSync(noticePath, "utf8");
   updateBundleNotices(root, "first.js", metadata);
   assert.equal(fs.readFileSync(noticePath, "utf8"), first);
+});
+
+test("ignores disabled browser modules and finds licenses above subpath manifests", () => {
+  dependency("parent", "parent", "Copyright parent.\nFull parent license.");
+  dependency("disabled", "disabled", "Excluded license.");
+  const subpath = path.join(root, "node_modules", "parent", "browser");
+  fs.mkdirSync(subpath);
+  fs.writeFileSync(path.join(subpath, "package.json"), JSON.stringify({ type: "module" }));
+  updateBundleNotices(root, "browser.js", {
+    inputs: {
+      "node_modules/parent/browser/index.js": {},
+      "(disabled):node_modules/disabled/index.js": {},
+    },
+  });
+  const output = fs.readFileSync(path.join(root, "THIRD_PARTY_NOTICES"), "utf8");
+  assert.match(output, /Component: parent\nRevision: 1.2.3/);
+  assert.match(output, /Full parent license./);
+  assert.doesNotMatch(output, /Excluded license/);
 });
 
 test("requires a retained upstream notice when a published archive omits its license", () => {

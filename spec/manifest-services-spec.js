@@ -104,6 +104,7 @@ describe("what activation is allowed to load", () => {
       "widget-manager",
       "widget-output",
       "jupyter-widgets",
+      "sanitize-html",
       "vega-embed",
     ]);
     const libRoot = path.join(__dirname, "..", "lib");

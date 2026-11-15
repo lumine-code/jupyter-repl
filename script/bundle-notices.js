@@ -6,9 +6,14 @@ function updateBundleNotices(root, output, metafile, extraPackages = [], noticeR
   const current = fs.existsSync(noticePath) ? fs.readFileSync(noticePath, "utf8") : "";
   const packageRoots = new Set(extraPackages.map((name) => path.join(root, "node_modules", name)));
   for (const input of Object.keys(metafile.inputs)) {
+    // Browser mappings to false are empty esbuild modules, not shipped source.
+    if (input.startsWith("(disabled):")) continue;
     if (!input.replaceAll("\\", "/").includes("node_modules/")) continue;
     let directory = path.dirname(path.resolve(root, input));
-    while (directory !== root && !fs.existsSync(path.join(directory, "package.json"))) {
+    while (directory !== root) {
+      const manifest = path.join(directory, "package.json");
+      // Subpath manifests may only set type/main; the named package owns the license.
+      if (fs.existsSync(manifest) && JSON.parse(fs.readFileSync(manifest, "utf8")).name) break;
       const parent = path.dirname(directory);
       if (parent === directory) throw new Error(`Cannot locate the package for ${input}`);
       directory = parent;
@@ -48,7 +53,10 @@ function updateBundleNotices(root, output, metafile, extraPackages = [], noticeR
           "",
           `Original file: ${name}`,
           "",
-          fs.readFileSync(path.join(directory, name), "utf8").trim(),
+          fs
+            .readFileSync(path.join(directory, name), "utf8")
+            .replace(/[ \t]+$/gm, "")
+            .trim(),
         ]),
       ].join("\n"),
     });

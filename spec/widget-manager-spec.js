@@ -121,6 +121,15 @@ describe("the widget manager", () => {
     manager = null;
   });
 
+  it("sanitizes widget descriptions through the shared browser sanitizer", () => {
+    expect(
+      manager.inline_sanitize(
+        '<span style="color:red" onclick="bad()">safe</span>' +
+          '<script>bad()</script><a href="javascript:bad()">link</a>',
+      ),
+    ).toBe('<span style="color:red">safe</span><a>link</a>');
+  });
+
   describe("loadClass", () => {
     it("resolves a bundled control", async () => {
       const model = await manager.loadClass("IntSliderModel", "@jupyter-widgets/controls", "2.0.0");
