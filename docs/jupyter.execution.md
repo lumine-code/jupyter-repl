@@ -133,7 +133,7 @@ Editorless code uses the same user-request coordinator and dock output pipeline 
 
 A block's `row` is the original buffer row anchoring its inline result, usually the last meaningful source row. Use `jupyter.cells.getExecutionBlocks()` to preserve typed Markdown/raw cells and selected magic headers. Raw blocks do not allocate a kernel request. Markdown source blocks render locally; leading Markdown appears before a mixed run requests a kernel, and code failures stop the remaining sequence.
 
-`moveDown` operates on the captured editor or notebook after its source has been captured, before the kernel replies. `restart` and `clear` apply to the same explicit context and execute before the captured work. Recalculation is one request with both flags, so an asynchronous restart cannot switch to a different active notebook or recapture a moved cursor.
+`moveDown` operates on the captured editor or notebook after its source has been captured, before the kernel replies. `restart` and `clear` apply to the same explicit context and execute before the captured work. A recalculation starts its batch in the generation made ready by its restart. Further changes to that generation stop the remaining work, and the captured editor, notebook and cursor still determine what to run.
 
 The runtime cancels the editor's current completion session when accepting work. A caller that cancelled completion before asynchronous source preparation can set `autocompleteCancelled: true`, preserving a newer completion session opened while preparation was pending.
 

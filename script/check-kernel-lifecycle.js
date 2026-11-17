@@ -25,14 +25,23 @@ const temporaryParent = fs.realpathSync.native(
 );
 const temporaryRoot = fs.mkdtempSync(path.join(temporaryParent, "lumine-kernel-ci-"));
 const runtimeDir = path.join(temporaryRoot, "runtime");
+const ipythonDir = path.join(temporaryRoot, "ipython");
+const jupyterConfigDir = path.join(temporaryRoot, "jupyter");
 fs.mkdirSync(runtimeDir);
-// Keep Python runtime files and child-process temp data in the owned directory.
+fs.mkdirSync(ipythonDir);
+fs.mkdirSync(jupyterConfigDir);
+// Keep Python settings, runtime files and child-process temp data in the owned directory.
 // The native loader owns a separate persistent Windows IPC cache.
 process.env.TEMP = temporaryRoot;
 process.env.TMP = temporaryRoot;
 process.env.JUPYTER_RUNTIME_DIR = runtimeDir;
+process.env.IPYTHONDIR = ipythonDir;
+process.env.JUPYTER_CONFIG_DIR = jupyterConfigDir;
+process.env.PYTHONSTARTUP = "";
 
 const notifications = [];
+const kernelName = "Owned CI Python";
+const config = new Map([["jupyter-repl.pythonAutoreload", "off"]]);
 const editorStore = {
   editor: null,
   startingKernels: new Map(),
@@ -43,7 +52,7 @@ const editorStore = {
 };
 global.lumine = {
   config: {
-    get: (key) => (key === "jupyter-repl.pythonAutoreload" ? "off" : false),
+    get: (key) => config.get(key) ?? false,
     observe: (_key, callback) => {
       callback(false);
       return new Disposable();
@@ -108,6 +117,9 @@ const counts = {
   completions: 0,
   sourceLookups: 0,
   recoveries: 0,
+  inputRestarts: 0,
+  startupFailures: 0,
+  shutdownReentries: 0,
 };
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const outputText = (result) =>
@@ -124,7 +136,7 @@ async function start() {
       transport = new ZMQKernel(
         {
           name: "python3",
-          display_name: "Owned CI Python",
+          display_name: kernelName,
           language: "python",
           argv: [python, "-m", "ipykernel_launcher", "-f", "{connection_file}"],
         },
@@ -173,10 +185,23 @@ async function retire(kernel) {
   assert.equal(transport.shellSocket, null);
   assert.equal(transport.ioSocket, null);
   assert.equal(transport.stdinSocket, null);
-  assert(!fs.existsSync(connectionFile));
-  assert(child.exitCode !== null || child.signalCode !== null);
-  retired.push(child.pid);
+  if (connectionFile) assert(!fs.existsSync(connectionFile));
+  if (child) {
+    assert(child.exitCode !== null || child.signalCode !== null);
+    retired.push(child.pid);
+  }
   live.delete(transport);
+}
+
+async function restart(kernel, expected = true) {
+  const { kernelProcess, connectionFile } = kernel.transport;
+  assert.equal(await kernel.getPluginWrapper().restart(), expected);
+  if (kernelProcess) {
+    assert(kernelProcess.exitCode !== null || kernelProcess.signalCode !== null);
+    retired.push(kernelProcess.pid);
+  }
+  if (connectionFile) assert(!fs.existsSync(connectionFile));
+  counts.restarts += Number(expected);
 }
 
 function execute(session, code, options = {}) {
@@ -258,19 +283,194 @@ async function recoverWithoutReplay(kernel, api) {
   counts.recoveries++;
 }
 
+async function executeToInput(api, prompt) {
+  let timer;
+  let subscription;
+  const input = new Promise((resolve, reject) => {
+    subscription = api.onDidRequestInput(resolve);
+    timer = setTimeout(
+      () => reject(new Error(`Input request was not delivered: ${prompt}`)),
+      10000,
+    );
+  });
+  const done = execute(api, `print(input(${JSON.stringify(prompt)}))`, { timeoutMs: 15000 });
+  try {
+    const request = await input;
+    assert.equal(request.prompt, prompt);
+    return { request, done };
+  } finally {
+    clearTimeout(timer);
+    subscription.dispose();
+  }
+}
+
+async function checkRestartFromInput(kernel, api) {
+  const old = await executeToInput(api, "before restart");
+  let closed = false;
+  const closeSubscription = old.request.onDidClose(() => {
+    closed = true;
+  });
+  try {
+    await restart(kernel);
+    assert(closed, "The old input prompt must close during restart");
+    const outcome = await old.done;
+    assert.equal(outcome.status, "unknown");
+    assert.equal(outcome.error.ename, "ExecutionOutcomeUnknown");
+    const fresh = await executeToInput(api, "after restart");
+    old.request.reply("stale");
+    fresh.request.reply("fresh");
+    const result = await fresh.done;
+    assert.equal(result.status, "ok");
+    assert.equal(outputText(result), "fresh\n");
+  } finally {
+    closeSubscription.dispose();
+  }
+  counts.executes += 2;
+  counts.inputRestarts++;
+}
+
+async function checkStartupFailure(kernel, api, startupCode, diagnostic) {
+  config.set("jupyter-repl.startupCodePerLanguage", JSON.stringify({ python: startupCode }));
+  const states = [];
+  const subscription = api.onDidChangeConnectionState((state) => states.push(state));
+  const noticeIndex = notifications.length;
+  try {
+    await restart(kernel, false);
+  } finally {
+    subscription.dispose();
+  }
+  assert.deepEqual(states, ["restarting", "dead"]);
+  assert.equal(api.connectionState, "dead");
+  assert.equal(kernel.transport.kernelProcess, null);
+  assert.deepEqual(fs.readdirSync(runtimeDir), []);
+  const notices = notifications.splice(noticeIndex);
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].method, "addError");
+  assert.match(notices[0].detail, diagnostic);
+  counts.startupFailures++;
+}
+
+async function checkGracefulShutdown(kernel, api) {
+  const marker = path.join(temporaryRoot, "kernel-atexit.txt");
+  const setup = await execute(
+    api,
+    "import atexit\nfrom pathlib import Path\n@atexit.register\ndef on_exit():\n    Path('kernel-atexit.txt').write_text('graceful')",
+    { timeoutMs: 15000 },
+  );
+  assert.equal(setup.status, "ok");
+  counts.executes++;
+
+  const states = [];
+  let restartDuringShutdown;
+  let shutdownDuringShutdown;
+  const subscription = api.onDidChangeConnectionState((state) => {
+    states.push(state);
+    if (state !== "shutting-down" || restartDuringShutdown) return;
+    restartDuringShutdown = api.restart();
+    shutdownDuringShutdown = api.shutdown();
+  });
+  try {
+    await retire(kernel);
+    assert.equal(await restartDuringShutdown, false);
+    assert.equal(shutdownDuringShutdown, kernel.shutdownAndDestroy());
+    assert.deepEqual(states, ["shutting-down", "dead"]);
+    assert(fs.existsSync(marker), "Python must run atexit during shutdown");
+    assert.equal(fs.readFileSync(marker, "utf8"), "graceful");
+    counts.shutdownReentries++;
+  } finally {
+    subscription.dispose();
+  }
+}
+
+async function checkStartupAndRestart() {
+  const readyFile = path.join(temporaryRoot, "startup-ready.txt");
+  const languageSetting = "jupyter-repl.startupCodePerLanguage";
+  const kernelSetting = "jupyter-repl.startupCodePerKernel";
+  config.set(
+    languageSetting,
+    JSON.stringify({ python: "startup = ['language']\nprint('startup output')" }),
+  );
+  config.set(
+    kernelSetting,
+    JSON.stringify({
+      [kernelName]:
+        "from pathlib import Path\nstartup.append('kernel')\nPath('startup-ready.txt').write_text(','.join(startup))",
+    }),
+  );
+  const kernel = await start();
+  const api = kernel.getPluginWrapper();
+  try {
+    assert(fs.existsSync(readyFile), "Initial startup code must finish before registration");
+    assert.equal(fs.readFileSync(readyFile, "utf8"), "language,kernel");
+    fs.unlinkSync(readyFile);
+
+    const states = [];
+    const generations = [];
+    const before = api.generation;
+    let duplicate;
+    let execution;
+    let startupCompletedAtReady;
+    const subscriptions = new CompositeDisposable(
+      api.onDidChangeGeneration((generation) => generations.push(generation)),
+      api.onDidChangeConnectionState((state) => {
+        states.push(state);
+        if (state !== "ready" || duplicate) return;
+        startupCompletedAtReady = fs.existsSync(readyFile);
+        duplicate = api.restart();
+        execution = execute(api, "print(','.join(startup))", { timeoutMs: 15000 });
+      }),
+    );
+    try {
+      await restart(kernel);
+      assert.equal(await duplicate, true, "A restart during readiness publication must join");
+      assert.deepEqual(states, ["restarting", "ready"]);
+      assert.deepEqual(generations, [before + 1]);
+      assert(startupCompletedAtReady, "Startup code must finish before ready is published");
+      const result = await execution;
+      assert.equal(result.status, "ok");
+      assert.equal(outputText(result), "language,kernel\n");
+      counts.executes++;
+    } finally {
+      subscriptions.dispose();
+    }
+
+    config.delete(languageSetting);
+    config.delete(kernelSetting);
+    await checkRestartFromInput(kernel, api);
+    await checkStartupFailure(kernel, api, "input('startup prompt')", /stdin|input/i);
+
+    const startupTimeout = ZMQKernel.STARTUP_TIMEOUT_MS;
+    ZMQKernel.STARTUP_TIMEOUT_MS = 1500;
+    try {
+      await checkStartupFailure(kernel, api, "from time import sleep\nsleep(60)", /timed out/i);
+    } finally {
+      ZMQKernel.STARTUP_TIMEOUT_MS = startupTimeout;
+    }
+
+    config.delete(languageSetting);
+    await restart(kernel);
+    const recovered = await execute(api, "print('recovered after startup failure')", {
+      timeoutMs: 15000,
+    });
+    assert.equal(recovered.status, "ok");
+    assert.equal(outputText(recovered), "recovered after startup failure\n");
+    counts.executes++;
+    await checkGracefulShutdown(kernel, api);
+  } finally {
+    config.delete(languageSetting);
+    config.delete(kernelSetting);
+    if (live.has(kernel.transport)) await retire(kernel);
+  }
+}
+
 async function run() {
+  await checkStartupAndRestart();
   for (let cycle = 0; cycle < 2; cycle++) {
     const kernel = await start();
     const api = kernel.getPluginWrapper();
     try {
       for (let generation = 0; generation < 3; generation++) {
-        if (generation > 0) {
-          const previous = kernel.transport.kernelProcess;
-          assert.equal(await api.restart(), true);
-          assert(previous.exitCode !== null || previous.signalCode !== null);
-          retired.push(previous.pid);
-          counts.restarts++;
-        }
+        if (generation > 0) await restart(kernel);
         const results = await Promise.all(
           Array.from({ length: 6 }, (_, index) =>
             execute(
@@ -337,11 +537,7 @@ async function run() {
       const deadline = Date.now() + 5000;
       while (api.executionState !== "busy" && Date.now() < deadline) await wait(10);
       assert.equal(api.executionState, "busy");
-      const previous = kernel.transport.kernelProcess;
-      assert.equal(await api.restart(), true);
-      assert(previous.exitCode !== null || previous.signalCode !== null);
-      retired.push(previous.pid);
-      counts.restarts++;
+      await restart(kernel);
       const cancelled = await pending;
       // Busy can precede execute_input on IOPub, so whether the restart
       // captured an acknowledgement depends on which message arrived first.
