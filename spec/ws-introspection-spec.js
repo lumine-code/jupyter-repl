@@ -6,17 +6,8 @@ const WSKernel = require("../lib/ws-kernel");
 // done". Logged and swallowed, as this used to do, that rejection leaves the
 // caller's promise pending for the life of the window.
 //
-// The one path it does not cover is a connection simply dropping: JupyterLab
-// gives up reconnecting and reports "disconnected" without disposing the
-// futures, so nothing rejects and nothing here fires. The plugin API's timeout
-// is what bounds that, and the last spec below pins the gap so it stays a
-// known limit rather than looking like an oversight.
-
 function bareKernel(behaviour) {
-  // Not the constructor: it wires signal handlers and notifications.
-  const kernel = Object.create(WSKernel.prototype);
-  kernel.session = { kernel: behaviour };
-  return kernel;
+  return new WSKernel("gateway", { display_name: "Python" }, null, { kernel: behaviour });
 }
 
 /** The rejection travels through .then and then .catch, so one tick is not enough. */
@@ -120,9 +111,7 @@ describe("introspection over a websocket", () => {
     ]);
   });
 
-  it("leaves a request pending when the connection merely drops", async () => {
-    // The known gap: JupyterLab neither answers nor rejects here, so the
-    // plugin API's timeout is the only thing that ends the wait.
+  it("keeps observing an active request until it replies or the connection retires", async () => {
     const kernel = bareKernel({ requestComplete: () => new Promise(() => {}) });
     const seen = [];
 

@@ -91,6 +91,7 @@ describe("comms on a remote kernel", () => {
   });
 
   afterEach(() => {
+    kernel.destroy();
     kernel = null;
   });
 

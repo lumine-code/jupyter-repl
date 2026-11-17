@@ -13,8 +13,9 @@ function setup() {
   const connection = {
     requestExecute: jasmine.createSpy("requestExecute").and.returnValue(future),
   };
-  const kernel = Object.create(WSKernel.prototype);
-  kernel.session = { kernel: connection };
+  const kernel = new WSKernel("gateway", { display_name: "Python" }, null, {
+    kernel: connection,
+  });
   const seen = [];
   const callback = (message, channel) =>
     seen.push({
