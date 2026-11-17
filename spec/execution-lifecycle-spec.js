@@ -28,9 +28,13 @@ function FakeTransport() {
       this.watchOnResults = onResults;
     }
 
-    restart(onRestarted) {
+    async restart() {
       this.restarted++;
-      onRestarted?.();
+      this.setLifecycle("restarting");
+      this.emitDidResetComms("Kernel restarted");
+      await Promise.resolve();
+      this.setLifecycle("ready");
+      return true;
     }
 
     deliver(message, channel) {
@@ -166,8 +170,8 @@ describe("settling in-flight executions", () => {
     results.filter((r) => r.output_type === "status" && r.execution_state === "idle");
   const errors = () => results.filter((r) => r.output_type === "error");
 
-  it("restart settles the execution with an error, a status, and an idle", () => {
-    kernel.restart();
+  it("restart settles the execution with an error, a status, and an idle", async () => {
+    expect(await kernel.restart()).toBe(true);
 
     expect(errors().length).toBe(1);
     expect(errors()[0].evalue).toBe("Kernel restarted");
@@ -177,12 +181,91 @@ describe("settling in-flight executions", () => {
     expect(transport.restarted).toBe(1);
   });
 
+  it("shares the active restart with a synchronously reentrant observer", async () => {
+    let reentrant;
+    const session = kernel.getPluginWrapper();
+    const generation = session.generation;
+    const subscription = session.onDidChangeConnectionState((state) => {
+      if (state === "ready") reentrant = session.restart();
+    });
+
+    const restart = session.restart();
+    expect(await restart).toBe(true);
+    expect(reentrant).toBe(restart);
+    expect(transport.restarted).toBe(1);
+    expect(session.generation).toBe(generation + 1);
+    expect(session.connectionState).toBe("ready");
+    subscription.dispose();
+  });
+
+  it("settles middleware executions when a delayed restart retires the generation", async () => {
+    const { promise: resume, resolve } = Promise.withResolvers();
+    kernel.addMiddleware({
+      async restart(next) {
+        await resume;
+        return next.restart();
+      },
+    });
+
+    const restart = kernel.restart();
+    expect(transport.lifecycle).toBe("ready");
+    expect(errors().length).toBe(0);
+    resolve();
+    expect(await restart).toBe(true);
+    expect(errors().length).toBe(1);
+    expect(idles().length).toBe(1);
+  });
+
+  it("keeps an execution alive when middleware declines the restart", async () => {
+    kernel.addMiddleware({ restart: () => false });
+    expect(await kernel.restart()).toBe(false);
+    expect(transport.restarted).toBe(0);
+    expect(errors().length).toBe(0);
+
+    transport.deliverReply("ok", 1);
+    transport.deliverIdle();
+    expect(statuses()).toEqual(["ok"]);
+    expect(idles().length).toBe(1);
+  });
+
+  it("reserves shutdown before observers can restart or request another shutdown", async () => {
+    transport.invalidatePendingRequests = () => transport.setLifecycle("shutting-down");
+    const transportShutdown = spyOn(transport, "shutdown").and.resolveTo();
+    let restart;
+    let reentrantShutdown;
+    const session = kernel.getPluginWrapper();
+    session.onDidChangeConnectionState((state) => {
+      if (state !== "shutting-down") return;
+      restart = session.restart();
+      reentrantShutdown = session.shutdown();
+    });
+
+    const shutdown = session.shutdown();
+    expect(reentrantShutdown).toBe(shutdown);
+    expect(await restart).toBe(false);
+    await shutdown;
+    expect(transport.restarted).toBe(0);
+    expect(transportShutdown).toHaveBeenCalledTimes(1);
+  });
+
   it("a lost kernel process settles the execution the same way", () => {
     transport.emitDidLoseKernel("Kernel process exited");
 
     expect(errors()[0].evalue).toBe("Kernel process exited");
     expect(statuses()).toEqual(["error"]);
     expect(idles().length).toBe(1);
+  });
+
+  it("removes an attachment that the transport cannot safely reuse", async () => {
+    const session = kernel.getPluginWrapper();
+    const destroyed = jasmine.createSpy("session destroyed");
+    session.onDidDestroy(destroyed);
+
+    transport.emitDidLoseKernel("Remote restart did not settle", { detach: true });
+    expect(errors().map((error) => error.evalue)).toEqual(["Remote restart did not settle"]);
+    expect(session.isDestroyed()).toBe(true);
+    expect(destroyed).toHaveBeenCalledTimes(1);
+    expect(await session.restart()).toBe(false);
   });
 
   it("ignores messages that straggle in after an abort", () => {

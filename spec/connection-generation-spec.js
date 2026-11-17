@@ -114,10 +114,7 @@ describe("local connection generation resource ownership", () => {
     kernel.emitDidLoseKernel = jasmine.createSpy("lose kernel");
     kernel._showUnresponsiveNotification = jasmine.createSpy("report surviving process");
     kernel._executeStartupCode = jasmine.createSpy("startup code");
-    kernel.connect = jasmine.createSpy("connect new sockets").and.callFake((done) => {
-      kernel.setLifecycle("ready");
-      done();
-    });
+    kernel.connect = jasmine.createSpy("connect new sockets").and.callFake((done) => done());
     kernel._killProcessTree = jasmine
       .createSpy("kill process tree")
       .and.callFake(async (process) => {
@@ -331,6 +328,30 @@ describe("local connection generation resource ownership", () => {
     expect(kernel._restartPromise).toBeNull();
   });
 
+  it("retires once and publishes ready only after startup finishes", async () => {
+    const startup = deferred();
+    const startupEntered = deferred();
+    kernel._launchFreshGeneration = async () => generation(child(200), "fresh.json");
+    kernel._executeStartupCode.and.callFake(() => {
+      startupEntered.resolve();
+      return startup.promise;
+    });
+    const transitions = [];
+    kernel.onDidChangeLifecycle((state) => transitions.push(state));
+
+    const restarting = kernel.restart();
+    expect(kernel.lifecycle).toBe("restarting");
+    expect(kernel._clearState).toHaveBeenCalledOnceWith("Kernel restarted", false, true);
+    expect(kernel.restart()).toBe(restarting);
+    await startupEntered.promise;
+    expect(kernel.lifecycle).toBe("restarting");
+
+    startup.resolve();
+    expect(await restarting).toBe(true);
+    expect(transitions).toEqual(["restarting", "ready"]);
+    expect(kernel._clearState).toHaveBeenCalledTimes(1);
+  });
+
   it("restores the old process's exact handlers when its tree cannot be retired", async () => {
     const process = child(100);
     kernel.kernelProcess = process;
@@ -376,6 +397,17 @@ describe("local connection generation resource ownership", () => {
     expect(await kernel.restart()).toBe(false);
     await shutdown;
     expect(kernel._killProcessTree).toHaveBeenCalledTimes(1);
+    expect(kernel._launchFreshGeneration).not.toHaveBeenCalled();
+  });
+
+  it("refuses restart after shutdown quiesces the transport", async () => {
+    kernel._launchFreshGeneration = jasmine.createSpy("must not launch");
+    kernel.setLifecycle("shutting-down");
+
+    expect(owner.shutdownPromise).toBeNull();
+    expect(kernel.canRestart).toBe(false);
+    expect(await kernel.restart()).toBe(false);
+    expect(kernel._clearState).not.toHaveBeenCalled();
     expect(kernel._launchFreshGeneration).not.toHaveBeenCalled();
   });
 
@@ -455,52 +487,53 @@ describe("local connection generation resource ownership", () => {
     const oldIO = socket("old-iopub");
     kernel.shellSocket = oldShell;
     kernel.ioSocket = oldIO;
-    kernel._startReadyProbe = jasmine.createSpy("arm readiness");
+    kernel.stdinSocket = { writable: true };
     kernel._startAckWatchdog = jasmine.createSpy("arm watchdog");
-    kernel._discardReadyProbes = jasmine.createSpy("discard current probes");
     const oldStarted = jasmine.createSpy("old ready");
     const started = jasmine.createSpy("current ready");
-    ZMQKernel.prototype.monitor.call(kernel, oldStarted);
-    const oldID = `ready_probe_${kernel._readyGeneration}_old`;
+    kernel.monitor(oldStarted);
+    const oldID = [...kernel._readyProbeIds][0];
     const oldReply = oldShell.listeners("message")[0];
     const oldIdle = oldIO.listeners("message")[0];
+    const oldSession = kernel.sessionId;
     kernel._cancelReadiness();
     kernel._connectionGeneration++;
+    kernel.sessionId = "new-session";
     const shell = socket("new-shell");
     const io = socket("new-iopub");
     kernel.shellSocket = shell;
     kernel.ioSocket = io;
     kernel.setLifecycle("restarting");
-    ZMQKernel.prototype.monitor.call(kernel, started, true);
+    kernel.monitor(started);
     const cancelCurrent = kernel._cancelReadiness;
-    const reply = (id) => ({
-      header: { msg_type: "kernel_info_reply" },
-      parent_header: { msg_id: id },
+    const reply = (id, session) => ({
+      header: { msg_id: `${id}_reply`, msg_type: "kernel_info_reply" },
+      parent_header: { msg_id: id, session, msg_type: "kernel_info_request" },
+      content: {},
     });
-    const idle = (id) => ({
-      header: { msg_type: "status" },
-      parent_header: { msg_id: id },
+    const idle = (id, session) => ({
+      header: { msg_id: `${id}_idle`, msg_type: "status" },
+      parent_header: { msg_id: id, session, msg_type: "kernel_info_request" },
       content: { execution_state: "idle" },
     });
 
-    oldReply(reply(oldID));
-    oldIdle(idle(oldID));
+    oldReply(reply(oldID, oldSession));
+    oldIdle(idle(oldID, oldSession));
 
     expect(oldStarted).not.toHaveBeenCalled();
     expect(started).not.toHaveBeenCalled();
     expect(kernel.lifecycle).toBe("restarting");
-    expect(kernel._discardReadyProbes).not.toHaveBeenCalled();
     expect(kernel._startAckWatchdog).not.toHaveBeenCalled();
     expect(kernel._cancelReadiness).toBe(cancelCurrent);
     expect(shell.listenerCount("message")).toBe(1);
     expect(io.listenerCount("message")).toBe(1);
 
-    const currentID = `ready_probe_${kernel._readyGeneration}_current`;
-    shell.emit("message", reply(currentID));
-    io.emit("message", idle(currentID));
+    const currentID = [...kernel._readyProbeIds][0];
+    shell.emit("message", reply(currentID, kernel.sessionId));
+    io.emit("message", idle(currentID, kernel.sessionId));
     expect(started).toHaveBeenCalledTimes(1);
     expect(oldStarted).not.toHaveBeenCalled();
-    expect(kernel.lifecycle).toBe("ready");
+    expect(kernel.lifecycle).toBe("restarting");
   });
 
   it("detaches only its own listeners and keeps the old pipes draining", () => {

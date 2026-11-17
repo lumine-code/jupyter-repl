@@ -300,13 +300,13 @@
     },
     "startupCodePerLanguage": {
       "title": "Startup code per language",
-      "description": "Code executed on kernel startup, matched by language name. Runs before kernel-specific code. Format: `{\"language\": \"your code \\nmore code\"}`. Example: `{\"python\": \"%matplotlib inline\", \"javascript\": \"console.log('ready')\"}`.",
+      "description": "Non-interactive code run before a local kernel is ready, matched by language name. Runs before kernel-specific code. An execution error stops startup. Use a mapping such as `{\"python\": \"%matplotlib inline\", \"javascript\": \"console.log('ready')\"}`.",
       "type": "string",
       "default": "{}"
     },
     "startupCodePerKernel": {
       "title": "Startup code per kernel",
-      "description": "Code executed on kernel startup, matched by kernel display name. Format: `{\"kernel\": \"your code \\nmore code\"}`. Example: `{\"Python 3\": \"%matplotlib inline\"}`.",
+      "description": "Non-interactive code run before a local kernel is ready, matched by kernel display name. An execution error stops startup. Use a mapping such as `{\"Python 3\": \"%matplotlib inline\"}`.",
       "type": "string",
       "default": "{}"
     },

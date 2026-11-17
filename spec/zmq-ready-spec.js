@@ -18,6 +18,7 @@ function currentPackageRequire(request) {
 function fakeSocket() {
   return {
     isConnected: false,
+    writable: true,
     listeners: {},
     sent: [],
     on(event, listener) {
@@ -46,19 +47,18 @@ function fakeSocket() {
  * probe's request id. The one thing a killed process cannot produce, which is
  * why a restart's readiness listens for nothing else.
  */
-function probeReply(kernel) {
-  const probeId = [...kernel._readyProbeIds][0];
+function probeReply(kernel, probeId = [...kernel._readyProbeIds][0]) {
   return {
-    header: { msg_type: "kernel_info_reply" },
-    parent_header: { msg_id: probeId, msg_type: "kernel_info_request" },
+    header: { msg_id: `${probeId}_reply`, msg_type: "kernel_info_reply" },
+    parent_header: { session: kernel.sessionId, msg_id: probeId, msg_type: "kernel_info_request" },
+    content: {},
   };
 }
 
-function probeIdle(kernel) {
-  const probeId = [...kernel._readyProbeIds][0];
+function probeIdle(kernel, probeId = [...kernel._readyProbeIds][0]) {
   return {
-    header: { msg_type: "status" },
-    parent_header: { msg_id: probeId, msg_type: "kernel_info_request" },
+    header: { msg_id: `${probeId}_idle`, msg_type: "status" },
+    parent_header: { session: kernel.sessionId, msg_id: probeId, msg_type: "kernel_info_request" },
     content: { execution_state: "idle" },
   };
 }
@@ -72,6 +72,8 @@ function bareKernel() {
   kernel.setExecutionState = (state) => kernel.states.push(state);
   kernel.shellSocket = fakeSocket();
   kernel.ioSocket = fakeSocket();
+  kernel.stdinSocket = fakeSocket();
+  kernel.lifecycle = "loading";
   return kernel;
 }
 
@@ -82,7 +84,7 @@ describe("kernel launch readiness", () => {
   let kernel;
 
   afterEach(() => {
-    kernel?._stopReadyProbe();
+    kernel?._cancelReadiness?.();
     kernel?._stopAckWatchdog();
     kernel = null;
   });
@@ -106,7 +108,8 @@ describe("kernel launch readiness", () => {
 
     kernel.ioSocket.emit("message", probeIdle(kernel));
     expect(started).toBe(1);
-    expect(kernel.states).toEqual(["idle"]);
+    expect(kernel.states).toEqual([]);
+    expect(kernel.lifecycle).toBe("loading");
     expect(kernel._readyProbe).toBe(null);
   });
 
@@ -140,7 +143,7 @@ describe("kernel launch readiness", () => {
     kernel.shellSocket.isConnected = true;
     kernel.ioSocket.isConnected = true;
     let restarted = 0;
-    kernel.monitor(() => restarted++, true);
+    kernel.monitor(() => restarted++);
 
     // Already-connected sockets must not satisfy a restart: the old kernel is
     // gone, and only the new one can produce traffic.
@@ -158,7 +161,7 @@ describe("kernel launch readiness", () => {
     // kernel at "ready" with nothing behind the ports.
     kernel = bareKernel();
     let restarted = 0;
-    kernel.monitor(() => restarted++, true);
+    kernel.monitor(() => restarted++);
 
     kernel.shellSocket.emit("message", {
       parent_header: { msg_id: "execute_old", msg_type: "execute_request" },
@@ -180,7 +183,7 @@ describe("kernel launch readiness", () => {
     // says nothing about the kernel behind them serving yet.
     kernel = bareKernel();
     let restarted = 0;
-    kernel.monitor(() => restarted++, true);
+    kernel.monitor(() => restarted++);
 
     kernel.shellSocket.emit("connect");
     kernel.ioSocket.emit("connect");
@@ -240,63 +243,72 @@ describe("kernel launch readiness", () => {
     expect(Object.keys(kernel.executionCallbacks).length).toBe(1);
   });
 
-  it("gives up on a kernel that never answers and routes it into the exit path", async () => {
-    // A minute of unanswered probes used to stop in silence: the kernel hung
-    // in "loading" forever, its display name stuck in startingKernels, and
-    // every later attempt to start that spec was refused without a word.
-    spyOn(lumine.notifications, "addError");
-    const store = currentPackageRequire("./lib/store");
-    store.startingKernels.set("Python 3", true);
+  it("requires shell reply and IOPub idle from the same request and session", () => {
     kernel = bareKernel();
-    kernel.kernelSpec = { display_name: "Python 3" };
-    kernel.lifecycle = "loading";
-    kernel.killed = false;
-    kernel._kill = () => {
-      kernel.killed = true;
-    };
+    const connected = jasmine.createSpy("channels ready");
+    kernel.monitor(connected);
+    const firstId = [...kernel._readyProbeIds][0];
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    window.advanceClock(500);
 
-    try {
-      kernel.monitor(() => {});
-      // Tick by tick: one advanceClock call fires a fake interval once,
-      // however far it moves.
-      for (let tick = 0; tick < 125; tick++) {
-        window.advanceClock(500);
-      }
-      for (let turn = 0; turn < 5; turn++) await Promise.resolve();
+    kernel.ioSocket.emit("message", probeIdle(kernel));
+    const foreign = probeIdle(kernel, firstId);
+    foreign.parent_header.session = "another-client";
+    kernel.ioSocket.emit("message", foreign);
+    expect(connected).not.toHaveBeenCalled();
 
-      expect(kernel._readyProbe).toBe(null);
-      expect(kernel.killed).toBe(true);
-      expect(kernel._expectingExit).toBe(true);
-      expect(store.startingKernels.has("Python 3")).toBe(false);
-      expect(lumine.notifications.addError).toHaveBeenCalled();
-    } finally {
-      store.startingKernels.delete("Python 3");
-    }
+    kernel.ioSocket.emit("message", probeIdle(kernel, firstId));
+    expect(connected).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves a sibling's starting marker alone when a restart's probes exhaust", () => {
-    // Only a first launch ever holds a marker of its own; during a restart
-    // the display name can only belong to a same-spec kernel still starting.
-    spyOn(lumine.notifications, "addError");
-    const store = currentPackageRequire("./lib/store");
-    store.startingKernels.set("Python 3", true);
+  it("waits for stdin writability after the other channels answer", () => {
     kernel = bareKernel();
-    kernel.kernelSpec = { display_name: "Python 3" };
-    kernel.lifecycle = "restarting";
-    kernel._everReady = true;
-    kernel._kill = () => {};
+    kernel.stdinSocket.writable = false;
+    const connected = jasmine.createSpy("channels ready");
+    kernel.monitor(connected);
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
 
-    try {
-      kernel.monitor(() => {}, true);
-      for (let tick = 0; tick < 125; tick++) {
-        window.advanceClock(500);
-      }
+    kernel.stdinSocket.emit("connect");
+    window.advanceClock(500);
+    expect(connected).not.toHaveBeenCalled();
 
-      expect(kernel._readyProbe).toBe(null);
-      expect(store.startingKernels.has("Python 3")).toBe(true);
-    } finally {
-      store.startingKernels.delete("Python 3");
-    }
+    kernel.stdinSocket.writable = true;
+    window.advanceClock(500);
+    expect(connected).toHaveBeenCalledTimes(1);
+    expect(kernel.shellSocket.sent.length).toBe(1);
+  });
+
+  it("rejects an error reply to the active kernel_info request", () => {
+    kernel = bareKernel();
+    const connected = jasmine.createSpy("channels ready");
+    const fail = jasmine.createSpy("reject initialization");
+    kernel._connectionOwner().initialization = fail;
+    kernel.monitor(connected);
+    const reply = probeReply(kernel);
+    reply.content = { status: "error", ename: "KernelInfoError", evalue: "Cannot start" };
+    kernel.shellSocket.emit("message", reply);
+
+    expect(connected).not.toHaveBeenCalled();
+    expect(fail.calls.mostRecent().args[0].message).toBe("KernelInfoError: Cannot start");
+    expect(kernel._readyProbe).toBeNull();
+  });
+
+  it("rejects initialization and releases listeners when channels never answer", () => {
+    kernel = bareKernel();
+    const connected = jasmine.createSpy("channels ready");
+    const fail = jasmine.createSpy("reject initialization");
+    kernel._connectionOwner().initialization = fail;
+    kernel.monitor(connected);
+    for (let tick = 0; tick < 125; tick++) window.advanceClock(500);
+
+    expect(connected).not.toHaveBeenCalled();
+    expect(fail).toHaveBeenCalledTimes(1);
+    expect(fail.calls.mostRecent().args[0].message).toContain("shell and IOPub");
+    expect(kernel._readyProbe).toBeNull();
+    expect(kernel.ioSocket.listenerCount("message")).toBe(0);
+    expect(kernel.shellSocket.listenerCount("message")).toBe(0);
+    expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
   });
 
   it("does not stack readiness listeners across abandoned rounds", () => {
@@ -325,33 +337,19 @@ describe("kernel launch readiness", () => {
     expect(Object.keys(kernel.executionCallbacks)).toEqual([]);
   });
 
-  it("arms the ack watchdog once the kernel is ready", () => {
-    // Not in `connect`: that runs once per object, and a restart re-enters
-    // `monitor` instead. Armed there, the watchdog also spends the whole
-    // launch spinning on a kernel its own gate says is not ready yet.
+  it("arms the acknowledgment watchdog only when readiness is published", () => {
     kernel = bareKernel();
     kernel.monitor(() => {});
+    kernel.shellSocket.emit("message", probeReply(kernel));
+    kernel.ioSocket.emit("message", probeIdle(kernel));
     expect(kernel._ackWatchdog).toBeFalsy();
-
-    kernel.shellSocket.emit("message", probeReply(kernel));
-    kernel.ioSocket.emit("message", probeIdle(kernel));
-
+    expect(kernel._publishReady(false)).toBe(true);
     expect(kernel._ackWatchdog).toBeTruthy();
-  });
+    expect(kernel.lifecycle).toBe("ready");
 
-  it("arms it again after a restart", () => {
-    // The exit handler stops both timers when a process dies, and a kernel
-    // that died and was restarted used to serve cells with no watchdog at all.
-    kernel = bareKernel();
-    kernel.monitor(() => {});
-    kernel.shellSocket.emit("message", probeReply(kernel));
-    kernel.ioSocket.emit("message", probeIdle(kernel));
     kernel._stopAckWatchdog();
-
-    kernel.monitor(() => {}, true);
-    kernel.shellSocket.emit("message", probeReply(kernel));
-    kernel.ioSocket.emit("message", probeIdle(kernel));
-
+    kernel.lifecycle = "restarting";
+    expect(kernel._publishReady(true)).toBe(true);
     expect(kernel._ackWatchdog).toBeTruthy();
   });
 

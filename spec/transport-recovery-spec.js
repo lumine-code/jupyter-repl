@@ -110,6 +110,18 @@ function request(kernel, requestType, requestId, callback = () => {}, suppressSt
   kernel._sendShellMessage(message, requestId, callback, suppressStatus);
 }
 
+function stubReplacementGeneration(kernel) {
+  kernel._killProcessTree = async () => {};
+  kernel._launchFreshGeneration = async () => ({
+    config: kernel.connection,
+    connectionFile: null,
+    spawn: {},
+  });
+  kernel.monitorNotifications = () => {};
+  kernel.connect = (done) => done();
+  kernel._executeStartupCode = () => {};
+}
+
 describe("the local shell request coordinator", () => {
   let kernel;
 
@@ -422,8 +434,6 @@ describe("the local shell request coordinator", () => {
     let connected = 0;
     kernel.connect = (done) => {
       connected++;
-      kernel.setLifecycle("ready");
-      kernel.setExecutionState("idle");
       done();
     };
     let startup = 0;
@@ -538,13 +548,12 @@ describe("the local shell request coordinator", () => {
       spawn: { stdout: { on() {} }, stderr: { on() {} }, on() {} },
     });
     kernel.monitorNotifications = () => {};
-    kernel.connect = () => {};
+    const connected = deferred();
+    kernel.connect = () => connected.resolve();
 
     const first = kernel._socketRestart();
-    for (let turn = 0; turn < 8 && !kernel._restartReadyReject; turn++) {
-      await Promise.resolve();
-    }
-    kernel._rejectRestartReady(new Error("new process died"));
+    await connected.promise;
+    kernel._connectionOwner().rejectInitialization(new Error("new process died"));
 
     expect(await first).toBe(false);
     await Promise.resolve();
@@ -571,7 +580,9 @@ describe("the local shell request coordinator", () => {
     );
   });
 
-  it("quiesces the transport before restart settlements can reenter execution", () => {
+  it("quiesces the transport before restart settlements can reenter execution", async () => {
+    stubReplacementGeneration(kernel);
+    const oldSocket = kernel.shellSocket;
     const reentrant = [];
     request(kernel, "execute_request", "execute_1", () => {}, false);
     request(kernel, "complete_request", "complete_1", (message) => {
@@ -586,20 +597,21 @@ describe("the local shell request coordinator", () => {
       }
     });
 
-    kernel.invalidatePendingRequests("Kernel restarted");
+    const restarting = kernel.restart();
 
     expect(kernel.lifecycle).toBe("restarting");
-    expect(kernel.shellSocket.sent.length).toBe(1);
+    expect(oldSocket.sent.length).toBe(1);
     expect(reentrant.find((message) => message.content?.ename)?.content.ename).toBe(
       "ExecutionCancelled",
     );
     expect(kernel.executionCallbacks.execute_late).toBeUndefined();
+    expect(await restarting).toBe(true);
   });
 
   it("preserves precise restart outcomes through the public kernel facade", async () => {
     kernel.supportsComms = false;
     kernel.grammar = { name: "IPython" };
-    kernel.restart = async () => true;
+    stubReplacementGeneration(kernel);
     const facade = new Kernel(kernel);
     const active = [];
     const queued = [];
@@ -616,7 +628,7 @@ describe("the local shell request coordinator", () => {
   it("returns an unknown execution outcome through the public promise API", async () => {
     kernel.supportsComms = false;
     kernel.grammar = { name: "IPython" };
-    kernel.restart = async () => true;
+    stubReplacementGeneration(kernel);
     const facade = new Kernel(kernel);
     const api = new JupyterKernel(facade);
     const execution = api.request({ type: "execute", purpose: "user", code: "side_effect()" });
@@ -632,7 +644,7 @@ describe("the local shell request coordinator", () => {
   it("releases the watch hold when restart invalidates its execution", async () => {
     kernel.supportsComms = false;
     kernel.grammar = { name: "IPython" };
-    kernel.restart = async () => true;
+    stubReplacementGeneration(kernel);
     const facade = new Kernel(kernel);
     facade.executeWatch("value", () => {});
     expect(facade._watchExecutionDepth).toBe(1);
