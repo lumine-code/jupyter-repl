@@ -80,9 +80,8 @@ describe("jupyter-repl example picker", () => {
     expect(opened.getPath()).toBe(filePath);
     expect(opened.getText()).toBe(fs.readFileSync(filePath, "utf8"));
     expect(opened.getSaveConfirmation()).toEqual({
-      message: "Save changes to ex-matplotlib-2.py?",
-      detail:
-        "Saving will overwrite the original Jupyter example shipped with the package. Use Save As to keep a separate copy.",
+      message: "Save changes to the Jupyter example?",
+      detail: `Path: ${filePath}\n\nSaving will overwrite the original Jupyter example shipped with the package. Use Save As to keep a separate copy.`,
     });
     expect(workspace.paneForItem(opened)).toBe(targetPane);
     expect(mainPane.getActiveItem()).toBe(first);
@@ -356,9 +355,8 @@ describe("jupyter-repl example picker", () => {
 
     expect(pickers).toEqual([]);
     expect(editor.getSaveConfirmation()).toEqual({
-      message: "Save changes to ex-matplotlib-2.py?",
-      detail:
-        "Saving will overwrite the original Jupyter example shipped with the package. Use Save As to keep a separate copy.",
+      message: "Save changes to the Jupyter example?",
+      detail: `Path: ${filePath}\n\nSaving will overwrite the original Jupyter example shipped with the package. Use Save As to keep a separate copy.`,
     });
 
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "jupyter-example-copy-"));

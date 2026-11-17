@@ -21,11 +21,11 @@ try {
   Module._load = originalLoad;
 }
 
-function processOwner(t, { ready = true, ip = "127.0.0.1" } = {}) {
+function processOwner(t, { ready = true, ip = "127.0.0.1", notifyOutput = false } = {}) {
   const notifications = [];
   const previous = global.lumine;
   global.lumine = {
-    config: { get: () => false },
+    config: { get: (key) => key === "jupyter-repl.kernelNotifications" && notifyOutput },
     notifications: Object.fromEntries(
       ["addError", "addWarning", "addInfo"].map((method) => [
         method,
@@ -143,7 +143,7 @@ test("the local advisory cannot hide a genuine error in the same chunk", (t) => 
   );
   assert.equal(notifications.length, 1);
   assert.equal(notifications[0].method, "addError");
-  assert.match(notifications[0].description, /Actual startup failure/);
+  assert.match(notifications[0].detail, /Actual startup failure/);
 });
 
 test("plaintext transport warnings for a nonlocal address stay visible", (t) => {
@@ -153,6 +153,24 @@ test("plaintext transport warnings for a nonlocal address stay visible", (t) => 
     Buffer.from("[IPKernelApp] WARNING | Kernel is running over TCP without encryption.\n"),
   );
   assert.equal(notifications[0].method, "addWarning");
+});
+
+test("kernel stderr preserves literal paths and markup in details", (t) => {
+  const { child, notifications } = processOwner(t);
+  const text = String.raw`[Kernel] ERROR | C:\data\[project]\_cache_ <b>literal</b>`;
+  child.stderr.emit("data", Buffer.from(text + "\n"));
+  assert.equal(notifications[0].title, "Kernel error");
+  assert.equal(notifications[0].detail, `Kernel: Diagnostic test\n\n${text}`);
+  assert.equal(notifications[0].description, undefined);
+});
+
+test("optional stdout notifications preserve literal output in details", (t) => {
+  const { child, notifications } = processOwner(t, { notifyOutput: true });
+  const text = String.raw`C:\data\[project]\_output_ <b>literal</b>` + "\n";
+  child.stdout.emit("data", Buffer.from(text));
+  assert.equal(notifications[0].method, "addInfo");
+  assert.equal(notifications[0].detail, `Kernel: Diagnostic test\n\n${text}`);
+  assert.equal(notifications[0].description, undefined);
 });
 
 test("failed startup includes the final unterminated process diagnostic", (t) => {
@@ -171,7 +189,7 @@ test("unexpected signal exits report the retained bounded diagnostic tail", (t) 
   );
   child.emit("exit", null, "SIGTERM");
   const failure = notifications.at(-1);
-  assert.match(failure.title, /kernel process died/);
+  assert.equal(failure.title, "Kernel process died");
   assert.match(failure.detail, /SIGTERM/);
   assert.match(failure.detail, /last failure/);
   assert.match(failure.detail, /Earlier process diagnostics truncated/);
@@ -185,8 +203,6 @@ test("process exit does not discard diagnostic bytes still draining from stderr"
   child.stderr.emit("data", Buffer.from("real failure\n"));
   child.stderr.emit("end");
   assert(
-    notifications.some((notification) =>
-      notification.description?.includes("trailing real failure"),
-    ),
+    notifications.some((notification) => notification.detail?.includes("trailing real failure")),
   );
 });

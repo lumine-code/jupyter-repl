@@ -60,7 +60,7 @@ describe("Notebook kernel discovery error lifetime", () => {
       rejectDiscovery(new Error("Current kernel discovery"));
       await settle();
       expect(notifications).toHaveBeenCalledTimes(1);
-      expect(notifications.calls.mostRecent().args[1].description).toBe("Current kernel discovery");
+      expect(notifications.calls.mostRecent().args[1].detail).toBe("Current kernel discovery");
     });
   }
 });
