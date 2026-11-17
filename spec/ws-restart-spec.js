@@ -110,7 +110,18 @@ function controlledGateway() {
     session,
     { sessionManager: manager },
   );
-  return { transport, session, sessions, probes, model, manager, restart, getSession, shutdown };
+  return {
+    transport,
+    session,
+    sessions,
+    probes,
+    model,
+    manager,
+    connect,
+    restart,
+    getSession,
+    shutdown,
+  };
 }
 
 async function flushMicrotasks() {
@@ -247,6 +258,87 @@ describe("WebSocket kernel restart", () => {
     await flushMicrotasks();
     expect(transport.lifecycle).toBe("restarting");
     probes[1].reply();
+    expect(await restarted).toBe(true);
+  });
+
+  it("requires a new proof after the provisional WebSocket reconnects", async () => {
+    const restarted = transport.restart();
+    await flushMicrotasks();
+    const replacement = transport.session.kernel;
+    replacement.setConnectionStatus("connecting");
+    replacement.setConnectionStatus("connected");
+    probes[0].reply();
+    await flushMicrotasks();
+
+    expect(transport.lifecycle).toBe("restarting");
+    expect(probes.length).toBe(2);
+    expect(probes[0].dispose).toHaveBeenCalledTimes(1);
+    probes[1].reply();
+    expect(await restarted).toBe(true);
+  });
+
+  it("requires a new proof if a state observer reconnects during ready publication", async () => {
+    const subscription = transport.onDidChangeExecutionState((state) => {
+      if (state !== "idle") return;
+      subscription.dispose();
+      transport.session.kernel.setConnectionStatus("connecting");
+      transport.session.kernel.setConnectionStatus("connected");
+    });
+    const restarted = transport.restart();
+    await flushMicrotasks();
+    probes[0].reply();
+    await flushMicrotasks();
+
+    expect(transport.lifecycle).toBe("restarting");
+    expect(probes.length).toBe(2);
+    probes[1].reply();
+    expect(await restarted).toBe(true);
+  });
+
+  it("replaces one mute connected client without restarting the remote process again", async () => {
+    const reset = jasmine.createSpy("reset");
+    transport.onDidResetComms(reset);
+    const restarted = transport.restart();
+    await flushMicrotasks();
+    const first = transport.session;
+    for (let turn = 0; turn < WSKernel.MAX_PROBES_BEFORE_REATTACH; turn++) {
+      window.advanceClock(WSKernel.PROBE_TIMEOUT_MS);
+      await flushMicrotasks();
+    }
+    expect(first.dispose).toHaveBeenCalledTimes(1);
+    expect(transport.session.kernel.clientId).not.toBe(first.kernel.clientId);
+    expect(gateway.getSession).toHaveBeenCalledTimes(2);
+    expect(gateway.restart).toHaveBeenCalledTimes(1);
+    expect(reset).toHaveBeenCalledTimes(1);
+
+    probes[0].reply();
+    for (let turn = 0; turn < WSKernel.MAX_PROBES_BEFORE_REATTACH; turn++) {
+      window.advanceClock(WSKernel.PROBE_TIMEOUT_MS);
+      await flushMicrotasks();
+    }
+    expect(gateway.manager.connectTo).toHaveBeenCalledTimes(2);
+    expect(transport.lifecycle).toBe("restarting");
+    probes.at(-1).reply();
+    expect(await restarted).toBe(true);
+  });
+
+  it("does not rotate a client that is still opening its WebSocket", async () => {
+    gateway.manager.connectTo.and.callFake(() => {
+      const session = gateway.connect();
+      session.kernel.connectionStatus = "connecting";
+      return session;
+    });
+
+    const restarted = transport.restart();
+    await flushMicrotasks();
+    window.advanceClock(WSKernel.PROBE_TIMEOUT_MS * (WSKernel.MAX_PROBES_BEFORE_REATTACH + 1));
+    await flushMicrotasks();
+    expect(gateway.manager.connectTo).toHaveBeenCalledTimes(1);
+    expect(probes).toEqual([]);
+
+    transport.session.kernel.setConnectionStatus("connected");
+    await flushMicrotasks();
+    probes.at(-1).reply();
     expect(await restarted).toBe(true);
   });
 
