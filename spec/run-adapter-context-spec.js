@@ -123,6 +123,34 @@ describe("run commands capture notebook adapter controls", () => {
     expect(batch).not.toHaveBeenCalled();
   });
 
+  for (const [command, method] of [
+    ["restart-kernel", "restart"],
+    ["shutdown-kernel", "shutdownAndDestroy"],
+  ]) {
+    it(`awaits the notebook ${command} operation`, async () => {
+      const { promise, resolve } = Promise.withResolvers();
+      const paneItem = activeAdapter.getPaneItem();
+      paneItem.getPath = activeAdapter.getPath;
+      const container = lumine.workspace.getMainWindow().getEditorContainer();
+      spyOn(container, "getActivePaneItem").and.returnValue(paneItem);
+      kernel.destroy = () => {};
+      store.runningKernels.push(kernel);
+      kernel[method] = jasmine.createSpy(method).and.returnValue(promise);
+      let finished = false;
+      const operation = dispatch(`jupyter-repl:${command}`).then((results) => {
+        finished = true;
+        return results;
+      });
+
+      for (let turn = 0; turn < 5; turn++) await Promise.resolve();
+      expect(kernel[method]).toHaveBeenCalledTimes(1);
+      expect(finished).toBe(false);
+
+      resolve(true);
+      expect(await operation).toEqual([true]);
+    });
+  }
+
   it("runs the captured notebook document when a different notebook is globally active", async () => {
     const captured = adapter("captured-window");
     store.kernelMapping.set(captured.getPath(), kernel);

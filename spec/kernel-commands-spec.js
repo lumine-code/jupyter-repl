@@ -164,7 +164,10 @@ describe("kernel commands picker command", () => {
       const session = { capabilities: { disconnect: true }, disconnect: operation };
       const kernel = {
         executionState: "idle",
-        transport: { lifecycle: "ready" },
+        transport:
+          method === "disconnect"
+            ? { lifecycle: "unresponsive", ownsKernelProcess: false }
+            : { lifecycle: "ready" },
         [method]: operation,
         getPluginWrapper: () => session,
         destroy() {},
@@ -175,6 +178,14 @@ describe("kernel commands picker command", () => {
         getTitle: () => "Kernel Client",
         element: document.createElement("div"),
       });
+      if (method === "disconnect") {
+        expect(
+          lumine.commands.canDispatch(
+            lumine.workspace.getElement(),
+            "jupyter-repl:disconnect-remote-session",
+          ),
+        ).toBe(true);
+      }
       const show = spyOn(services.consumed.statusBar, "showKernelCommands");
       await lumine.commands.dispatch(
         lumine.workspace.getElement(),

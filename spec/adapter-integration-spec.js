@@ -308,6 +308,57 @@ describe("notebook adapter kernel integration", () => {
     expect(executions).toEqual([kernel, kernel]);
   });
 
+  for (const status of ["ok", "unknown"]) {
+    it(`stops the notebook batch at a generation change with a ${status} first outcome`, async () => {
+      const targets = [0, 1].map((id) => ({
+        id,
+        type: "code",
+        executable: true,
+        source: `print(${id})`,
+        editor: makeEditor(100 + id),
+      }));
+      const { adapter } = makeAdapter({ targets });
+      const kernel = fakeKernel(adapter.getMetadata().kernelspec);
+      const resets = new Emitter();
+      kernel.transport.onDidResetComms = (callback) => resets.on("reset", callback);
+      const session = require("./helpers/session").wrapSession(kernel);
+      kernel.restart = jasmine.createSpy("restart").and.callFake(async () => {
+        resets.emit("reset", "Kernel restarted");
+        return true;
+      });
+      store.kernelMapping.set(adapter.getPath(), kernel);
+      const service = serviceFor(adapter);
+      adapter.finishTargetExecution = jasmine.createSpy("finish cell").and.callFake(() => {
+        if (status === "ok")
+          void adapterIntegration.handleAdapterKernelCommand(service, "restart-kernel");
+      });
+      const submit = spyOn(result, "createResultAsync").and.callFake(async () => {
+        if (status === "unknown")
+          await adapterIntegration.handleAdapterKernelCommand(service, "restart-kernel");
+        return { status, success: status === "ok" };
+      });
+      const { promise, resolve } = Promise.withResolvers();
+
+      adapterIntegration.runAdapterTargets(
+        service,
+        {},
+        {
+          scope: "all",
+          onComplete: resolve,
+        },
+      );
+
+      const outcome = await promise;
+      expect(session.generation).toBe(1);
+      expect(kernel.restart).toHaveBeenCalledTimes(1);
+      expect(submit).toHaveBeenCalledTimes(1);
+      expect(submit.calls.mostRecent().args[1].expectedGeneration).toBe(0);
+      expect(adapter.finishTargetExecution.calls.mostRecent().args[1].status).toBe(status);
+      expect(outcome.status).toBe(status === "ok" ? "cancelled" : "unknown");
+      resets.dispose();
+    });
+  }
+
   it("runs an explicit MCP target through the same notebook output and lifecycle callbacks", async () => {
     const editor = makeEditor(103, pythonGrammar);
     const target = {

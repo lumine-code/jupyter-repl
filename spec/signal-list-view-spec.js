@@ -49,6 +49,27 @@ describe("SignalListView", () => {
     });
   }
 
+  it("offers a safe disconnect even while a remote attachment is unresponsive", async () => {
+    store.kernel.transport = { lifecycle: "unresponsive", ownsKernelProcess: false };
+    await view.selectListHost.show();
+
+    expect(view.selectList.getItems().map((item) => item.command)).toEqual([
+      "restart-kernel",
+      "shutdown-kernel",
+      "disconnect-kernel",
+    ]);
+  });
+
+  it("offers recovery for a stopped local process that can be replaced", async () => {
+    store.kernel.transport = { lifecycle: "dead", canRestart: true };
+    await view.selectListHost.show();
+
+    expect(view.selectList.getItems().map((item) => item.command)).toEqual([
+      "restart-kernel",
+      "shutdown-kernel",
+    ]);
+  });
+
   it("runs repeated kernel actions in keep-open mode", async () => {
     await view.selectListHost.show();
     await view.selectList.runAction("select-list:toggle-keep-open");

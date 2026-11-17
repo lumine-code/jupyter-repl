@@ -1,4 +1,4 @@
-const { Range } = require("lumine");
+const { Emitter, Range } = require("lumine");
 let run = require("../lib/main").run;
 let runAllInline = require("../lib/main").runAllInline;
 let result = require("../lib/result");
@@ -236,5 +236,29 @@ describe("batch inline feedback", () => {
     expect(outcome.results.map((entry) => entry.status)).toEqual(["unknown"]);
     expect(fakeKernel.executions.length).toBe(1);
     expect(resultAtRow(1).outputStore.status).toBe("error");
+  });
+
+  it("does not run the next block if the kernel restarts after the first finishes", async () => {
+    const resets = new Emitter();
+    fakeKernel.transport.onDidResetComms = (callback) => resets.on("reset", callback);
+    const session = require("./helpers/session").wrapSession(fakeKernel);
+    fakeKernel.execute = (code, callback) => {
+      fakeKernel.executions.push({ code, callback });
+      callback({ data: "ok", stream: "status" });
+      callback({ output_type: "status", execution_state: "idle" });
+      resets.emit("reset", "Kernel restarted");
+    };
+
+    const outcome = await result.createResultBatch({ editor, kernel: fakeKernel, markers }, [
+      { code: "first()", row: 0, cellType: "code" },
+      { code: "second()", row: 1, cellType: "code" },
+    ]);
+
+    expect(session.generation).toBe(1);
+    expect(outcome.status).toBe("cancelled");
+    expect(outcome.results.map((entry) => entry.status)).toEqual(["ok"]);
+    expect(fakeKernel.executions.map((entry) => entry.code)).toEqual(["first()"]);
+    expect(resultAtRow(1).outputStore.status).toBe("error");
+    resets.dispose();
   });
 });

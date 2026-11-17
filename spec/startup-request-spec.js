@@ -77,6 +77,25 @@ describe("kernel startup invocation ownership", () => {
     expect(launch).not.toHaveBeenCalled();
   });
 
+  it("settles a waiting run even when a failed launch still needs process cleanup", async () => {
+    const KernelTransport = require("../lib/kernel-transport");
+    const transport = new KernelTransport(spec, grammar);
+    const launch = Promise.withResolvers();
+    spyOn(manager, "getAllKernelSpecsForGrammar").and.resolveTo([spec]);
+    spyOn(manager, "startKernel").and.callFake(() => {
+      launch.resolve();
+      return transport;
+    });
+    const started = jasmine.createSpy("started");
+    const pending = manager.startKernelFor(grammar, editor, "failed.py", started);
+
+    await launch.promise;
+    transport.setLifecycle("unresponsive");
+    expect(await pending).toBeNull();
+    expect(started).not.toHaveBeenCalled();
+    transport.destroy();
+  });
+
   it("destroys a ready transport instead of registering it after its binding changes", () => {
     const ready = holdLaunch();
     let current = true;
