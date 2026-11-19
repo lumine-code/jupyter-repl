@@ -16,7 +16,6 @@ describe("ws-kernel-picker modal flow", () => {
   beforeEach(() => {
     spyOn(Config, "getJson").and.returnValue(GATEWAYS);
     picker = new WSKernelPicker(() => {});
-    spyOn(picker, "checkGatewayReachable").and.callFake(() => Promise.resolve());
     spyOn(picker, "fetchSpecs").and.callFake(() =>
       Promise.resolve({
         kernelspecs: { python3: { name: "python3", display_name: "Python 3" } },
