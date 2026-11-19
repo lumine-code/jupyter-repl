@@ -192,6 +192,18 @@ describe("source assistance in the addressed editor's session", () => {
     const [suggestion] = await pending;
     controller.abort();
     expect(main.provideAutocomplete().getSuggestionDetailsOnSelect(suggestion)).toBeNull();
+
+    const details = main.provideAutocomplete().getSuggestionDetailsOnSelect(suggestion, {
+      signal: new AbortController().signal,
+    });
+    await flush();
+    const inspection = second.transport.requests.at(-1);
+    expect(inspection.type).toBe("inspect_request");
+    second.transport.reply(inspection, {
+      found: true,
+      data: { "text/plain": "Panel value" },
+    });
+    expect((await details).description).toBe("Panel value");
   });
 
   it("resolves hyperclick source through the same public panel ownership lookup", async () => {
