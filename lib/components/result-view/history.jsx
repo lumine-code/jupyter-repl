@@ -8,10 +8,11 @@ const { outputFontSize } = require("./output-actions");
  * A watch's accumulated values, with a slider to scrub back through them.
  */
 class History {
-  constructor({ store }) {
+  constructor({ store, observeStore = true }) {
     this.store = store;
+    this.observeStore = observeStore;
     etch.initialize(this);
-    this.storeSubscription = this.store.onDidUpdate(() => etch.update(this));
+    this.watchStore();
 
     this.disposables = new CompositeDisposable(
       lumine.commands.add(this.element, {
@@ -81,17 +82,24 @@ class History {
     );
   }
 
-  update({ store = this.store } = {}) {
-    if (store !== this.store) {
-      this.storeSubscription.dispose();
+  watchStore() {
+    this.storeSubscription?.dispose();
+    this.storeSubscription = this.observeStore
+      ? this.store.onDidUpdate(() => etch.update(this))
+      : null;
+  }
+
+  update({ store = this.store, observeStore = this.observeStore } = {}) {
+    if (store !== this.store || observeStore !== this.observeStore) {
       this.store = store;
-      this.storeSubscription = store.onDidUpdate(() => etch.update(this));
+      this.observeStore = observeStore;
+      this.watchStore();
     }
     return etch.update(this);
   }
 
   destroy() {
-    this.storeSubscription.dispose();
+    this.storeSubscription?.dispose();
     this.disposables.dispose();
     // destroySync, not destroy: etch defers an ordinary destroy to the next
     // animation frame, and by then the caller has already torn down what owned

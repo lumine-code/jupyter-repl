@@ -25,8 +25,10 @@ class RequestTransport extends KernelTransport {
     };
   }
 
-  executeWatch(code, receive) {
-    return this.execute(code, receive);
+  executeWatch(code, receive, options) {
+    const observation = this.execute(code, receive);
+    this.requests.at(-1).options = options;
+    return observation;
   }
 
   complete(code, receive) {
@@ -150,6 +152,16 @@ describe("owned Jupyter requests", () => {
     transport.reply(transport.requests[0], "status", { execution_state: "idle" });
     expect(kernel._watchExecutionDepth).toBe(0);
     expect(kernel._inFlight.size).toBe(0);
+  });
+
+  it("forwards the background priority only for execute queries", async () => {
+    const descriptor = { type: "execute", purpose: "query", code: "value", priority: "background" };
+    expect(() => session.request({ ...descriptor, purpose: "user" })).toThrowError(TypeError);
+    expect(() => session.request({ ...descriptor, type: "inspect" })).toThrowError(TypeError);
+    const request = session.request(descriptor);
+    await Promise.resolve();
+    expect(transport.requests[0].options).toEqual({ priority: "background" });
+    request.dispose();
   });
 
   it("exposes count and duration as request state rather than output records", async () => {

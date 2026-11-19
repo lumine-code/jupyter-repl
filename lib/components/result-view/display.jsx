@@ -1,3 +1,5 @@
+/** @jsx etch.dom */
+const etch = require("@lumine-code/etch");
 const { renderOutput } = require("../output");
 const { renderOptionsForOutput } = require("../../traceback-context");
 const media = require("../output/media");
@@ -8,7 +10,12 @@ const { htmlRenderer } = require("./html");
 const { latexRenderer } = require("./latex");
 const { widgetRenderer } = require("./widget");
 const { bokehRenderer, BOKEH_LOAD, BOKEH_EXEC, PANEL_LOAD, PANEL_EXEC } = require("./bokeh");
-const { SUPPORTED_MEDIA_TYPES, VEGA_MEDIA_TYPES, isTextOutputOnly } = require("../../output-media");
+const {
+  SUPPORTED_MEDIA_TYPES,
+  VEGA_MEDIA_TYPES,
+  WIDGET_VIEW,
+  isTextOutputOnly,
+} = require("../../output-media");
 
 /**
  * Every media type this package can render, mapped to the function that renders
@@ -17,7 +24,7 @@ const { SUPPORTED_MEDIA_TYPES, VEGA_MEDIA_TYPES, isTextOutputOnly } = require(".
  * `isTextOutputOnly` ask what is supported without walking a virtual tree.
  */
 const MEDIA_RENDERERS = {
-  "application/vnd.jupyter.widget-view+json": widgetRenderer,
+  [WIDGET_VIEW]: widgetRenderer,
   [BOKEH_LOAD]: bokehRenderer(BOKEH_LOAD),
   [BOKEH_EXEC]: bokehRenderer(BOKEH_EXEC),
   [PANEL_LOAD]: bokehRenderer(PANEL_LOAD),
@@ -43,9 +50,58 @@ function renderDisplay(output, options) {
   return renderOutput(output, MEDIA_RENDERERS, { ...renderOptionsForOutput(output), ...options });
 }
 
+// Etch preserves keyed entries. Compare the fields that can change in place
+// so a growing stream updates its row without formatting older MIME bundles.
+class OutputDisplay {
+  constructor(props) {
+    this.setOutput(props);
+    this.className = props.className;
+    this.hidden = props.hidden;
+    etch.initialize(this);
+  }
+
+  setOutput({ output, maxLength }) {
+    this.output = output;
+    this.maxLength = maxLength;
+    this.text = output.text;
+    this.data = output.data;
+    this.metadata = output.metadata;
+    this.renderedOutput = renderDisplay(output);
+  }
+
+  update(props) {
+    const { output, className, hidden, maxLength } = props;
+    const contentChanged =
+      output !== this.output ||
+      maxLength !== this.maxLength ||
+      output.text !== this.text ||
+      output.data !== this.data ||
+      output.metadata !== this.metadata;
+    if (!contentChanged && className === this.className && hidden === this.hidden)
+      return Promise.resolve();
+    if (contentChanged) this.setOutput(props);
+    this.className = className;
+    this.hidden = hidden;
+    return etch.update(this);
+  }
+
+  render() {
+    return (
+      <div className={this.className} hidden={this.hidden}>
+        {this.renderedOutput}
+      </div>
+    );
+  }
+
+  destroy() {
+    return etch.destroySync(this);
+  }
+}
+
 module.exports = {
   MEDIA_RENDERERS,
   SUPPORTED_MEDIA_TYPES,
   isTextOutputOnly,
   renderDisplay,
+  OutputDisplay,
 };

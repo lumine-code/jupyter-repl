@@ -1,6 +1,6 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch");
-const { renderDisplay } = require("./display");
+const { OutputDisplay } = require("./display");
 const { renderStatus } = require("./status");
 const actions = require("./output-actions");
 const OutputScroll = require("./output-scroll");
@@ -272,7 +272,6 @@ class ResultViewComponent {
 
   render() {
     const { outputs, status } = this.store;
-    const { isPlain, position } = this.layout;
     const inlineStyle = this.inlineStyle();
 
     if (outputs.length === 0 || !this.props.showResult) {
@@ -282,6 +281,8 @@ class ResultViewComponent {
       return renderStatus(status, inlineStyle);
     }
 
+    const { isPlain, position } = this.layout;
+    const maxLength = lumine.config.get("jupyter-repl.outputMaxLength");
     const blockStyle = {
       maxWidth: `${position.editorWidth - 2 * position.charWidth}px`,
       // Responsive frames fill the available width until the user chooses a
@@ -318,7 +319,11 @@ class ResultViewComponent {
           }}
         >
           {outputs.map((output) => (
-            <div key={output._id || output.output_type}>{renderDisplay(output)}</div>
+            <OutputDisplay
+              key={output._id || output.output_type}
+              output={output}
+              maxLength={maxLength}
+            />
           ))}
         </div>
         {isPlain ? null : (

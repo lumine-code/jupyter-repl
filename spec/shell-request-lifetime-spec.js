@@ -114,6 +114,38 @@ describe("shell request lifetimes", () => {
     kernel = bareKernel();
   });
 
+  it("runs ordered work before queued background reads without preempting a sent request", async () => {
+    const callback = () => {};
+    const codes = () => kernel.shellSocket.sent.map((message) => message.content.code);
+    const complete = async () => {
+      const id = kernel.shellSocket.sent.at(-1).header.msg_id;
+      kernel.onShellMessage(replyMessage(id));
+      kernel.onIOMessage(statusMessage(id, "idle", "execute_request"));
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+
+    kernel.executeWatch("in flight", callback, { priority: "background" });
+    await Promise.resolve();
+    await Promise.resolve();
+    kernel.executeWatch("background 1", callback, { priority: "background" });
+    const cancelled = kernel.executeWatch("obsolete", callback, { priority: "background" });
+    kernel.executeWatch("ordered query", callback);
+    kernel.execute("user cell", callback);
+    kernel.executeWatch("background 2", callback, { priority: "background" });
+    expect(cancelled.cancelQueued()).toBeTrue();
+    expect(codes()).toEqual(["in flight"]);
+
+    for (let i = 0; i < 4; i++) await complete();
+    expect(codes()).toEqual([
+      "in flight",
+      "ordered query",
+      "user cell",
+      "background 1",
+      "background 2",
+    ]);
+  });
+
   describe("a request that expects a reply", () => {
     it("is retired only once both the reply and the idle have arrived", async () => {
       await kernel._sendShellMessage(

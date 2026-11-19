@@ -57,6 +57,7 @@ type SessionProvider = {
 type RequestDescriptor = {
   type: "execute" | "inspect" | "complete";
   purpose: "user" | "query";
+  priority?: "background";
   code: string;
   cursorPos?: number;
   timeoutMs?: number;
@@ -138,7 +139,7 @@ type Session = {
 
 All listed members are required. A session is a stable public handle; it exposes no transport, internal kernel, middleware chain or mutable request registry. Its opaque UUID identity remains readable after destruction. Generation identifies the connection/process lifetime that produced a request or source receipt and changes when that lifetime retires. Compare complete identities; display names and execution counts alone are not identities.
 
-`request()` returns immediately and sends on the next microtask, allowing subscriptions to observe even a synchronous answer. Both subscription methods report future changes without replaying old events. `done` resolves once for runtime failures as well as success; invalid descriptor types, purposes or source values throw a `TypeError` before any request is sent.
+`request()` returns immediately and submits work for dispatch on the next microtask, allowing subscriptions to observe even a synchronous answer. Both subscription methods report future changes without replaying old events. `done` resolves once for runtime failures as well as success; invalid descriptor types, purposes, priorities or source values throw a `TypeError` before any request is sent.
 
 An execute request settles after its shell reply and trailing IOPub idle, in either order. Its output events carry notebook-format `stream`, `execute_result`, `display_data` and `error` records, plus `clear_output` and `update_display_data` controls. Execution count and lifecycle status arrive through `onDidChange`; they are never output records. `done.outputs` is the current notebook-format bundle after stream aggregation, clears and display updates. Each observer owns its records; reducing a bundle does not mutate the incoming message or another consumer's store.
 
@@ -147,6 +148,8 @@ An execute request settles after its shell reply and trailing IOPub idle, in eit
 A complete request puts its kernel reply in `outcome.data`, including `matches`, `cursor_start` and `cursor_end` when supplied. An inspect request uses `outcome.data = { data: MimeBundle, found: boolean, ...replyFields }`. Timeouts and unavailable sessions carry empty fallback payloads: `{ matches: [] }` for complete and `{ data: {}, found: false }` for inspect. `cursorPos` selects the inspected position and defaults to the end of the submitted code.
 
 `purpose: "user"` records ordinary execution history. `purpose: "query"` is for watches and inspection helpers: it does not record execution history, allows no stdin prompt and suppresses the idle refetch loop caused by the query itself. The session-wide state and execution count still describe the shared kernel process; a request's own count and duration describe only that request. Other clients attached to the kernel also change the session state.
+
+An `execute` request with `purpose: "query"` can opt in to `priority: "background"`. Ordered work may overtake a background query while it is still queued in this client. Background queries retain their order with each other; ordered requests retain their order with each other. Use the default priority for operations that depend on their position relative to ordinary work, such as creating or closing a kernel-side session. A query already sent to the kernel is allowed to finish.
 
 User execution has no default timeout. Complete, inspect and query execution default to 10 seconds; `timeoutMs: 0` waits indefinitely. A timeout stops this caller's observation and accumulation, clears its subscriptions and timers, and releases callback references. It never interrupts already sent code.
 

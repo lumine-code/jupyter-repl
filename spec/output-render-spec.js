@@ -670,6 +670,68 @@ describe("output scroll list", () => {
     expect(list.element.querySelectorAll(".scroll-list-item").length).toBe(2);
     list.destroy();
   });
+
+  it("mounts a bounded latest page and keeps older output reachable", () => {
+    const outputs = Array.from({ length: 80 }, (_, _id) => ({
+      _id,
+      output_type: "stream",
+      name: "stdout",
+      text: `output ${_id}`,
+    }));
+    const list = new ScrollList({ outputs });
+    try {
+      const rows = () => Array.from(list.element.querySelectorAll(".scroll-list-item"));
+      expect(rows().length).toBeLessThan(outputs.length);
+      expect(rows().at(-1).textContent).toBe("output 79");
+
+      list.showOlder();
+      etch.updateSync(list);
+      const previousPage = rows().map((node) => node.textContent);
+      expect(previousPage.at(-1)).toBe("output 55");
+      outputs.push({ ...outputs.at(-1), _id: 80, text: "output 80" });
+      list.update({ outputs });
+      etch.updateSync(list);
+      expect(rows().map((node) => node.textContent)).toEqual(previousPage);
+
+      list.showLatest();
+      etch.updateSync(list);
+      expect(rows().at(-1).textContent).toBe("output 80");
+    } finally {
+      list.destroy();
+    }
+  });
+
+  it("keeps a mounted widget row attached while showing another page", () => {
+    const outputs = Array.from({ length: 80 }, (_, _id) => ({
+      _id,
+      output_type: "stream",
+      name: "stdout",
+      text: `output ${_id}`,
+    }));
+    outputs[79] = {
+      _id: 79,
+      output_type: "display_data",
+      data: {
+        "application/vnd.jupyter.widget-view+json": { model_id: "widget" },
+        "text/plain": "Widget fallback",
+      },
+    };
+    const list = new ScrollList({ outputs });
+    try {
+      const widgetRow = Array.from(list.element.querySelectorAll(".scroll-list-item")).at(-1);
+      list.showOlder();
+      etch.updateSync(list);
+      expect(list.element.contains(widgetRow)).toBeTrue();
+      expect(widgetRow.hidden).toBeTrue();
+
+      list.showLatest();
+      etch.updateSync(list);
+      expect(list.element.contains(widgetRow)).toBeTrue();
+      expect(widgetRow.hidden).toBeFalse();
+    } finally {
+      list.destroy();
+    }
+  });
 });
 
 describe("copying dock output", () => {

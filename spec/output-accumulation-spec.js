@@ -158,6 +158,48 @@ describe("stream output accumulation", () => {
     store.appendOutput({ output_type: "clear_output", wait: false });
     expect(store.outputs.map((output) => output.text)).toEqual(["second run\n"]);
   });
+
+  it("keeps interleaved dock runs separate when one defers clearing", () => {
+    const store = new OutputStore(10, 4096);
+    const first = store.startNewRun();
+    const second = store.startNewRun();
+    const append = (run, text) =>
+      store.appendOutput({ output_type: "stream", name: "stdout", text }, run);
+    append(first, "old");
+    append(second, "keep");
+    store.appendOutput({ output_type: "clear_output", wait: true }, first);
+    append(second, " me");
+    append(first, "replace");
+
+    expect(store.getRunOutputs(first).map((output) => output.text)).toEqual(["replace"]);
+    expect(store.getRunOutputs(second).map((output) => output.text)).toEqual(["keep me"]);
+  });
+
+  it("evicts old dock outputs by weight even while under the entry limit", () => {
+    const store = new OutputStore(10, 1600);
+    const append = () =>
+      store.appendOutput({ output_type: "display_data", data: { "text/plain": "x".repeat(500) } });
+    append();
+    append();
+
+    expect(store.outputs.length).toBe(1);
+    expect(store.outputs[0]._id).toBe(2);
+    expect(store.retainedBytes).toBeLessThanOrEqual(1600);
+    store.clear();
+    expect(store.retainedBytes).toBe(0);
+  });
+
+  it("releases the payload of a stream that alone exceeds the dock budget", () => {
+    const store = new OutputStore(10, 1600);
+    const append = (text) => store.appendOutput({ output_type: "stream", name: "stdout", text });
+    append("x".repeat(500));
+    append("y".repeat(500));
+    append("z".repeat(500));
+
+    expect(store.outputs.length).toBe(1);
+    expect(store.outputs[0].text).toContain("dock history size limit");
+    expect(store.retainedBytes).toBeLessThan(1600);
+  });
 });
 
 describe("notebook output normalization", () => {

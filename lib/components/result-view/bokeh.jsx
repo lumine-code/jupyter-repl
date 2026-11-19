@@ -2,15 +2,27 @@
 const etch = require("@lumine-code/etch");
 const { CompositeDisposable } = require("lumine");
 const { getInternalKernel } = require("../../plugin-api/jupyter-kernel");
-
-const BOKEH_LOAD = "application/vnd.bokehjs_load.v0+json";
-const BOKEH_EXEC = "application/vnd.bokehjs_exec.v0+json";
-const PANEL_LOAD = "application/vnd.holoviews_load.v0+json";
-const PANEL_EXEC = "application/vnd.holoviews_exec.v0+json";
+const { BOKEH_LOAD, BOKEH_EXEC, PANEL_LOAD, PANEL_EXEC } = require("../../output-media");
 const loads = new WeakMap();
 
 function text(value) {
   return typeof value === "string" ? value : Array.isArray(value) ? value.join("") : "";
+}
+
+function rememberBokehLoad(scope, mime, data, bundle) {
+  if (!scope) return;
+  const kind = mime === PANEL_LOAD ? "panel" : "bokeh";
+  const resources = loads.get(scope) || {
+    bokehBundles: new WeakSet(),
+    panelBundles: new WeakSet(),
+  };
+  const seen = resources[`${kind}Bundles`];
+  if (seen.has(bundle)) return;
+  const code = text(data) || text(bundle["application/javascript"]);
+  if (!code || code.length > 8 * 1024 * 1024) return;
+  seen.add(bundle);
+  resources[kind] = code;
+  loads.set(scope, resources);
 }
 
 function propsWithGeneration(props) {
@@ -434,12 +446,7 @@ function bokehRenderer(mime) {
     const scope = options.kernel || options.outputScope;
     const panel = mime === PANEL_LOAD || mime === PANEL_EXEC;
     if (mime === BOKEH_LOAD || mime === PANEL_LOAD) {
-      const code = text(data) || text(bundle["application/javascript"]);
-      if (scope && code && code.length <= 8 * 1024 * 1024) {
-        const current = loads.get(scope) || {};
-        current[panel ? "panel" : "bokeh"] = code;
-        loads.set(scope, current);
-      }
+      rememberBokehLoad(scope, mime, data, bundle);
       return <div className="output-resource-load" hidden={true} />;
     }
     if (!text(bundle["text/html"]) && !text(bundle["application/javascript"])) {
@@ -465,6 +472,7 @@ function bokehRenderer(mime) {
 module.exports = {
   BokehView,
   bokehRenderer,
+  rememberBokehLoad,
   isolatedBokeh,
   BOKEH_LOAD,
   BOKEH_EXEC,

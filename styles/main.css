@@ -632,6 +632,18 @@
       overflow-y: auto;
       flex-direction: column;
 
+      .scroll-list-navigation {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        padding-block: 4px;
+        background: var(--tool-panel-background-color);
+      }
+
       .scroll-list-item {
         padding: 10px 0;
 

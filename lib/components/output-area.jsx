@@ -116,9 +116,9 @@ class OutputArea {
       <div className="sidebar output-area">
         {hasOutputs ? this.renderToolbar(outputStore) : renderEmptyMessage()}
         {this.showHistory ? (
-          <History store={outputStore} />
+          <History store={outputStore} observeStore={false} />
         ) : (
-          <ScrollList outputs={outputStore.outputs} />
+          <ScrollList outputs={outputStore.outputs} source={outputStore} />
         )}
       </div>
     );

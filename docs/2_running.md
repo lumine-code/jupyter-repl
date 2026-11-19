@@ -95,6 +95,8 @@ Expand appears only while the content overflows. A dragged size applies to that 
 
 HTML frames with a percentage width, such as Dash's default inline app, use the available editor or output-panel width and follow window resizing. Dragging an inline result's grip sets its width explicitly; **Reset Result Size** restores automatic sizing. Frames with a numeric width keep that width.
 
+The output dock keeps up to 200 recent entries per kernel within a 32 MiB estimated payload budget. Its list shows 24 entries at a time with **Older**, **Newer** and **Latest** controls. Status bubbles for dock results can copy or open the corresponding output while the dock retains it.
+
 ## Console launcher
 
 Attach a standalone Jupyter console to the active kernel via its connection file. The same kernel that runs your inline code is reused, so variables and state are shared between the console and the editor.

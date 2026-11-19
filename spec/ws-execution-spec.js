@@ -95,6 +95,47 @@ describe("remote execution lifetime", () => {
     expect(seen.map((message) => message.type)).toEqual(["error", "execute_reply", "status"]);
   });
 
+  it("keeps background work local and runs it one at a time after ordered requests", async () => {
+    const { kernel, connection, callback } = setup();
+    const futures = [];
+    connection.requestExecute.and.callFake(() => {
+      const future = {};
+      futures.push(future);
+      return future;
+    });
+    const codes = () => connection.requestExecute.calls.allArgs().map(([request]) => request.code);
+    const complete = async (index) => {
+      futures[index].onReply(reply);
+      futures[index].onIOPub(idle);
+      await Promise.resolve();
+    };
+
+    kernel.executeWatch("background 1", callback, { priority: "background" });
+    const cancelled = kernel.executeWatch("obsolete", callback, { priority: "background" });
+    kernel.executeWatch("background 2", callback, { priority: "background" });
+    kernel.executeWatch("ordered query", callback);
+    kernel.execute("user cell", callback);
+    expect(cancelled.cancelQueued()).toBeTrue();
+    await Promise.resolve();
+    expect(codes()).toEqual(["ordered query", "user cell"]);
+    await complete(0);
+    expect(codes()).toEqual(["ordered query", "user cell"]);
+    await complete(1);
+    expect(codes()).toEqual(["ordered query", "user cell", "background 1"]);
+    await complete(2);
+    expect(codes()).toEqual(["ordered query", "user cell", "background 1", "background 2"]);
+  });
+
+  it("settles unsent background work on connection retirement", async () => {
+    const { kernel, connection, seen, callback } = setup();
+    kernel.executeWatch("background", callback, { priority: "background" });
+    kernel._loseKernel("Connection lost");
+    await Promise.resolve();
+    expect(connection.requestExecute).not.toHaveBeenCalled();
+    expect(seen.map((message) => message.type)).toEqual(["error", "execute_reply", "status"]);
+    expect(seen[0].content.ename).toBe("KernelUnresponsive");
+  });
+
   it("settles a synchronous request failure", () => {
     const { kernel, connection, seen, callback } = setup();
     connection.requestExecute.and.throwError("Connection disposed");

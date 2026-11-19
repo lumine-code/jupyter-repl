@@ -1,19 +1,86 @@
 /** @jsx etch.dom */
 const etch = require("@lumine-code/etch");
-const { renderDisplay } = require("./display");
+const { OutputDisplay } = require("./display");
 const { outputFontSize } = require("./output-actions");
+const { BOKEH_EXEC, PANEL_EXEC, WIDGET_VIEW } = require("../../output-media");
 const OutputScroll = require("./output-scroll");
 
-/** Every output of a run, in order, scrolled to the newest. */
+const PAGE_SIZE = 24;
+
+/** Dock history in pages, with stable output views within the current page. */
 class ScrollList {
-  constructor({ outputs }) {
+  constructor({ outputs, source }) {
     this.outputs = outputs || [];
+    this.source = source;
+    this.pageAnchor = null;
+    this.resetScroll = false;
+    this.mountedLiveOutputs = new WeakSet();
     this.outputScroll = new OutputScroll();
     etch.initialize(this);
     this.outputScroll.attach(this.element);
+    etch.getScheduler().readDocument(() => {
+      if (this.outputScroll.element) this.scrollToBottom();
+    });
+  }
+
+  pageStart() {
+    if (this.pageAnchor === null) return Math.max(0, this.outputs.length - PAGE_SIZE);
+    const index = this.outputs.findIndex((output) => (output._id ?? output) === this.pageAnchor);
+    return Math.max(0, index);
+  }
+
+  showOlder = () => this.selectPage(Math.max(0, this.pageStart() - PAGE_SIZE));
+
+  showNewer = () => {
+    const nextStart = this.pageStart() + PAGE_SIZE;
+    if (nextStart >= this.outputs.length - PAGE_SIZE) return this.showLatest();
+    return this.selectPage(nextStart);
+  };
+
+  showLatest = () => this.selectPage(null);
+
+  selectPage(start) {
+    const first = start === null ? null : this.outputs[start];
+    this.pageAnchor = first?._id ?? first ?? null;
+    this.outputScroll.following = start === null;
+    this.resetScroll = start !== null;
+    return etch.update(this);
+  }
+
+  renderRows(start, end) {
+    const rows = [];
+    const maxLength = lumine.config.get("jupyter-repl.outputMaxLength");
+    for (const [index, output] of this.outputs.entries()) {
+      const visible = index >= start && index < end;
+      if (!visible && !this.mountedLiveOutputs.has(output)) continue;
+      const data = output.data;
+      if (
+        visible &&
+        data &&
+        (data[WIDGET_VIEW] || data[BOKEH_EXEC] !== undefined || data[PANEL_EXEC] !== undefined)
+      ) {
+        // Destroying a live panel disconnects its comms. Keep views the user
+        // has already seen attached until their output leaves dock history.
+        this.mountedLiveOutputs.add(output);
+      }
+      rows.push(
+        <OutputDisplay
+          key={output._id ?? index}
+          className={visible ? "scroll-list-item" : ""}
+          hidden={!visible}
+          output={output}
+          maxLength={maxLength}
+        />,
+      );
+    }
+    return rows;
   }
 
   render() {
+    const start = this.pageStart();
+    const end = Math.min(start + PAGE_SIZE, this.outputs.length);
+    const first = this.outputs[start];
+    this.visibleStart = first?._id ?? first ?? null;
     // Etch keeps one element per component, so an empty list renders an empty
     // container rather than nothing at all.
     return (
@@ -27,25 +94,63 @@ class ScrollList {
           "data-wrap-output": String(lumine.config.get("jupyter-repl.wrapOutput") ?? true),
         }}
       >
-        {this.outputs.map((output, index) => (
-          <div className="scroll-list-item" key={output._id ?? index}>
-            {renderDisplay(output)}
+        {this.outputs.length > PAGE_SIZE || this.pageAnchor !== null ? (
+          <div className="scroll-list-navigation">
+            <button className="btn btn-xs" onClick={this.showOlder} disabled={start === 0}>
+              Older
+            </button>
+            <span>{`${start + 1}–${end} / ${this.outputs.length}`}</span>
+            <button
+              className="btn btn-xs"
+              onClick={this.showNewer}
+              disabled={end >= this.outputs.length}
+            >
+              Newer
+            </button>
+            <button
+              className="btn btn-xs"
+              onClick={this.showLatest}
+              disabled={this.pageAnchor === null}
+            >
+              Latest
+            </button>
           </div>
-        ))}
+        ) : null}
+        {this.renderRows(start, end)}
       </div>
     );
   }
 
   readAfterUpdate() {
-    this.scrollToBottom();
+    if (this.resetScroll) {
+      this.resetScroll = false;
+      this.element.scrollTop = 0;
+    } else if (this.pageAnchor === null) {
+      this.scrollToBottom();
+    }
   }
 
   scrollToBottom() {
     this.outputScroll.scrollToBottom(this.element.scrollHeight, this.element.clientHeight);
   }
 
-  update({ outputs }) {
+  update({ outputs, source }) {
     this.outputs = outputs || [];
+    if (source !== this.source || this.outputs.length === 0) {
+      this.source = source;
+      this.pageAnchor = null;
+      this.mountedLiveOutputs = new WeakSet();
+      this.outputScroll.following = true;
+    } else if (
+      this.pageAnchor === null &&
+      !this.outputScroll.following &&
+      this.visibleStart != null
+    ) {
+      // New entries should not advance the page while the user reads older
+      // content. Keep the first displayed entry if history still holds it.
+      const latest = this.outputs[Math.max(0, this.outputs.length - PAGE_SIZE)];
+      if ((latest._id ?? latest) !== this.visibleStart) this.pageAnchor = this.visibleStart;
+    }
     return etch.update(this);
   }
 

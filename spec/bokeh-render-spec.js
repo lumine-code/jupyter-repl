@@ -149,6 +149,29 @@ describe("isolated Bokeh and Panel output", () => {
     expect(vnode.props.hidden).toBeTrue();
   });
 
+  it("remembers dock resources before their rows render", () => {
+    const OutputStore = require("../lib/store/output");
+    const store = OutputStore.forDock();
+    const { session } = sessionFor();
+    const remember = captureExecution(null, session, "", 0);
+    const appendLoad = (code) => {
+      const output = { output_type: "display_data", data: { [BOKEH_LOAD]: code } };
+      remember(output);
+      store.appendOutput(output);
+    };
+    appendLoad("original runtime");
+    appendLoad("new runtime");
+    renderDisplay(store.outputs[0]);
+
+    const plot = MEDIA_RENDERERS[BOKEH_EXEC](
+      "",
+      {},
+      { "text/html": "<div>plot</div>" },
+      { kernel: session },
+    );
+    expect(plot.props.loadCode).toEqual(["new runtime"]);
+  });
+
   it("does not create comms or execute requests on an unrelated target", () => {
     const transport = { createComm: jasmine.createSpy("createComm"), getComm: () => null };
     component = new BokehView({

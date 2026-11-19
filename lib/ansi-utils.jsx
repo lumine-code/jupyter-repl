@@ -41,6 +41,7 @@ function ansiNodes(text) {
   if (!text || typeof text !== "string") {
     return [];
   }
+  if (!text.includes("\x1b")) return [text];
 
   // Output colors belong to the kernel's ANSI stream. Mapping them to syntax
   // theme colors changes yellow labels into brown and recolors diagnostics.

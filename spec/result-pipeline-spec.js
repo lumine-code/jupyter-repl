@@ -45,7 +45,7 @@ describe("the shared result pipeline", () => {
   });
 
   for (const method of ["createResult", "createResultAsync"]) {
-    it(`${method} gives inline and dock stores independent stream records`, async () => {
+    it(`${method} reads retained dock output from the inline status bubble`, async () => {
       const completion = result[method](
         { editor, markers, kernel },
         { code: "value()", row: 0, cellType: "code" },
@@ -60,9 +60,9 @@ describe("the shared result pipeline", () => {
       await Promise.resolve();
       const [view] = markers.markers.values();
 
-      expect(view.outputStore.outputs[0].text).toBe("one two three");
+      expect(view.outputStore.outputs).toEqual([]);
       expect(kernel.outputStore.outputs[0].text).toBe("one two three");
-      expect(view.outputStore.outputs[0]).not.toBe(kernel.outputStore.outputs[0]);
+      expect(view.getActionOutputs()[0]).toBe(kernel.outputStore.outputs[0]);
       expect(view.component.props.showResult).toBe(false);
       expect(kernel.setLastOutputStore).toHaveBeenCalledWith(kernel.outputStore);
       expect(messages.map((message) => message.text)).toEqual(["one ", "two ", "three"]);
@@ -107,8 +107,8 @@ describe("the shared result pipeline", () => {
       kernel.receive({ output_type: "status", execution_state: "idle" });
       await Promise.resolve();
       const [view] = markers.markers.values();
-      for (const store of [view.outputStore, kernel.outputStore]) {
-        const options = renderOptionsForOutput(store.outputs[0]);
+      for (const outputs of [view.getActionOutputs(), kernel.outputStore.outputs]) {
+        const options = renderOptionsForOutput(outputs[0]);
         expect(options.kernel).toBe(session);
         expect(
           options.resolveTracebackFrame({ filename: "<string>", line: 1, sourceLine: "value()" }),
