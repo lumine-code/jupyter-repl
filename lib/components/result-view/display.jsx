@@ -77,12 +77,11 @@ class OutputDisplay {
       output.text !== this.text ||
       output.data !== this.data ||
       output.metadata !== this.metadata;
-    if (!contentChanged && className === this.className && hidden === this.hidden)
-      return Promise.resolve();
+    if (!contentChanged && className === this.className && hidden === this.hidden) return;
     if (contentChanged) this.setOutput(props);
     this.className = className;
     this.hidden = hidden;
-    return etch.update(this);
+    etch.updateSync(this);
   }
 
   render() {
