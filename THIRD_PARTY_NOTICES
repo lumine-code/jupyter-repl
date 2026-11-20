@@ -932,8 +932,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ---
 
 Component: vega-embed
-Revision: 7.3.0
-Source: https://www.npmjs.com/package/vega-embed/v/7.3.0
+Revision: 7.4.0
+Source: https://www.npmjs.com/package/vega-embed/v/7.4.0
 Repository: http://github.com/vega/vega-embed.git
 
 Original file: LICENSE

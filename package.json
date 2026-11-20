@@ -376,7 +376,7 @@
     "globals": "^17.14.0",
     "prettier": "^3.10.1",
     "vega": "^6.4.0",
-    "vega-embed": "^7.3.0",
+    "vega-embed": "^7.4.0",
     "vega-lite": "^6.5.0"
   },
   "allowScripts": {
