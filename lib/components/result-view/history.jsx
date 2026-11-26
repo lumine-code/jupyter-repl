@@ -26,20 +26,30 @@ class History {
     this.store.setIndex(Number(event.target.value));
   };
 
+  preserveFocus = (event) => {
+    if (event.button === 0) event.preventDefault();
+  };
+
   renderSlider() {
     const { index, outputs } = this.store;
     return (
       <div className="slider">
         <div className="current-output">
-          <span
-            className="btn btn-xs icon icon-chevron-left"
+          <button
+            type="button"
+            className="btn btn-xs icon-button icon icon-chevron-left"
+            attributes={{ "aria-label": "Previous output" }}
+            onMouseDown={this.preserveFocus}
             onClick={() => this.store.decrementIndex()}
           />
           <span>
             {String(index + 1)}/{String(outputs.length)}
           </span>
-          <span
-            className="btn btn-xs icon icon-chevron-right"
+          <button
+            type="button"
+            className="btn btn-xs icon-button icon icon-chevron-right"
+            attributes={{ "aria-label": "Next output" }}
+            onMouseDown={this.preserveFocus}
             onClick={() => this.store.incrementIndex()}
           />
         </div>

@@ -75,11 +75,15 @@ class OutputArea {
       <div className="block output-area-toolbar">
         <div className="btn-group">
           <button
-            className={`btn icon icon-clock${this.showHistory ? " selected" : ""}`}
+            type="button"
+            className={`btn icon-button icon icon-clock${this.showHistory ? " selected" : ""}`}
+            attributes={{ "aria-label": "Show output history" }}
             onClick={this.setHistory}
           />
           <button
-            className={`btn icon icon-three-bars${!this.showHistory ? " selected" : ""}`}
+            type="button"
+            className={`btn icon-button icon icon-three-bars${!this.showHistory ? " selected" : ""}`}
+            attributes={{ "aria-label": "Show scrollable output" }}
             onClick={this.setScrollList}
           />
         </div>

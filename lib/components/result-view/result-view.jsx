@@ -335,14 +335,14 @@ class ResultViewComponent {
           <div className="result-actions" style={{ right: `${this.gutterRight}px` }}>
             <button
               type="button"
-              className="result-close icon icon-x"
+              className="result-close icon-button icon-button-no-scale icon icon-x"
               attributes={{ "aria-label": "Close result" }}
               onClick={this.props.destroy}
             />
             {this.showExpandButton ? (
               <button
                 type="button"
-                className={`result-expand icon icon-${this.expanded ? "fold" : "unfold"}`}
+                className={`result-expand icon-button icon icon-${this.expanded ? "fold" : "unfold"}`}
                 attributes={{
                   "aria-label": this.expanded ? "Collapse result" : "Expand result",
                   "aria-expanded": String(this.expanded),
