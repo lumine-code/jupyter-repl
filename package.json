@@ -372,7 +372,7 @@
     "@lumine-code/event-kit": "github:lumine-code/event-kit#b632bf035fcfea48a1ba8c12fb7f0fb9961b87f8",
     "esbuild": "^0.28.2",
     "eslint": "^10.15.0",
-    "eslint-config-prettier": "^10.1.8",
+    "eslint-config-prettier": "^10.1.9",
     "globals": "^17.14.0",
     "prettier": "^3.10.1",
     "vega": "^6.4.0",
