@@ -37,7 +37,7 @@ class History {
         <div className="current-output">
           <button
             type="button"
-            className="btn btn-xs icon-button icon icon-chevron-left"
+            className="btn btn-xs icon icon-chevron-left native-key-bindings"
             attributes={{ "aria-label": "Previous output" }}
             onMouseDown={this.preserveFocus}
             onClick={() => this.store.decrementIndex()}
@@ -47,7 +47,7 @@ class History {
           </span>
           <button
             type="button"
-            className="btn btn-xs icon-button icon icon-chevron-right"
+            className="btn btn-xs icon icon-chevron-right native-key-bindings"
             attributes={{ "aria-label": "Next output" }}
             onMouseDown={this.preserveFocus}
             onClick={() => this.store.incrementIndex()}

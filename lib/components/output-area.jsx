@@ -76,13 +76,13 @@ class OutputArea {
         <div className="btn-group">
           <button
             type="button"
-            className={`btn icon-button icon icon-clock${this.showHistory ? " selected" : ""}`}
+            className={`btn icon icon-clock native-key-bindings${this.showHistory ? " selected" : ""}`}
             attributes={{ "aria-label": "Show output history" }}
             onClick={this.setHistory}
           />
           <button
             type="button"
-            className={`btn icon-button icon icon-three-bars${!this.showHistory ? " selected" : ""}`}
+            className={`btn icon icon-three-bars native-key-bindings${!this.showHistory ? " selected" : ""}`}
             attributes={{ "aria-label": "Show scrollable output" }}
             onClick={this.setScrollList}
           />
